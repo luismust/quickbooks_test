@@ -26,23 +26,23 @@ const processGoogleDriveUrl = (url: string): string => {
       const match = url.match(/\/file\/d\/([^/]+)/)
       if (match) {
         fileId = match[1].split('/')[0].split('?')[0]
-        console.log('ID extraído:', fileId)
+        console.log('Extracted ID:', fileId)
       }
     }
 
     if (!fileId) {
-      console.warn('No se pudo extraer el ID del archivo:', url)
+      console.warn('Could not extract file ID:', url)
       return url
     }
 
-    // Usar una combinación de servicios para mayor compatibilidad
+    // Use a combination of services for better compatibility
     const baseUrl = `https://drive.google.com/uc?export=view&id=${fileId}`
     
-    // Usar un servicio de proxy de imágenes para evitar problemas de CORS
+    // Use an image proxy service to avoid CORS issues
     return `https://images.weserv.nl/?url=${encodeURIComponent(baseUrl)}&default=${encodeURIComponent(baseUrl)}&n=-1`
 
   } catch (error) {
-    console.error('Error procesando URL:', error)
+    console.error('Error processing URL:', error)
     return url
   }
 }
@@ -72,12 +72,12 @@ export function OptimizedImage({ src, alt, className, onError, onLoad }: Optimiz
     
     setHasError(true)
     setIsLoading(false)
-    console.warn(`Error cargando imagen: ${src}`)
+    console.warn(`Error loading image: ${src}`)
     onError?.(e)
   }
 
   const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    console.log('Imagen cargada exitosamente:', currentSrc)
+    console.log('Image loaded successfully:', currentSrc)
     setIsLoading(false)
     setHasError(false)
     onLoad?.(e)
@@ -110,10 +110,10 @@ export function OptimizedImage({ src, alt, className, onError, onLoad }: Optimiz
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/90">
           <Loader2 className="h-8 w-8 animate-spin mb-2" />
           <p className="text-sm text-muted-foreground">
-            Cargando imagen...
+            Loading image...
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {src.includes('drive.google.com') ? 'Procesando imagen de Google Drive' : 'Optimizando imagen'}
+            {src.includes('drive.google.com') ? 'Processing Google Drive image' : 'Optimizing image'}
           </p>
         </div>
       )}
@@ -122,15 +122,15 @@ export function OptimizedImage({ src, alt, className, onError, onLoad }: Optimiz
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/90 p-4">
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-2">
-              No se pudo cargar la imagen
+              Could not load image
             </p>
             <div className="text-sm text-muted-foreground mb-4">
-              Verifica que:
+              Verify that:
             </div>
             <ul className="list-disc text-sm text-muted-foreground text-left pl-4 mb-4">
-              <li>La URL sea válida</li>
-              <li>La imagen sea pública</li>
-              <li>El formato sea compatible</li>
+              <li>The URL must be valid</li>
+              <li>The image must be public</li>
+              <li>The format must be compatible</li>
             </ul>
             <Button 
               variant="outline" 

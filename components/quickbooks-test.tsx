@@ -35,10 +35,10 @@ interface Question {
 const testScreens = [
   {
     id: 1,
-    title: "Nueva Pregunta",
-    description: "Agrega una descripción para la pregunta",
+    title: "New Question",
+    description: "Add a description for the question",
     image: "",
-    question: "¿Qué acción debe realizar el usuario?",
+    question: "What action should the user perform?",
     areas: [],
     scoring: {
       correct: 1,
@@ -85,7 +85,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   const [testDescription, setTestDescription] = useState(initialTest?.description || "")
   const [testMaxScore, setTestMaxScore] = useState(initialTest?.maxScore || 100)
   const [testMinScore, setTestMinScore] = useState(initialTest?.minScore || 60)
-  const [testPassingMessage, setTestPassingMessage] = useState(initialTest?.passingMessage || "¡Felicitaciones! Has aprobado el test.")
+  const [testPassingMessage, setTestPassingMessage] = useState(initialTest?.passingMessage || "Congratulations! You have passed the test.")
   const [testFailingMessage, setTestFailingMessage] = useState(initialTest?.failingMessage || "Necesitas mejorar para aprobar el test.")
 
   const handleImageUrlChange = async (url: string) => {
@@ -147,7 +147,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
     if (clickedArea?.isCorrect) {
       setScore((prev) => prev + 1)
-      setShowFeedback({ correct: true, message: "¡Correcto! +1 punto" })
+      setShowFeedback({ correct: true, message: "Correct! +1 point" })
     } else {
       // Verificar si el click está dentro del área dibujada
       const drawnArea = customAreas[currentScreen]?.[0]
@@ -158,13 +158,13 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
         
         if (clickX >= x1 && clickX <= x2 && clickY >= y1 && clickY <= y2) {
           setScore((prev) => prev + 1)
-          setShowFeedback({ correct: true, message: "¡Correcto! +1 punto" })
+          setShowFeedback({ correct: true, message: "Correct! +1 point" })
           return
         }
       }
 
       setScore((prev) => Math.max(0, prev - 1))
-      setShowFeedback({ correct: false, message: "Incorrecto. -1 punto" })
+      setShowFeedback({ correct: false, message: "Incorrect. -1 point" })
     }
 
     setAnswered((prev) => [...prev, screens[currentScreen].id])
@@ -231,8 +231,8 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
     if (saveTest(test)) {
       toast({
-        title: "Test guardado",
-        description: "El test se ha guardado correctamente"
+        title: "Test saved",
+        description: "The test has been saved correctly"
       })
     }
   }
@@ -298,7 +298,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   }, [])
 
   const handleDeleteQuestion = (index: number) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar esta pregunta? Esta acción no se puede deshacer.')) {
+    if (window.confirm('Are you sure you want to delete this question? This action cannot be undone.')) {
       setScreens(prev => prev.filter((_, i) => i !== index))
       if (currentScreen >= index) {
         setCurrentScreen(prev => Math.max(0, prev - 1))
@@ -322,9 +322,9 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
             transition={{ delay: 0.2 }}
           >
             <div>
-              <CardTitle className="text-2xl">{testName || "Editor de Test"}</CardTitle>
+              <CardTitle className="text-2xl">{testName || "Test Editor"}</CardTitle>
               <CardDescription className="mt-1">
-                {isEditMode ? "Modo edición" : "Modo prueba"}
+                {isEditMode ? "Edit mode" : "Test mode"}
               </CardDescription>
         </div>
             <motion.div
@@ -338,12 +338,12 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 {isEditMode ? (
                   <motion.div className="flex items-center gap-2" whileHover={{ x: 5 }}>
                     <Play className="h-4 w-4" />
-                    Iniciar prueba
+                    Start test
                   </motion.div>
                 ) : (
                   <motion.div className="flex items-center gap-2" whileHover={{ x: -5 }}>
                     <Edit className="h-4 w-4" />
-                    Modo edición
+                    Edit mode
                   </motion.div>
                 )}
               </Button>
@@ -392,7 +392,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
               className="gap-2"
             >
               <Download className="h-4 w-4" />
-              Exportar JSON
+              Export JSON
             </Button>
 
             <Button 
@@ -400,7 +400,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
               className="gap-2"
             >
               <Save className="h-4 w-4" />
-              Guardar Test
+              Save Test
             </Button>
           </div>
       </CardHeader>
@@ -413,40 +413,40 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
               transition={{ duration: 0.3 }}
               className="space-y-6"
             >
-              {/* Sección de configuración */}
+              {/* Configuration section */}
               <motion.div 
                 className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
                 whileHover={{ y: -2 }}
               >
-                <h3 className="text-lg font-medium mb-4">Configuración general</h3>
+                <h3 className="text-lg font-medium mb-4">General configuration</h3>
                 <div>
                   <label htmlFor="testName" className="block text-sm font-medium mb-1">
-                    Nombre del test
+                    Test name
                   </label>
                   <Input
                     id="testName"
                     value={testName}
                     onChange={(e) => setTestName(e.target.value)}
-                    placeholder="Nombre del test"
+                    placeholder="Test name"
                   />
                 </div>
 
                 <div>
                   <label htmlFor="testDescription" className="block text-sm font-medium mb-1">
-                    Descripción
+                    Description
                   </label>
                   <Textarea
                     id="testDescription"
                     value={testDescription}
                     onChange={(e) => setTestDescription(e.target.value)}
-                    placeholder="Descripción del test"
+                    placeholder="Test description"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="maxScore" className="block text-sm font-medium mb-1">
-                      Puntuación máxima del test
+                      Maximum test score
                     </label>
                     <Input
                       id="maxScore"
@@ -457,13 +457,13 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       placeholder="100"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Puntuación total que se puede obtener en el test
+                      Total score that can be obtained in the test
                     </p>
                   </div>
 
                   <div>
                     <label htmlFor="minScore" className="block text-sm font-medium mb-1">
-                      Puntuación mínima para aprobar
+                      Minimum score to pass
                     </label>
                     <Input
                       id="minScore"
@@ -474,7 +474,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       placeholder="60"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Puntuación necesaria para considerar el test como aprobado
+                      Score needed to consider the test as passed
                     </p>
                   </div>
                 </div>
@@ -482,20 +482,20 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 <div className="space-y-4">
                   <div>
                     <label htmlFor="passingMessage" className="block text-sm font-medium mb-1">
-                      Mensaje al aprobar
+                      Passing message
                     </label>
                     <Textarea
                       id="passingMessage"
                       value={testPassingMessage}
                       onChange={(e) => setTestPassingMessage(e.target.value)}
-                      placeholder="¡Felicitaciones! Has aprobado el test."
+                      placeholder="Congratulations! You have passed the test."
                       className="h-20"
                     />
                   </div>
 
                   <div>
                     <label htmlFor="failingMessage" className="block text-sm font-medium mb-1">
-                      Mensaje al no aprobar
+                      Failing message
                     </label>
                     <Textarea
                       id="failingMessage"
@@ -508,20 +508,20 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 </div>
               </motion.div>
 
-              {/* Sección de preguntas */}
+              {/* Questions section */}
               <motion.div 
                 className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
                 whileHover={{ y: -2 }}
               >
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-medium">Pregunta {currentScreen + 1} de {screens.length}</h3>
+                  <h3 className="text-lg font-medium">Question {currentScreen + 1} of {screens.length}</h3>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleAddQuestion(defaultQuestion)}
                     >
-                      Agregar pregunta
+                      Add question
                     </Button>
                     <Button
                       variant="destructive"
@@ -529,41 +529,41 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       onClick={() => handleDeleteQuestion(currentScreen)}
                       disabled={screens.length <= 1}
                     >
-                      Eliminar pregunta
+                      Delete question
                     </Button>
                   </div>
                 </div>
 
                 <div className="space-y-6">
-                  {/* Campos básicos de la pregunta */}
+                  {/* Basic question fields */}
                   <div className="grid gap-4">
                     <div>
                       <label htmlFor="questionTitle" className="block text-sm font-medium mb-1">
-                        Título de la pregunta
+                        Question title
                       </label>
                       <Input
                         id="questionTitle"
                         value={currentTestScreen.title}
                         onChange={(e) => handleScreenUpdate(currentScreen, { title: e.target.value })}
-                        placeholder="Ej: Crear una nueva factura"
+                        placeholder="Ex: Where would you click to create a new invoice?"
                       />
                     </div>
 
                     <div>
                       <label htmlFor="questionText" className="block text-sm font-medium mb-1">
-                        Pregunta
+                        Question
                       </label>
                       <Input
                         id="questionText"
                         value={currentTestScreen.question}
                         onChange={(e) => handleScreenUpdate(currentScreen, { question: e.target.value })}
-                        placeholder="Ej: ¿Dónde harías clic para crear una nueva factura?"
+                        placeholder="Ex: ¿Dónde harías clic para crear una nueva factura?"
                       />
                     </div>
 
                     <div>
                       <label htmlFor="questionDescription" className="block text-sm font-medium mb-1">
-                        Descripción o instrucciones
+                        Description or instructions
                       </label>
                       <Textarea
                         id="questionDescription"
@@ -574,10 +574,10 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       />
                     </div>
 
-                    {/* URL de imagen movida aquí */}
+                    {/* Image URL moved here */}
                     <div className="border-t pt-4">
                       <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">
-                        URL de imagen (Google Drive)
+                        Image URL (Google Drive)
                       </label>
                       <div className="flex gap-2">
                         <Input
@@ -592,14 +592,14 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                           variant="outline"
                           size="icon"
                           onClick={() => window.open('https://drive.google.com', '_blank')}
-                          title="Abrir Google Drive"
+                          title="Open Google Drive"
                         >
                           <Link className="h-4 w-4" />
                         </Button>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 space-y-1">
-                        <p>Asegúrate de que la imagen sea pública en Google Drive</p>
-                        <p>Formatos de URL soportados:</p>
+                        <p>Make sure the image is public in Google Drive</p>
+                        <p>Supported URL formats:</p>
                         <ul className="list-disc pl-4">
                           <li>https://drive.google.com/file/d/ID_ARCHIVO/view</li>
                           <li>https://drive.google.com/open?id=ID_ARCHIVO</li>
@@ -608,13 +608,13 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                     </div>
                   </div>
 
-                  {/* Configuración de puntuación */}
+                  {/* Score configuration */}
                   <div className="border-t pt-6">
-                    <h4 className="text-sm font-medium mb-4">Puntuación de la pregunta</h4>
+                    <h4 className="text-sm font-medium mb-4">Question score</h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label htmlFor="correctPoints" className="block text-sm font-medium mb-1">
-                          Puntos al acertar
+                          Points for correct answers
                         </label>
                         <Input
                           id="correctPoints"
@@ -633,7 +633,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
                       <div>
                         <label htmlFor="incorrectPoints" className="block text-sm font-medium mb-1">
-                          Puntos que se pierden
+                          Points for incorrect answers
                         </label>
                         <Input
                           id="incorrectPoints"
@@ -652,7 +652,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
                       <div>
                         <label htmlFor="retainPoints" className="block text-sm font-medium mb-1">
-                          Puntos que se mantienen
+                          Points retained
                         </label>
                         <Input
                           id="retainPoints"
@@ -670,20 +670,20 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                      Ejemplo: Si configuras "Puntos al acertar" = 2, "Puntos que se pierden" = 1, y "Puntos que se mantienen" = 0,
-                      entonces el usuario ganará 2 puntos al acertar y perderá 1 punto al fallar.
+                      Example: If you set "Points for correct answers" = 2, "Points for incorrect answers" = 1, and "Points retained" = 0,
+                      then the user will gain 2 points for correct answers and lose 1 point for wrong answers.
                     </p>
                   </div>
 
-                  {/* Área de dibujo */}
+                  {/* Drawing area */}
                   <div className="border-t pt-6">
                     <div className="flex justify-between items-center mb-4">
-                      <h4 className="text-sm font-medium">Área correcta</h4>
+                      <h4 className="text-sm font-medium">Correct area</h4>
                       <Button
                         variant="outline"
                         onClick={() => setIsDrawingMode(!isDrawingMode)}
                       >
-                        {isDrawingMode ? "Modo selección" : "Dibujar área correcta"}
+                        {isDrawingMode ? "Selection mode" : "Draw correct area"}
                       </Button>
                     </div>
                     {currentImage && (
@@ -700,12 +700,12 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                     )}
                     {!currentImage && (
                       <div className="border rounded-md p-4 text-center text-muted-foreground">
-                        Agrega una URL de imagen para comenzar
+                        Add an image URL to start
                       </div>
                     )}
                   </div>
 
-                  {/* Navegación entre preguntas */}
+                  {/* Question navigation */}
                   <div className="flex justify-center gap-2 pt-4">
                     {screens.map((_, index) => (
                       <Button
@@ -728,7 +728,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
-              {/* Vista de prueba */}
+              {/* Test view */}
               <div className="text-center mb-8">
                 <motion.h2 
                   className="text-2xl font-bold"
@@ -748,7 +748,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 </motion.p>
               </div>
 
-              {/* Área de imagen */}
+              {/* Image area */}
               <motion.div
                 className="rounded-lg overflow-hidden border shadow-lg"
                 initial={{ scale: 0.95 }}
@@ -769,7 +769,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 )}
                 {!currentImage && isEditMode && (
                   <div className="border rounded-md p-4 text-center text-muted-foreground">
-                    Agrega una URL de imagen para comenzar
+                    Add an image URL to start
             </div>
           )}
               </motion.div>
@@ -781,16 +781,16 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
           <div className="flex justify-between w-full">
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
         <Button variant="outline" onClick={handlePrevious} disabled={currentScreen === 0}>
-          <ChevronLeft className="mr-2 h-4 w-4" /> Anterior
+          <ChevronLeft className="mr-2 h-4 w-4" /> Previous
         </Button>
             </motion.div>
 
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               {isCompleted && !isEditMode ? (
-          <Button onClick={resetTest}>Reiniciar prueba</Button>
+          <Button onClick={resetTest}>Restart test</Button>
         ) : (
                 <Button onClick={handleNext} disabled={currentScreen === screens.length - 1}>
-            Siguiente <ChevronRight className="ml-2 h-4 w-4" />
+            Next <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
         )}
             </motion.div>
@@ -798,7 +798,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
       </CardFooter>
     </Card>
 
-      {/* Feedback flotante */}
+      {/* Floating feedback */}
       <AnimatePresence>
         {showFeedback && (
           <motion.div
