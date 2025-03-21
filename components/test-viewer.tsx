@@ -92,7 +92,7 @@ export function TestViewer({ test, onFinish, onDelete }: TestViewerProps) {
       setScore((prev) => prev + scoring.correct)
       setShowFeedback({ 
         correct: true, 
-        message: `¡Correcto! +${scoring.correct} ${scoring.correct === 1 ? 'punto' : 'puntos'}` 
+        message: `Correct! +${scoring.correct} ${scoring.correct === 1 ? 'point' : 'points'}` 
       })
     } else {
       const pointsLost = Math.max(0, scoring.incorrect - scoring.retain)
@@ -100,8 +100,8 @@ export function TestViewer({ test, onFinish, onDelete }: TestViewerProps) {
       setShowFeedback({ 
         correct: false, 
         message: pointsLost > 0 
-          ? `Incorrecto. -${pointsLost} ${pointsLost === 1 ? 'punto' : 'puntos'}`
-          : "Incorrecto. Intenta de nuevo" 
+          ? `Incorrect. -${pointsLost} ${pointsLost === 1 ? 'point' : 'points'}`
+          : "Incorrect. Continue with the next question." 
       })
     }
 
@@ -158,7 +158,7 @@ export function TestViewer({ test, onFinish, onDelete }: TestViewerProps) {
         <CardContent className="space-y-6">
           <div className="text-center space-y-2">
             <h3 className="text-2xl font-bold">
-              {score} / {test.maxScore} puntos
+              {score} / {test.maxScore} points
             </h3>
             <p className="text-muted-foreground">
               {percentage}% de acierto
@@ -180,8 +180,8 @@ export function TestViewer({ test, onFinish, onDelete }: TestViewerProps) {
           <div className="p-4 rounded-lg border bg-card text-card-foreground">
             <p className="text-center">
               {hasPassedTest 
-                ? (test.passingMessage || "¡Felicitaciones! Has aprobado el test.")
-                : (test.failingMessage || `Necesitas al menos ${test.minScore} puntos para aprobar.`)}
+                ? (test.passingMessage || "Congratulations! You have passed the test.")
+                : (test.failingMessage || `You need at least ${test.minScore} points to pass the test.`)}
             </p>
           </div>
 
@@ -195,7 +195,7 @@ export function TestViewer({ test, onFinish, onDelete }: TestViewerProps) {
                 <span>Pregunta {index + 1}</span>
                 <div className="flex items-center gap-2">
                   <Badge variant={answered.includes(question.id) ? "default" : "outline"}>
-                    {answered.includes(question.id) ? "Respondida" : "Sin responder"}
+                    {answered.includes(question.id) ? "Answered" : "Not answered"}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
                     {question.scoring.correct} pts
@@ -233,14 +233,14 @@ export function TestViewer({ test, onFinish, onDelete }: TestViewerProps) {
             </div>
             <div className="flex items-center gap-2 self-end sm:self-auto">
               <span className="font-medium">
-                Puntuación: {score} / {maxScore}
+                Score: {score} / {maxScore}
               </span>
               {onDelete && (
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => {
-                    if (window.confirm('¿Estás seguro de eliminar este test?')) {
+                    if (window.confirm('Are you sure you want to delete this test?')) {
                       onDelete()
                     }
                   }}
@@ -312,8 +312,8 @@ export function TestViewer({ test, onFinish, onDelete }: TestViewerProps) {
               <Info className="h-5 w-5 flex-shrink-0 mt-0.5" />
               <div className="flex-1 text-sm">
                 {currentQuestion.areas.find((area) => area.isCorrect)?.isCorrect
-                  ? "¡Correcto! La respuesta está en el área marcada."
-                  : "Incorrecto. Intenta de nuevo o continúa con la siguiente pregunta."}
+                  ? "Correct! The answer is in the marked area."
+                  : "Incorrect. Try again or continue with the next question."}
               </div>
             </div>
           )}

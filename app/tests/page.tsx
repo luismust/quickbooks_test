@@ -15,19 +15,19 @@ export default function TestsPage() {
   const [tests, setTests, isLoading] = useLocalStorage('saved-tests', [])
 
   const handleDeleteTest = (testId: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar este test?')) {
+    if (confirm('Are you sure you want to delete this test?')) {
       setTests(tests.filter(t => t.id !== testId))
       if (selectedTest?.id === testId) {
         setSelectedTest(null)
       }
-      toast.success('Test eliminado correctamente')
+      toast.success('Test deleted successfully')
     }
   }
 
   if (isLoading) {
     return (
       <div className="container mx-auto py-8 flex justify-center">
-        <p>Cargando tests...</p>
+        <p>Loading tests...</p>
       </div>
     )
   }
@@ -42,7 +42,7 @@ export default function TestsPage() {
             className="gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            Volver a la lista
+            Back to list
           </Button>
         </div>
         <TestViewer 
@@ -64,17 +64,17 @@ export default function TestsPage() {
         animate={{ y: 0, opacity: 1 }}
         className="text-3xl font-bold mb-8"
       >
-        Tests Disponibles
+        Available Tests
       </motion.h1>
 
       {tests.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-muted-foreground">No hay tests guardados.</p>
+          <p className="text-muted-foreground">There are no saved tests.</p>
           <Button 
             className="mt-4" 
             onClick={() => window.location.href = '/create'}
           >
-            Crear nuevo test
+            Create new test
           </Button>
         </div>
       ) : (
@@ -119,13 +119,13 @@ export default function TestsPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">
-                    {test.questions.length} preguntas
+                    {test.questions.length} questions
                   </p>
                   <Button 
                     className="w-full"
                     onClick={() => setSelectedTest(test)}
                   >
-                    Comenzar Test
+                    Start Test
                   </Button>
                 </CardContent>
               </Card>
