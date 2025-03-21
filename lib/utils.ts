@@ -5,34 +5,69 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export const processGoogleDriveUrl = (url: string): string => {
+export function processGoogleDriveUrl(url: string): string {
   if (!url || !url.includes('drive.google.com')) return url
-
+  
   try {
     let fileId = ''
+    
     if (url.includes('/file/d/')) {
       const match = url.match(/\/file\/d\/([^/]+)/)
       if (match) {
         fileId = match[1].split('/')[0].split('?')[0]
       }
+    } else {
+      const match = url.match(/[-\w]{25,}(?!.*[-\w]{25,})/)
+      if (match) {
+        fileId = match[0]
+      }
     }
 
-    if (!fileId) return url
+    if (!fileId) {
+      console.warn('No se pudo extraer el ID del archivo:', url)
+      return url
+    }
 
-    const baseUrl = `https://drive.google.com/uc?export=view&id=${fileId}`
-    return `https://images.weserv.nl/?url=${encodeURIComponent(baseUrl)}&default=${encodeURIComponent(baseUrl)}&n=-1`
+    // Usar un proxy de imágenes para evitar problemas de CORS
+    return `https://images.weserv.nl/?url=${encodeURIComponent(
+      `https://drive.google.com/uc?export=view&id=${fileId}`
+    )}&default=${encodeURIComponent(
+      `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`
+    )}&n=-1`
   } catch (error) {
+    console.error('Error procesando URL:', error)
     return url
   }
 }
 
-export const downloadAndCacheImage = async (url: string): Promise<string> => {
+// Función auxiliar para validar y limpiar URLs de Google Drive
+export const validateGoogleDriveUrl = (url: string): boolean => {
+  if (!url) return false;
+  
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.hostname === 'drive.google.com' && 
+      (
+        url.includes('/file/d/') ||
+        url.includes('id=') ||
+        url.includes('/uc?') ||
+        url.includes('/view') ||
+        url.includes('/open')
+      )
+    );
+  } catch {
+    return false;
+  }
+};
+
+export async function downloadAndCacheImage(url: string): Promise<string> {
   try {
     const response = await fetch(url)
     const blob = await response.blob()
     return URL.createObjectURL(blob)
   } catch (error) {
-    console.error('Error descargando imagen:', error)
+    console.error('Error downloading image:', error)
     return url
   }
 }

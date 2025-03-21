@@ -6,46 +6,45 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { DrawingToolbar } from "./drawing-toolbar"
 import { Button } from "./ui/button"
 import { OptimizedImage } from "./ui/optimized-image"
+import type { Area } from "@/lib/test-storage"
+import { processGoogleDriveUrl, downloadAndCacheImage } from "@/lib/utils"
+import { motion, AnimatePresence } from "framer-motion"
+import { Loader2 } from "lucide-react"
 
-type Area = {
-  id: string
-  shape: "rect" | "circle" | "poly"
-  coords: number[]
-  isCorrect: boolean
-}
-
-type ImageMapProps = {
+interface ImageMapProps {
   src: string
   areas: Area[]
   onAreaClick: (areaId: string) => void
   alt: string
   className?: string
+  style?: React.CSSProperties
   isDrawingMode?: boolean
-  onDrawingComplete?: (coords: number[]) => void
   isEditMode?: boolean
-  onError?: (e: React.SyntheticEvent<HTMLImageElement>) => void
+  onDrawingComplete?: (area: Area) => void
+  onError?: () => void
   onLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void
 }
 
 type DrawingTool = "pencil" | "rectangle" | "circle" | "eraser"
 
-export function ImageMap({ 
-  src, 
-  areas, 
-  onAreaClick, 
-  alt, 
-  className,
+export function ImageMap({
+  src,
+  areas,
+  onAreaClick,
+  alt,
+  className = "",
+  style = {},
   isDrawingMode = false,
-  onDrawingComplete,
   isEditMode = false,
+  onDrawingComplete,
   onError,
   onLoad,
 }: ImageMapProps) {
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
-  const [scale, setScale] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [currentTool, setCurrentTool] = useState<DrawingTool>("pencil")
+  const imageRef = useRef<HTMLImageElement>(null)
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
+  const [isImageLoaded, setIsImageLoaded] = useState(false)
   const [isDrawing, setIsDrawing] = useState(false)
   const [startPos, setStartPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [hasDrawing, setHasDrawing] = useState(false)
@@ -55,20 +54,36 @@ export function ImageMap({
   const [imgError, setImgError] = useState(false)
   const [currentCoords, setCurrentCoords] = useState<number[]>([])
 
-  const scaleCoords = (coords: number[]): number[] => {
+  const scaleCoords = useCallback((coords: number[]) => {
+    if (!containerRef.current) return coords
+    
+    const clientWidth = containerRef.current.clientWidth || 1
+    const clientHeight = containerRef.current.clientHeight || 1
+
     if (coords.length === 4) {
       // rect: [x1, y1, x2, y2]
-      return [coords[0] * scale, coords[1] * scale, coords[2] * scale, coords[3] * scale]
+      return [
+        coords[0] * (dimensions.width / clientWidth),
+        coords[1] * (dimensions.height / clientHeight),
+        coords[2] * (dimensions.width / clientWidth),
+        coords[3] * (dimensions.height / clientHeight)
+      ]
     } else if (coords.length === 3) {
       // circle: [x, y, radius]
-      return [coords[0] * scale, coords[1] * scale, coords[2] * scale]
+      return [
+        coords[0] * (dimensions.width / clientWidth),
+        coords[1] * (dimensions.height / clientHeight),
+        coords[2] * (dimensions.width / clientWidth)
+      ]
     } else {
       // poly: [x1, y1, x2, y2, ...]
-      return coords.map((coord) => coord * scale)
+      return coords.map((coord, i) => 
+        coord * (dimensions.width / (i % 2 === 0 ? clientWidth : clientHeight))
+      )
     }
-  }
+  }, [dimensions])
 
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isDrawingMode) return
     if (!containerRef.current) return
 
@@ -89,7 +104,7 @@ export function ImageMap({
     }
 
     onAreaClick("none")
-  }
+  }, [isDrawingMode, areas, scaleCoords, onAreaClick])
 
   const initCanvas = () => {
     const canvas = canvasRef.current
@@ -104,16 +119,78 @@ export function ImageMap({
     }
   }
 
+  // Procesar la imagen cuando cambia la URL
   useEffect(() => {
-    if (canvasRef.current) {
-      const ctx = canvasRef.current.getContext("2d")
-      if (ctx) {
-        ctx.clearRect(0, 0, dimensions.width, dimensions.height)
+    const img = imageRef.current
+    if (!img) return
+
+    const loadImage = async () => {
+      try {
+        if (src.includes('drive.google.com')) {
+          const processedUrl = processGoogleDriveUrl(src)
+          const cachedUrl = await downloadAndCacheImage(processedUrl)
+          img.src = cachedUrl
+        } else {
+          img.src = src
+        }
+      } catch (error) {
+        console.error('Error loading image:', error)
+        onError?.()
       }
     }
-    setHasDrawing(false)
-    initCanvas()
-  }, [src, dimensions.width, dimensions.height])
+
+    loadImage()
+  }, [src, onError])
+
+  // Manejar la carga de la imagen
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = imageRef.current
+    const canvas = canvasRef.current
+    const container = containerRef.current
+    
+    if (!img || !canvas || !container) return
+
+    // Establecer dimensiones
+    const containerWidth = container.clientWidth
+    const scale = containerWidth / img.naturalWidth
+    const scaledHeight = img.naturalHeight * scale
+
+    setDimensions({
+      width: containerWidth,
+      height: scaledHeight
+    })
+
+    // Inicializar canvas
+    canvas.width = containerWidth
+    canvas.height = scaledHeight
+    
+    setIsImageLoaded(true)
+    onLoad?.(e)
+
+    // Dibujar áreas existentes
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      areas.forEach(area => {
+        drawArea(area, ctx, scale)
+      })
+    }
+  }, [areas, onLoad])
+
+  const drawArea = (area: Area, ctx: CanvasRenderingContext2D, scale: number) => {
+    if (typeof area.x === 'number' && typeof area.y === 'number' && 
+        typeof area.width === 'number' && typeof area.height === 'number') {
+      ctx.beginPath()
+      ctx.rect(
+        area.x * scale,
+        area.y * scale,
+        area.width * scale,
+        area.height * scale
+      )
+      ctx.strokeStyle = area.isCorrect ? '#22c55e' : '#ef4444'
+      ctx.lineWidth = 2
+      ctx.stroke()
+    }
+  }
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawingMode || !isEditMode) return // No permitir dibujo si no está en modo edición
@@ -129,8 +206,8 @@ export function ImageMap({
     setDrawnArea(null) // Limpiar área anterior
   }
 
-  const draw = useCallback((e: MouseEvent) => {
-    if (!isDrawingMode || !isEditMode) return // No permitir dibujo si no está en modo edición
+  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawingMode || !isEditMode) return
     if (!isDrawing || !canvasRef.current || !containerRef.current) return
 
     const canvas = canvasRef.current
@@ -154,12 +231,8 @@ export function ImageMap({
     ctx.fillRect(startPos.x, startPos.y, width, height)
     ctx.strokeRect(startPos.x, startPos.y, width, height)
 
-    // Mostrar dimensiones
-    ctx.fillStyle = '#000'
-    ctx.font = '12px sans-serif'
-    ctx.fillText(`${Math.abs(width)}x${Math.abs(height)}`, x + 5, y + 5)
-
-    setCurrentCoords([startPos.x, startPos.y, x, y])
+    setDrawnArea({ x1: startPos.x, y1: startPos.y, x2: x, y2: y })
+    setHasDrawing(true)
   }, [isDrawing, startPos, isDrawingMode, isEditMode])
 
   const stopDrawing = () => {
@@ -175,20 +248,31 @@ export function ImageMap({
   }
 
   const handleConfirmDrawing = () => {
-    if (drawnArea && onDrawingComplete) {
-      // Convertir coordenadas del canvas a coordenadas relativas a la imagen
-      const coords = [
-        Math.min(drawnArea.x1, drawnArea.x2) / scale,
-        Math.min(drawnArea.y1, drawnArea.y2) / scale,
-        Math.max(drawnArea.x1, drawnArea.x2) / scale,
-        Math.max(drawnArea.y1, drawnArea.y2) / scale
-      ]
-      onDrawingComplete(coords)
-      clearCanvas()
-      setHasDrawing(false)
-      setDrawnArea(null)
-    }
-  }
+    if (!drawnArea) return
+    
+    const coords = [
+      Math.round(Math.min(drawnArea.x1, drawnArea.x2)),
+      Math.round(Math.min(drawnArea.y1, drawnArea.y2)),
+      Math.round(Math.max(drawnArea.x1, drawnArea.x2)),
+      Math.round(Math.max(drawnArea.y1, drawnArea.y2))
+    ];
+
+    const newArea: Area = {
+      id: "new_area",
+      shape: "rect",
+      coords,
+      isCorrect: true,
+      x: coords[0],
+      y: coords[1],
+      width: coords[2] - coords[0],
+      height: coords[3] - coords[1]
+    };
+
+    onDrawingComplete?.(newArea);
+    clearCanvas();
+    setHasDrawing(false);
+    setDrawnArea(null);
+  };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.log('Error cargando imagen:', src)
@@ -197,68 +281,73 @@ export function ImageMap({
     setIsLoading(false)
   }
 
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.target as HTMLImageElement
-    if (containerRef.current) {
-      const containerWidth = containerRef.current.clientWidth
-      const { naturalWidth, naturalHeight } = img
-      const newScale = containerWidth / naturalWidth
-      setDimensions({
-        width: containerWidth,
-        height: naturalHeight * newScale,
-      })
-      setScale(newScale)
-    }
-    
-    if (onLoad) {
-      onLoad(e)
-    }
-  }
-
-  const handleToolChange = (tool: DrawingTool) => {
-    setCurrentTool(tool)
-    clearCanvas()
-    setDrawnArea(null)
-    setHasDrawing(false)
-  }
-
   return (
-    <div className="relative">
-      <div ref={containerRef} className="relative" style={{ height: dimensions.height }}>
-        <OptimizedImage
-          src={src}
+    <div 
+      ref={containerRef}
+      className={`relative group ${className}`} 
+      style={style}
+    >
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+      >
+        <img
+          ref={imageRef}
           alt={alt}
-          className={className}
-          onError={onError}
+          className="w-full h-auto transition-transform duration-200 group-hover:scale-[1.01]"
           onLoad={handleImageLoad}
+          onError={onError}
+          style={{ visibility: isImageLoaded ? 'visible' : 'hidden' }}
         />
-        
         <canvas
           ref={canvasRef}
-          className="absolute top-0 left-0 w-full h-full z-10"
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          style={{ cursor: isDrawingMode && isEditMode ? 'crosshair' : 'pointer' }}
-          onClick={handleClick}
+          className="absolute top-0 left-0 w-full h-full transition-all duration-200"
+          style={{
+            cursor: isDrawingMode && isEditMode ? 'crosshair' : 'pointer',
+            pointerEvents: isDrawingMode ? 'auto' : 'none'
+          }}
+          onClick={isDrawingMode ? undefined : handleClick}
+          onMouseDown={isDrawingMode ? startDrawing : undefined}
+          onMouseMove={isDrawingMode ? draw : undefined}
+          onMouseUp={isDrawingMode ? stopDrawing : undefined}
+          onMouseLeave={isDrawingMode ? stopDrawing : undefined}
         />
+      </motion.div>
 
-        {(isDrawingMode && isEditMode) && (
-          <div className="absolute top-2 left-2 z-20">
-            <DrawingToolbar
-              currentTool={currentTool}
-              onToolChange={handleToolChange}
-              onClear={clearCanvas}
-            />
-            {hasDrawing && (
-              <Button onClick={handleConfirmDrawing}>
-                {isEditMode ? "Guardar área correcta" : "Confirmar área"}
-              </Button>
-            )}
-          </div>
+      {/* Overlay de carga */}
+      <AnimatePresence>
+        {!isImageLoaded && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 flex items-center justify-center bg-background/80"
+          >
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
+
+      {/* Toolbar de dibujo con animaciones */}
+      <AnimatePresence>
+        {(isDrawingMode && isEditMode && hasDrawing) && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-2 left-2 z-20"
+          >
+            <DrawingToolbar
+              currentTool="rectangle"
+              onToolChange={() => {}}
+              onClear={clearCanvas}
+              hasDrawing={hasDrawing}
+              onConfirm={handleConfirmDrawing}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

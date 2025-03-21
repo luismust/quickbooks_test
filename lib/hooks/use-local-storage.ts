@@ -1,11 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { Test } from "../test-storage"
 
-export function useLocalStorage(key: string, initialValue: Test[]) {
-  // Usar una función de inicialización para useState
-  const [storedValue, setStoredValue] = useState<Test[]>(() => {
+export function useLocalStorage<T>(key: string, initialValue: T) {
+  const [storedValue, setStoredValue] = useState<T>(() => {
     if (typeof window === "undefined") return initialValue
     try {
       const item = window.localStorage.getItem(key)
@@ -22,7 +20,7 @@ export function useLocalStorage(key: string, initialValue: Test[]) {
     setIsLoading(false)
   }, [])
 
-  const setValue = (value: Test[] | ((val: Test[]) => Test[])) => {
+  const setValue = (value: T | ((val: T) => T)) => {
     try {
       const valueToStore = value instanceof Function ? value(storedValue) : value
       setStoredValue(valueToStore)

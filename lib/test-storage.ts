@@ -5,6 +5,10 @@ export interface Area {
   shape: "rect" | "circle" | "poly"
   coords: number[]
   isCorrect: boolean
+  x?: number
+  y?: number
+  width?: number
+  height?: number
 }
 
 export interface Question {
@@ -13,6 +17,7 @@ export interface Question {
   description: string
   question: string
   image: string
+  originalImage?: string // URL original antes de procesar
   areas: Area[]
   scoring: {
     correct: number    // Puntos al acertar
@@ -74,27 +79,43 @@ export const validateTest = (test: Test): boolean => {
   }
 }
 
-export const saveTest = (test: Test) => {
-  if (typeof window === 'undefined') return
-
-  const tests = JSON.parse(localStorage.getItem('saved-tests') || '[]')
-  
-  // Si el test ya existe, actualizarlo
-  const existingIndex = tests.findIndex((t: Test) => t.id === test.id)
-  if (existingIndex >= 0) {
-    tests[existingIndex] = test
-  } else {
-    tests.push(test)
+export const saveTest = (test: Test): boolean => {
+  try {
+    const tests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
+    const existingIndex = tests.findIndex((t: Test) => t.id === test.id);
+    
+    if (existingIndex >= 0) {
+      tests[existingIndex] = test;
+    } else {
+      tests.push(test);
+    }
+    
+    localStorage.setItem('saved-tests', JSON.stringify(tests));
+    return true;
+  } catch (error) {
+    console.error('Error saving test:', error);
+    return false;
   }
-  
-  localStorage.setItem('saved-tests', JSON.stringify(tests))
-}
+};
 
 export const loadTest = (testId: string): Test | null => {
-  if (typeof window === 'undefined') return null
+  try {
+    if (typeof window === "undefined") return null
 
-  const tests = JSON.parse(localStorage.getItem('saved-tests') || '[]')
-  return tests.find((t: Test) => t.id === testId) || null
+    const tests = JSON.parse(localStorage.getItem('saved-tests') || '[]')
+    const test = tests.find((t: Test) => t.id === testId)
+    
+    if (!test) {
+      console.log('Test no encontrado:', testId)
+      console.log('Tests disponibles:', tests)
+      return null
+    }
+
+    return test
+  } catch (error) {
+    console.error('Error cargando test:', error)
+    return null
+  }
 }
 
 export const loadTests = (): Test[] => {

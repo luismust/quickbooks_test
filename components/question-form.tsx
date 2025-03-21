@@ -6,6 +6,7 @@ import { Input } from "./ui/input"
 import { Textarea } from "./ui/textarea"
 import { Plus, Link } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
+import { processGoogleDriveUrl } from "@/lib/utils"
 
 interface QuestionFormProps {
   onAddQuestion: (question: {
@@ -24,39 +25,52 @@ interface QuestionFormProps {
 }
 
 export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
-  const [question, setQuestion] = useState("")
-  const [imageUrl, setImageUrl] = useState("")
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    question: "",
+    imageUrl: ""
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     
-    // Convertir URL de Google Drive si es necesario
-    const processedImageUrl = imageUrl.includes('drive.google.com/file/d/') 
-      ? imageUrl.replace(/\/file\/d\/(.+?)\/view.+/, '/uc?id=$1')
-      : imageUrl
-
-    const newQuestion = {
+    const newQuestion: Question = {
       id: Date.now(),
-      title,
-      description,
-      question,
-      image: processedImageUrl || "/placeholder.svg?height=600&width=800",
-      areas: []
-    }
+      title: formData.title,
+      description: formData.description,
+      question: formData.question,
+      image: processGoogleDriveUrl(formData.imageUrl) || "/placeholder.svg",
+      areas: [],
+      scoring: {
+        correct: 1,
+        incorrect: 1,
+        retain: 0
+      }
+    };
 
-    onAddQuestion(newQuestion)
-    
-    // Limpiar el formulario
-    setTitle("")
-    setDescription("")
-    setQuestion("")
-    setImageUrl("")
-  }
+    onAddQuestion(newQuestion);
+    setFormData({
+      title: "",
+      description: "",
+      question: "",
+      imageUrl: ""
+    });
+  };
 
   const handleGoogleDriveUrl = (url: string) => {
-    setImageUrl(url)
+    setFormData(prev => ({
+      ...prev,
+      imageUrl: url
+    }));
     // Aquí podrías agregar validación del formato de la URL
   }
 
@@ -73,8 +87,9 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
             </label>
             <Input
               id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
               placeholder="Ej: QuickBooks Dashboard"
               required
             />
@@ -87,7 +102,8 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
             <div className="flex gap-2">
               <Input
                 id="imageUrl"
-                value={imageUrl}
+                name="imageUrl"
+                value={formData.imageUrl}
                 onChange={(e) => handleGoogleDriveUrl(e.target.value)}
                 placeholder="https://drive.google.com/file/d/..."
                 type="url"
@@ -112,8 +128,9 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
             </label>
             <Textarea
               id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
               placeholder="Ej: Identify the correct area to create a new invoice"
               required
             />
@@ -125,8 +142,9 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
             </label>
             <Input
               id="question"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
+              name="question"
+              value={formData.question}
+              onChange={handleChange}
               placeholder="Ej: ¿Dónde harías clic para crear una nueva factura?"
               required
             />
