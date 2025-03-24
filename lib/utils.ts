@@ -119,3 +119,7 @@ export const validateImportedJson = (json: any): boolean => {
     return false
   }
 }
+
+export const generateId = (prefix: string = '') => {
+  return `${prefix}_${Math.random().toString(36).substr(2, 9)}`
+}

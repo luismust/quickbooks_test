@@ -1,59 +1,74 @@
 "use client"
 
-import { useState } from "react"
-import { cn } from "@/lib/utils"
+import { useState, useEffect } from "react"
+import { Loader2 } from "lucide-react"
+import { processGoogleDriveUrl } from "@/lib/utils"
 
 interface OptimizedImageProps {
   src: string
   alt: string
   className?: string
-  onError?: (e: React.SyntheticEvent<HTMLImageElement>) => void
-  onLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void
-  style?: React.CSSProperties
+  onLoad?: () => void
+  onError?: () => void
 }
 
-export function OptimizedImage({ 
-  src, 
-  alt, 
-  className,
-  onError,
-  onLoad,
-  style,
-  ...props 
-}: OptimizedImageProps) {
+export function OptimizedImage({ src, alt, className = "", onLoad, onError }: OptimizedImageProps) {
+  const [imageSrc, setImageSrc] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState(false)
 
-  const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    setIsLoading(false)
-    if (onLoad) onLoad(e)
-  }
+  useEffect(() => {
+    const loadImage = async () => {
+      try {
+        setIsLoading(true)
+        setError(false)
 
-  const handleError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    setIsLoading(false)
-    if (onError) onError(e)
-  }
+        if (src.includes('drive.google.com')) {
+          const processedUrl = processGoogleDriveUrl(src)
+          setImageSrc(processedUrl)
+        } else {
+          setImageSrc(src)
+        }
+      } catch (err) {
+        console.error('Error loading image:', err)
+        setError(true)
+        onError?.()
+      }
+    }
+
+    loadImage()
+  }, [src, onError])
 
   return (
-    <div className={cn(
-      "relative w-full h-full",
-      className
-    )}>
+    <div className="relative">
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      )}
+      
       <img
-        src={src}
+        src={imageSrc}
         alt={alt}
-        className={cn(
-          "w-full h-full object-contain",
-          isLoading && "animate-pulse bg-muted"
-        )}
-        onLoad={handleLoad}
-        onError={handleError}
-        style={style}
-        {...props}
+        className={className}
+        onLoad={() => {
+          setIsLoading(false)
+          onLoad?.()
+        }}
+        onError={() => {
+          setIsLoading(false)
+          setError(true)
+          onError?.()
+        }}
+        style={{ 
+          display: isLoading ? 'none' : 'block',
+          objectFit: 'contain'
+        }}
       />
 
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-destructive/10 text-destructive">
+          Error al cargar la imagen
         </div>
       )}
     </div>

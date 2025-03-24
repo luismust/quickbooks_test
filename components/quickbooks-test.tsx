@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -13,7 +13,7 @@ import { saveTest, exportTest } from "@/lib/test-storage"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { motion, AnimatePresence } from "framer-motion"
-import { processGoogleDriveUrl, downloadAndCacheImage } from "@/lib/utils"
+import { processGoogleDriveUrl, downloadAndCacheImage, generateId } from "@/lib/utils"
 import type { Area, Test } from "@/lib/test-storage" // Importar el tipo Area y Test
 import { toast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
@@ -57,9 +57,9 @@ interface QuickbooksTestProps {
 }
 
 const defaultScoring = {
-  correct: 1,
-  incorrect: 1,
-  retain: 0
+  correct: 1,    // Puntos al acertar
+  incorrect: 1,  // Puntos que se pierden al fallar
+  retain: 0      // Puntos que se mantienen al fallar
 }
 
 const defaultQuestion = {
@@ -97,7 +97,13 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   const [isDrawingMode, setIsDrawingMode] = useState(false)
   const [customImages, setCustomImages] = useState<{[key: number]: string}>({})
   const [isEditMode, setIsEditMode] = useState(initialEditMode)
-  const [customAreas, setCustomAreas] = useState<{[key: number]: Area[]}>({})
+  const [customAreas, setCustomAreas] = useState<{[key: number]: Area[]}>(() => {
+    const initial: {[key: number]: Area[]} = {}
+    screens.forEach((_, index) => {
+      initial[index] = []
+    })
+    return initial
+  })
   const [selectedTemplate, setSelectedTemplate] = useState(questionTemplates[0])
   const [testName, setTestName] = useState(initialTest?.name || "")
   const [testDescription, setTestDescription] = useState(initialTest?.description || "")
@@ -113,6 +119,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     description: "",
     type: "warning" as "warning" | "success"
   })
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   const handleImageUrlChange = async (url: string) => {
     try {
@@ -140,21 +147,41 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     setShowFeedback(null)
   }
 
-  const handleDrawingComplete = (newArea: Area) => {
-    if (!isEditMode) return
+  const handleDrawingComplete = (area: Area) => {
+    if (!screens[currentScreen]) return
 
-    setScreens((prev: Question[]) => prev.map((screen, index) => 
-      index === currentScreen 
-        ? { ...screen, areas: [...(screen.areas || []), newArea] }
-        : screen
-    ))
+    // Asegurarnos de que las coordenadas estén definidas
+    if (!area.coords || area.coords.some(coord => coord === null)) {
+      toast({
+        title: "Error",
+        description: "Las coordenadas del área no son válidas",
+        variant: "destructive",
+      })
+      return
+    }
 
-    setCustomAreas((prev: { [key: number]: Area[] }) => ({
-      ...prev,
-      [currentScreen]: [...(prev[currentScreen] || []), newArea]
-    }))
+    const newArea = {
+      ...area,
+      id: generateId(),
+      shape: "rect",
+      isCorrect: true,
+      coords: area.coords.map(coord => Math.round(coord)) // Asegurar que sean números
+    }
 
-    setIsDrawingMode(false)
+    setScreens(prev => prev.map(screen => 
+      screen.id === screens[currentScreen].id
+        ? { ...screen, areas: [...screen.areas, newArea] }
+          : screen
+      ))
+      
+      setCustomAreas(prev => ({
+        ...prev,
+      [currentScreen]: Array.isArray(prev[currentScreen]) 
+        ? [...prev[currentScreen], newArea]
+        : [newArea]
+      }))
+
+    setHasUnsavedChanges(true)
   }
 
   const handleAreaClick = (areaId: string) => {
@@ -214,10 +241,23 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     setCurrentScreen(screenIndex)
   }
 
-  const handleAddQuestion = (newQuestion: typeof screens[0]) => {
-    const newId = Date.now() + Math.random()
-    setScreens((prev: Question[]) => [...prev, { ...newQuestion, id: newId }])
-    setCurrentScreen(screens.length)
+  const handleAddQuestion = () => {
+    const newQuestion: Question = {
+      id: parseInt(generateId('q')), // Generamos un ID estable
+      title: "Nueva Pregunta",
+      description: "Agrega una descripción para la pregunta",
+      question: "¿Qué acción debe realizar el usuario?",
+      image: "",
+      areas: [],
+      scoring: {
+        correct: 1,
+        incorrect: 1,
+        retain: 0
+      }
+    }
+
+    setScreens(prev => [...prev, newQuestion])
+    setCurrentScreen(prev => prev + 1)
   }
 
   const handleTemplateChange = (templateId: string) => {
@@ -233,38 +273,51 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     }
   }
 
-  const handleSaveAndExit = async () => {
-    setIsLoading(true)
+  const handleSaveTest = async () => {
     try {
-      const test = {
-        id: initialTest?.id || Date.now().toString(),
+      setIsLoading(true)
+      
+      // Asegurarnos de que todas las preguntas tengan configuración de puntuación
+      const formattedQuestions = screens.map(question => ({
+        ...question,
+        scoring: question.scoring || defaultScoring,
+        areas: question.areas.map(area => ({
+          ...area,
+          coords: [
+            Math.round(area.x || 0),
+            Math.round(area.y || 0),
+            Math.round((area.x || 0) + (area.width || 0)),
+            Math.round((area.y || 0) + (area.height || 0))
+          ]
+        }))
+      }))
+
+      const testData = {
+        id: initialTest?.id || generateId(),
         name: testName,
         description: testDescription,
+        questions: formattedQuestions,
         maxScore: testMaxScore,
         minScore: testMinScore,
         passingMessage: testPassingMessage,
-        failingMessage: testFailingMessage,
-        questions: screens.map((screen: Question) => ({
-          ...screen,
-          image: screen.originalImage || screen.image,
-          areas: customAreas[screens.indexOf(screen)] || screen.areas,
-          scoring: screen.scoring || defaultScoring
-        }))
-      } as Test;
-
-      if (saveTest(test)) {
-        setDialogConfig({
-          title: "¡Test Guardado!",
-          description: "El test se ha guardado correctamente. ¿Deseas volver a la página principal?",
-          type: "success"
-        })
-        setShowSuccessDialog(true)
+        failingMessage: testFailingMessage
       }
+
+      await saveTest(testData)
+      
+      setDialogConfig({
+        title: "Test guardado",
+        description: "El test se ha guardado correctamente.",
+        type: "success"
+      })
+      setShowSuccessDialog(true)
+
     } catch (error) {
+      console.error('Error saving test:', error)
       toast({
         title: "Error",
-        description: "No se pudo guardar el test. Inténtalo de nuevo.",
-        variant: "destructive"
+        description: "No se pudo guardar el test",
+        variant: "destructive",
       })
     } finally {
       setIsLoading(false)
@@ -283,9 +336,9 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     ))
   }
 
-  const currentTestScreen = screens[currentScreen]
-  const currentImage = customImages[currentScreen] || currentTestScreen.image
-  const currentAreas = customAreas[currentScreen] || currentTestScreen.areas
+  const currentTestScreen = screens[currentScreen] || defaultQuestion
+  const currentAreas = currentTestScreen.areas || []
+  const currentImage = currentTestScreen.image || ""
   const progress = ((currentScreen + 1) / screens.length) * 100
   const isCompleted = answered.length === screens.length
 
@@ -347,50 +400,60 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     exit: { opacity: 0, x: 20 }
   }
 
-  const handleExportJson = async () => {
-    setIsLoading(true)
+  const handleExportTest = () => {
     try {
-      const test = {
-        id: initialTest?.id || Date.now().toString(),
-        name: testName,
-        description: testDescription,
-        maxScore: testMaxScore,
-        minScore: testMinScore,
-        passingMessage: testPassingMessage,
-        failingMessage: testFailingMessage,
-        questions: screens.map((screen: Question) => ({
-          ...screen,
-          image: screen.originalImage || screen.image,
-          areas: customAreas[screens.indexOf(screen)] || screen.areas,
-          scoring: screen.scoring || defaultScoring
+      // Asegurarnos de que todas las áreas tengan el formato correcto
+      const formattedQuestions = screens.map(question => ({
+        ...question,
+        image: question.originalImage || question.image,
+        areas: question.areas.map(area => ({
+          id: area.id,
+          shape: "rect",
+          isCorrect: true,
+          coords: [
+            Math.round(area.x!),
+            Math.round(area.y!),
+            Math.round(area.x! + area.width!),
+            Math.round(area.y! + area.height!)
+          ]
         }))
+      }))
+
+      const testData = {
+                  id: initialTest?.id || Date.now().toString(),
+        name: testName || "Test sin nombre",
+        description: testDescription || "",
+                  maxScore: testMaxScore,
+                  minScore: testMinScore,
+                  passingMessage: testPassingMessage,
+                  failingMessage: testFailingMessage,
+        questions: formattedQuestions
       }
+                
+                // Crear y descargar el archivo JSON
+      const jsonStr = JSON.stringify(testData, null, 2)
+                const blob = new Blob([jsonStr], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `${testName || 'test'}.json`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
 
-      const jsonStr = JSON.stringify(test, null, 2)
-      const blob = new Blob([jsonStr], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${testName || 'test'}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-
-      setDialogConfig({
-        title: "¡Exportación Exitosa!",
-        description: "El test se ha exportado correctamente. ¿Deseas volver a la página principal?",
-        type: "success"
+      toast({
+        title: "Éxito",
+        description: "Test exportado correctamente",
+        variant: "default",
       })
-      setShowSuccessDialog(true)
     } catch (error) {
+      console.error('Error exporting test:', error)
       toast({
         title: "Error",
-        description: "No se pudo exportar el test. Inténtalo de nuevo.",
-        variant: "destructive"
+        description: "No se pudo exportar el test",
+        variant: "destructive",
       })
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -402,6 +465,19 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     })
     setShowCancelDialog(true)
   }
+
+  // Simplificar la función para limpiar áreas
+  const handleClearAllAreas = useCallback(() => {
+    const updatedScreens = [...screens]
+    updatedScreens[currentScreen].areas = [] // Limpiar áreas del screen actual
+    setScreens(updatedScreens)
+    
+    setHasUnsavedChanges(true)
+    toast({
+      title: "Áreas limpiadas",
+      description: "Se han eliminado todas las áreas marcadas"
+    })
+  }, [currentScreen, screens])
 
   return (
     <>
@@ -433,7 +509,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                       <Button
                         variant="outline"
-                        onClick={handleExportJson}
+                        onClick={handleExportTest}
                         disabled={isLoading}
                       >
                         {isLoading ? (
@@ -444,14 +520,14 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         ) : (
                           <>
                             <Download className="mr-2 h-4 w-4" />
-                            Exportar JSON
+              Exportar JSON
                           </>
                         )}
-                      </Button>
+            </Button>
                     </motion.div>
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                      <Button
-                        onClick={handleSaveAndExit}
+            <Button 
+              onClick={handleSaveTest}
                         disabled={isLoading}
                       >
                         {isLoading ? (
@@ -465,7 +541,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                             Guardar y Salir
                           </>
                         )}
-                      </Button>
+            </Button>
                     </motion.div>
                   </>
                 )}
@@ -489,386 +565,383 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                   </Button>
                 </motion.div>
               </div>
-            </div>
-          </CardHeader>
+          </div>
+      </CardHeader>
 
-          <CardContent className="p-6">
-            {isEditMode ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                className="space-y-6"
+        <CardContent className="p-6">
+          {isEditMode ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              {/* Sección de configuración */}
+              <motion.div 
+                className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
+                whileHover={{ y: -2 }}
               >
-                {/* Sección de configuración */}
-                <motion.div 
-                  className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
-                  whileHover={{ y: -2 }}
-                >
-                  <h3 className="text-lg font-medium mb-4">Configuración general</h3>
+                <h3 className="text-lg font-medium mb-4">Configuración general</h3>
+                <div>
+                  <label htmlFor="testName" className="block text-sm font-medium mb-1">
+                    Nombre del test
+                  </label>
+                  <Input
+                    id="testName"
+                    value={testName}
+                    onChange={(e) => setTestName(e.target.value)}
+                    placeholder="Nombre del test"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="testDescription" className="block text-sm font-medium mb-1">
+                    Descripción
+                  </label>
+                  <Textarea
+                    id="testDescription"
+                    value={testDescription}
+                    onChange={(e) => setTestDescription(e.target.value)}
+                    placeholder="Descripción del test"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="testName" className="block text-sm font-medium mb-1">
-                      Nombre del test
+                    <label htmlFor="maxScore" className="block text-sm font-medium mb-1">
+                      Puntuación máxima del test
                     </label>
                     <Input
-                      id="testName"
-                      value={testName}
-                      onChange={(e) => setTestName(e.target.value)}
-                      placeholder="Nombre del test"
+                      id="maxScore"
+                      type="number"
+                      min="0"
+                      value={testMaxScore}
+                      onChange={(e) => setTestMaxScore(Number(e.target.value))}
+                      placeholder="100"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Puntuación total que se puede obtener en el test
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="minScore" className="block text-sm font-medium mb-1">
+                      Puntuación mínima para aprobar
+                    </label>
+                    <Input
+                      id="minScore"
+                      type="number"
+                      min="0"
+                      value={testMinScore}
+                      onChange={(e) => setTestMinScore(Number(e.target.value))}
+                      placeholder="60"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Puntuación necesaria para considerar el test como aprobado
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="passingMessage" className="block text-sm font-medium mb-1">
+                      Mensaje al aprobar
+                    </label>
+                    <Textarea
+                      id="passingMessage"
+                      value={testPassingMessage}
+                      onChange={(e) => setTestPassingMessage(e.target.value)}
+                      placeholder="¡Felicitaciones! Has aprobado el test."
+                      className="h-20"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="testDescription" className="block text-sm font-medium mb-1">
-                      Descripción
+                    <label htmlFor="failingMessage" className="block text-sm font-medium mb-1">
+                      Mensaje al no aprobar
                     </label>
                     <Textarea
-                      id="testDescription"
-                      value={testDescription}
-                      onChange={(e) => setTestDescription(e.target.value)}
-                      placeholder="Descripción del test"
+                      id="failingMessage"
+                      value={testFailingMessage}
+                      onChange={(e) => setTestFailingMessage(e.target.value)}
+                      placeholder="Necesitas mejorar para aprobar el test."
+                      className="h-20"
                     />
                   </div>
+                </div>
+              </motion.div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Sección de preguntas */}
+              <motion.div 
+                className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
+                whileHover={{ y: -2 }}
+              >
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-medium">Pregunta {currentScreen + 1} de {screens.length}</h3>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                        onClick={() => handleAddQuestion()}
+                    >
+                      Agregar pregunta
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteQuestion(currentScreen)}
+                      disabled={screens.length <= 1}
+                    >
+                      Eliminar pregunta
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Campos básicos de la pregunta */}
+                  <div className="grid gap-4">
                     <div>
-                      <label htmlFor="maxScore" className="block text-sm font-medium mb-1">
-                        Puntuación máxima del test
+                      <label htmlFor="questionTitle" className="block text-sm font-medium mb-1">
+                        Título de la pregunta
                       </label>
                       <Input
-                        id="maxScore"
-                        type="number"
-                        min="0"
-                        value={testMaxScore}
-                        onChange={(e) => setTestMaxScore(Number(e.target.value))}
-                        placeholder="100"
+                        id="questionTitle"
+                        value={currentTestScreen.title}
+                        onChange={(e) => handleScreenUpdate(currentScreen, { title: e.target.value })}
+                        placeholder="Ej: Crear una nueva factura"
                       />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Puntuación total que se puede obtener en el test
-                      </p>
                     </div>
 
                     <div>
-                      <label htmlFor="minScore" className="block text-sm font-medium mb-1">
-                        Puntuación mínima para aprobar
+                      <label htmlFor="questionText" className="block text-sm font-medium mb-1">
+                        Pregunta
                       </label>
                       <Input
-                        id="minScore"
-                        type="number"
-                        min="0"
-                        value={testMinScore}
-                        onChange={(e) => setTestMinScore(Number(e.target.value))}
-                        placeholder="60"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Puntuación necesaria para considerar el test como aprobado
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label htmlFor="passingMessage" className="block text-sm font-medium mb-1">
-                        Mensaje al aprobar
-                      </label>
-                      <Textarea
-                        id="passingMessage"
-                        value={testPassingMessage}
-                        onChange={(e) => setTestPassingMessage(e.target.value)}
-                        placeholder="¡Felicitaciones! Has aprobado el test."
-                        className="h-20"
+                        id="questionText"
+                        value={currentTestScreen.question}
+                        onChange={(e) => handleScreenUpdate(currentScreen, { question: e.target.value })}
+                        placeholder="Ej: ¿Dónde harías clic para crear una nueva factura?"
                       />
                     </div>
 
                     <div>
-                      <label htmlFor="failingMessage" className="block text-sm font-medium mb-1">
-                        Mensaje al no aprobar
+                      <label htmlFor="questionDescription" className="block text-sm font-medium mb-1">
+                        Descripción o instrucciones
                       </label>
                       <Textarea
-                        id="failingMessage"
-                        value={testFailingMessage}
-                        onChange={(e) => setTestFailingMessage(e.target.value)}
-                        placeholder="Necesitas mejorar para aprobar el test."
-                        className="h-20"
+                        id="questionDescription"
+                        value={currentTestScreen.description}
+                        onChange={(e) => handleScreenUpdate(currentScreen, { description: e.target.value })}
+                        placeholder="Proporciona instrucciones o contexto adicional para la pregunta"
+                        className="h-24"
                       />
                     </div>
-                  </div>
-                </motion.div>
 
-                {/* Sección de preguntas */}
-                <motion.div 
-                  className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
-                  whileHover={{ y: -2 }}
-                >
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-medium">Pregunta {currentScreen + 1} de {screens.length}</h3>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleAddQuestion(defaultQuestion)}
-                      >
-                        Agregar pregunta
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDeleteQuestion(currentScreen)}
-                        disabled={screens.length <= 1}
-                      >
-                        Eliminar pregunta
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    {/* Campos básicos de la pregunta */}
-                    <div className="grid gap-4">
-                      <div>
-                        <label htmlFor="questionTitle" className="block text-sm font-medium mb-1">
-                          Título de la pregunta
-                        </label>
+                    {/* URL de imagen movida aquí */}
+                    <div className="border-t pt-4">
+                      <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">
+                        URL de imagen (Google Drive)
+                      </label>
+                      <div className="flex gap-2">
                         <Input
-                          id="questionTitle"
-                          value={currentTestScreen.title}
-                          onChange={(e) => handleScreenUpdate(currentScreen, { title: e.target.value })}
-                          placeholder="Ej: Crear una nueva factura"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="questionText" className="block text-sm font-medium mb-1">
-                          Pregunta
-                        </label>
-                        <Input
-                          id="questionText"
-                          value={currentTestScreen.question}
-                          onChange={(e) => handleScreenUpdate(currentScreen, { question: e.target.value })}
-                          placeholder="Ej: ¿Dónde harías clic para crear una nueva factura?"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="questionDescription" className="block text-sm font-medium mb-1">
-                          Descripción o instrucciones
-                        </label>
-                        <Textarea
-                          id="questionDescription"
-                          value={currentTestScreen.description}
-                          onChange={(e) => handleScreenUpdate(currentScreen, { description: e.target.value })}
-                          placeholder="Proporciona instrucciones o contexto adicional para la pregunta"
-                          className="h-24"
-                        />
-                      </div>
-
-                      {/* URL de imagen movida aquí */}
-                      <div className="border-t pt-4">
-                        <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">
-                          URL de imagen (Google Drive)
-                        </label>
-                        <div className="flex gap-2">
-                          <Input
-                            id="imageUrl"
-                            placeholder="https://drive.google.com/file/d/..."
+                          id="imageUrl"
+                          placeholder="https://drive.google.com/file/d/..."
                             value={currentTestScreen.image || ''}
-                            onChange={(e) => handleImageUrlChange(e.target.value)}
-                            type="url"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => window.open('https://drive.google.com', '_blank')}
-                            title="Abrir Google Drive"
-                          >
-                            <Link className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1 space-y-1">
-                          <p>Asegúrate de que la imagen sea pública en Google Drive</p>
-                          <p>Formatos de URL soportados:</p>
-                          <ul className="list-disc pl-4">
-                            <li>https://drive.google.com/file/d/ID_ARCHIVO/view</li>
-                            <li>https://drive.google.com/open?id=ID_ARCHIVO</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Configuración de puntuación */}
-                    <div className="border-t pt-6">
-                      <h4 className="text-sm font-medium mb-4">Puntuación de la pregunta</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label htmlFor="correctPoints" className="block text-sm font-medium mb-1">
-                            Puntos al acertar
-                          </label>
-                          <Input
-                            id="correctPoints"
-                            type="number"
-                            min="0"
-                            value={currentTestScreen.scoring?.correct ?? defaultScoring.correct}
-                            onChange={(e) => handleScreenUpdate(currentScreen, {
-                              scoring: {
-                                ...currentTestScreen.scoring ?? defaultScoring,
-                                correct: Number(e.target.value)
-                              }
-                            })}
-                            placeholder="1"
-                          />
-                        </div>
-
-                        <div>
-                          <label htmlFor="incorrectPoints" className="block text-sm font-medium mb-1">
-                            Puntos que se pierden
-                          </label>
-                          <Input
-                            id="incorrectPoints"
-                            type="number"
-                            min="0"
-                            value={currentTestScreen.scoring?.incorrect ?? defaultScoring.incorrect}
-                            onChange={(e) => handleScreenUpdate(currentScreen, {
-                              scoring: {
-                                ...currentTestScreen.scoring ?? defaultScoring,
-                                incorrect: Number(e.target.value)
-                              }
-                            })}
-                            placeholder="1"
-                          />
-                        </div>
-
-                        <div>
-                          <label htmlFor="retainPoints" className="block text-sm font-medium mb-1">
-                            Puntos que se mantienen
-                          </label>
-                          <Input
-                            id="retainPoints"
-                            type="number"
-                            min="0"
-                            value={currentTestScreen.scoring?.retain ?? defaultScoring.retain}
-                            onChange={(e) => handleScreenUpdate(currentScreen, {
-                              scoring: {
-                                ...currentTestScreen.scoring ?? defaultScoring,
-                                retain: Number(e.target.value)
-                              }
-                            })}
-                            placeholder="0"
-                          />
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Ejemplo: Si configuras "Puntos al acertar" = 2, "Puntos que se pierden" = 1, y "Puntos que se mantienen" = 0,
-                        entonces el usuario ganará 2 puntos al acertar y perderá 1 punto al fallar.
-                      </p>
-                    </div>
-
-                    {/* Área de dibujo */}
-                    <div className="border-t pt-6">
-                      <div className="flex justify-between items-center mb-4">
-                        <h4 className="text-sm font-medium">Área correcta</h4>
+                          onChange={(e) => handleImageUrlChange(e.target.value)}
+                          type="url"
+                        />
                         <Button
+                          type="button"
                           variant="outline"
-                          onClick={() => setIsDrawingMode(!isDrawingMode)}
+                          size="icon"
+                          onClick={() => window.open('https://drive.google.com', '_blank')}
+                          title="Abrir Google Drive"
                         >
-                          {isDrawingMode ? "Modo selección" : "Dibujar área correcta"}
+                          <Link className="h-4 w-4" />
                         </Button>
                       </div>
-                      {currentImage && (
+                      <div className="text-xs text-muted-foreground mt-1 space-y-1">
+                        <p>Asegúrate de que la imagen sea pública en Google Drive</p>
+                        <p>Formatos de URL soportados:</p>
+                        <ul className="list-disc pl-4">
+                          <li>https://drive.google.com/file/d/ID_ARCHIVO/view</li>
+                          <li>https://drive.google.com/open?id=ID_ARCHIVO</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Configuración de puntuación */}
+                  <div className="border-t pt-6">
+                    <h4 className="text-sm font-medium mb-4">Puntuación de la pregunta</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label htmlFor="correctPoints" className="block text-sm font-medium mb-1">
+                          Puntos al acertar
+                        </label>
+                        <Input
+                          id="correctPoints"
+                          type="number"
+                          min="0"
+                          value={currentTestScreen.scoring?.correct ?? defaultScoring.correct}
+                          onChange={(e) => handleScreenUpdate(currentScreen, {
+                            scoring: {
+                              ...currentTestScreen.scoring ?? defaultScoring,
+                              correct: Number(e.target.value)
+                            }
+                          })}
+                          placeholder="1"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="incorrectPoints" className="block text-sm font-medium mb-1">
+                          Puntos que se pierden
+                        </label>
+                        <Input
+                          id="incorrectPoints"
+                          type="number"
+                          min="0"
+                          value={currentTestScreen.scoring?.incorrect ?? defaultScoring.incorrect}
+                          onChange={(e) => handleScreenUpdate(currentScreen, {
+                            scoring: {
+                              ...currentTestScreen.scoring ?? defaultScoring,
+                              incorrect: Number(e.target.value)
+                            }
+                          })}
+                          placeholder="1"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="retainPoints" className="block text-sm font-medium mb-1">
+                          Puntos que se mantienen
+                        </label>
+                        <Input
+                          id="retainPoints"
+                          type="number"
+                          min="0"
+                          value={currentTestScreen.scoring?.retain ?? defaultScoring.retain}
+                          onChange={(e) => handleScreenUpdate(currentScreen, {
+                            scoring: {
+                              ...currentTestScreen.scoring ?? defaultScoring,
+                              retain: Number(e.target.value)
+                            }
+                          })}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Ejemplo: Si configuras "Puntos al acertar" = 2, "Puntos que se pierden" = 1, y "Puntos que se mantienen" = 0,
+                      entonces el usuario ganará 2 puntos al acertar y perderá 1 punto al fallar.
+                    </p>
+                  </div>
+
+                  {/* Área de dibujo */}
+                  <div className="border-t pt-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-sm font-medium">Área correcta</h4>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsDrawingMode(!isDrawingMode)}
+                      >
+                        {isDrawingMode ? "Modo selección" : "Dibujar área correcta"}
+                      </Button>
+                    </div>
+                    {currentImage && (
                         <div className="relative">
-                          <ImageMap
+          <ImageMap
                             key={`${currentScreen}-${isDrawingMode}`}
-                            src={currentTestScreen.image}
-                            areas={currentAreas}
-                            onAreaClick={handleAreaClick}
-                            alt={`Screenshot of ${currentTestScreen.title}`}
-                            className="w-full h-auto border rounded-md"
-                            isDrawingMode={isDrawingMode}
-                            isEditMode={isEditMode}
+                            src={currentImage}
+                        areas={currentAreas}
+            onAreaClick={handleAreaClick}
+            alt={`Screenshot of ${currentTestScreen.title}`}
+            className="w-full h-auto border rounded-md"
+                        isDrawingMode={isDrawingMode}
+                        isEditMode={isEditMode}
                             onDrawingComplete={handleDrawingComplete}
-                            onError={() => {
-                              toast({
-                                title: "Error",
-                                description: "No se pudo cargar la imagen",
-                                variant: "destructive"
-                              })
-                            }}
+                            onClearAllAreas={handleClearAllAreas}
+                            hasMarkedAreas={currentAreas.length > 0}
                           />
                         </div>
-                      )}
-                      {!currentImage && (
-                        <div className="border rounded-md p-4 text-center text-muted-foreground">
-                          Agrega una URL de imagen para comenzar
-                        </div>
-                      )}
-                    </div>
+                    )}
+                    {!currentImage && (
+                      <div className="border rounded-md p-4 text-center text-muted-foreground">
+                        Agrega una URL de imagen para comenzar
+                      </div>
+                    )}
+                  </div>
 
-                    {/* Navegación entre preguntas */}
-                    <div className="flex justify-center gap-2 pt-4">
-                      {screens.map((_, index) => (
+                  {/* Navegación entre preguntas */}
+                  <div className="flex justify-center gap-2 pt-4">
+                    {screens.map((_, index) => (
                         <motion.div
-                          key={index}
+                        key={index}
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                         >
                           <Button
-                            variant={currentScreen === index ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setCurrentScreen(index)}
+                        variant={currentScreen === index ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentScreen(index)}
                             className="w-8 h-8 p-0"
-                          >
-                            {index + 1}
-                          </Button>
+                      >
+                        {index + 1}
+                      </Button>
                         </motion.div>
-                      ))}
-                    </div>
+                    ))}
                   </div>
-                </motion.div>
-              </motion.div>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-6"
-              >
-                {/* Vista de prueba */}
-                <div className="text-center mb-8">
-                  <motion.h2 
-                    className="text-2xl font-bold"
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                  >
-                    {currentTestScreen.question}
-                  </motion.h2>
-                  <motion.p 
-                    className="text-muted-foreground mt-2"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    {currentTestScreen.description}
-                  </motion.p>
                 </div>
-
-                {/* Área de imagen */}
-                <motion.div
-                  className="rounded-lg overflow-hidden border shadow-lg"
-                  initial={{ scale: 0.95 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.4 }}
+              </motion.div>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              {/* Vista de prueba */}
+              <div className="text-center mb-8">
+                <motion.h2 
+                  className="text-2xl font-bold"
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
                 >
-                  {currentImage && (
+                  {currentTestScreen.question}
+                </motion.h2>
+                <motion.p 
+                  className="text-muted-foreground mt-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  {currentTestScreen.description}
+                </motion.p>
+              </div>
+
+              {/* Área de imagen */}
+              <motion.div
+                className="rounded-lg overflow-hidden border shadow-lg"
+                initial={{ scale: 0.95 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                {currentImage && (
                     <div className="relative">
-                      <ImageMap
+                  <ImageMap
                         key={`${currentScreen}-${isDrawingMode}`}
-                        src={currentTestScreen.image}
-                        areas={currentAreas}
-                        onAreaClick={handleAreaClick}
-                        alt={`Screenshot of ${currentTestScreen.title}`}
-                        className="w-full h-auto border rounded-md"
-                        isDrawingMode={isDrawingMode}
-                        isEditMode={isEditMode}
+                        src={currentImage}
+                    areas={currentAreas}
+                    onAreaClick={handleAreaClick}
+                    alt={`Screenshot of ${currentTestScreen.title}`}
+                    className="w-full h-auto border rounded-md"
+                    isDrawingMode={isDrawingMode}
+                    isEditMode={isEditMode}
                         onDrawingComplete={handleDrawingComplete}
+                        onClearAllAreas={handleClearAllAreas}
+                        hasMarkedAreas={currentAreas.length > 0}
                         onError={() => {
                           toast({
                             title: "Error",
@@ -878,16 +951,16 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         }}
                       />
                     </div>
-                  )}
-                  {!currentImage && isEditMode && (
-                    <div className="border rounded-md p-4 text-center text-muted-foreground">
-                      Agrega una URL de imagen para comenzar
-                    </div>
-                  )}
-                </motion.div>
+                )}
+                {!currentImage && isEditMode && (
+                  <div className="border rounded-md p-4 text-center text-muted-foreground">
+                    Agrega una URL de imagen para comenzar
+            </div>
+          )}
               </motion.div>
-            )}
-          </CardContent>
+            </motion.div>
+          )}
+      </CardContent>
 
           {/* Agregar indicador de progreso */}
           <div className="px-6 pb-4">
@@ -898,48 +971,48 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
             <Progress value={((currentScreen + 1) / screens.length) * 100} />
           </div>
 
-          <CardFooter className="border-t p-6 bg-card">
-            <div className="flex justify-between w-full">
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button variant="outline" onClick={handlePrevious} disabled={currentScreen === 0}>
-                  <ChevronLeft className="mr-2 h-4 w-4" /> Anterior
-                </Button>
-              </motion.div>
-
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                {isCompleted && !isEditMode ? (
-                  <Button onClick={resetTest}>Reiniciar prueba</Button>
-                ) : (
-                  <Button onClick={handleNext} disabled={currentScreen === screens.length - 1}>
-                    Siguiente <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-                )}
-              </motion.div>
-            </div>
-          </CardFooter>
-        </Card>
-
-        {/* Feedback flotante */}
-        <AnimatePresence>
-          {showFeedback && (
-            <motion.div
-              initial={{ opacity: 0, y: -50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="fixed top-4 right-4 z-50"
-            >
-              <div className={`
-                px-6 py-3 rounded-lg shadow-lg
-                ${showFeedback.correct 
-                  ? "bg-green-500 text-white" 
-                  : "bg-red-500 text-white"}
-              `}>
-                {showFeedback.message}
-              </div>
+        <CardFooter className="border-t p-6 bg-card">
+          <div className="flex justify-between w-full">
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+        <Button variant="outline" onClick={handlePrevious} disabled={currentScreen === 0}>
+          <ChevronLeft className="mr-2 h-4 w-4" /> Anterior
+        </Button>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              {isCompleted && !isEditMode ? (
+          <Button onClick={resetTest}>Reiniciar prueba</Button>
+        ) : (
+                <Button onClick={handleNext} disabled={currentScreen === screens.length - 1}>
+            Siguiente <ChevronRight className="ml-2 h-4 w-4" />
+          </Button>
+        )}
+            </motion.div>
+          </div>
+      </CardFooter>
+    </Card>
+
+      {/* Feedback flotante */}
+      <AnimatePresence>
+        {showFeedback && (
+          <motion.div
+              initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+              className="fixed top-4 right-4 z-50"
+          >
+            <div className={`
+                px-6 py-3 rounded-lg shadow-lg
+              ${showFeedback.correct 
+                ? "bg-green-500 text-white" 
+                : "bg-red-500 text-white"}
+            `}>
+              {showFeedback.message}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
 
       {/* Diálogo de confirmación para cancelar */}
       <ConfirmationDialog
