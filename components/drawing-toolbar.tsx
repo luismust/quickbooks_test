@@ -1,54 +1,103 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Pencil, Square, Circle, Eraser } from "lucide-react"
-
-type DrawingTool = "pencil" | "rectangle" | "circle" | "eraser"
+import { Save, X, Check, Trash2, Undo, Eraser } from "lucide-react"
 
 interface DrawingToolbarProps {
-  currentTool: DrawingTool
-  onToolChange: (tool: DrawingTool) => void
   onClear: () => void
+  hasDrawing: boolean
+  onConfirm: () => void
+  isDrawingMode?: boolean
+  onUndo?: () => void
+  onDelete?: () => void
+  canUndo?: boolean
+  showSaveButton?: boolean
+  hasUnsavedChanges?: boolean
+  onSave?: () => void
+  isPendingSave?: boolean
+  onClearAllAreas?: () => void
+  hasMarkedAreas?: boolean
 }
 
-export function DrawingToolbar({ currentTool, onToolChange, onClear }: DrawingToolbarProps) {
+export function DrawingToolbar({
+  onClear,
+  hasDrawing,
+  onConfirm,
+  onUndo,
+  canUndo,
+  showSaveButton,
+  hasUnsavedChanges,
+  onSave,
+  isPendingSave,
+  onClearAllAreas,
+  hasMarkedAreas
+}: DrawingToolbarProps) {
   return (
-    <div className="flex gap-2 mb-4 p-2 bg-muted rounded-md">
+    <div className="flex items-center gap-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-2 rounded-lg shadow-lg border">
       <Button
-        variant={currentTool === "pencil" ? "default" : "outline"}
+        variant="destructive"
         size="icon"
-        onClick={() => onToolChange("pencil")}
-        title="Lápiz"
+        onClick={() => {
+          console.log('Clearing marked areas...'); // For debugging
+          onClearAllAreas?.();
+        }}
+        disabled={!hasMarkedAreas}
+        title="Clear all marked areas"
+        className="hover:bg-red-600 relative group"
       >
-        <Pencil className="h-4 w-4" />
+        <Eraser className="h-5 w-5" />
+        <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black/75 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+          Clear all marked areas
+        </span>
       </Button>
+
+      <div className="w-px h-6 bg-border" />
+
+      {canUndo && (
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onUndo}
+          disabled={!canUndo}
+          title="Undo"
+        >
+          <Undo className="h-4 w-4" />
+        </Button>
+      )}
+
       <Button
-        variant={currentTool === "rectangle" ? "default" : "outline"}
+        variant="destructive"
         size="icon"
-        onClick={() => onToolChange("rectangle")}
-        title="Rectángulo"
+        onClick={onClear}
+        disabled={!hasDrawing}
+        title="Clear current area"
+        className="hover:bg-red-600"
       >
-        <Square className="h-4 w-4" />
+        <Trash2 className="h-4 w-4" />
       </Button>
-      <Button
-        variant={currentTool === "circle" ? "default" : "outline"}
-        size="icon"
-        onClick={() => onToolChange("circle")}
-        title="Círculo"
-      >
-        <Circle className="h-4 w-4" />
-      </Button>
-      <Button
-        variant={currentTool === "eraser" ? "default" : "outline"}
-        size="icon"
-        onClick={() => onToolChange("eraser")}
-        title="Borrador"
-      >
-        <Eraser className="h-4 w-4" />
-      </Button>
-      <Button variant="destructive" size="sm" onClick={onClear}>
-        Limpiar
-      </Button>
+
+      {hasDrawing && (
+        <Button
+          variant="default"
+          size="icon"
+          onClick={onConfirm}
+          title="Confirm area"
+        >
+          <Check className="h-4 w-4" />
+        </Button>
+      )}
+
+      {showSaveButton && hasUnsavedChanges && (
+        <Button
+          variant="default"
+          size="icon"
+          onClick={onSave}
+          disabled={isPendingSave}
+          title="Save changes"
+        >
+          <Save className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   )
 } 

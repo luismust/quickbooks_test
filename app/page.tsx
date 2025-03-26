@@ -29,7 +29,7 @@ export default function Home() {
       }
 
       saveTest(testData)
-      toast.success("Test loaded successfully")
+      toast.success("Test successfully loaded")
     } catch (error) {
       toast.error("Error loading test: Ensure the file is a valid JSON")
       console.error("Error loading test:", error)

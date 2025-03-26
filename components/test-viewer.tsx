@@ -1,366 +1,362 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, Info } from "lucide-react"
-import { ImageMap } from "@/components/image-map"
-import { motion, AnimatePresence } from "framer-motion"
-import type { Test } from "@/lib/test-storage"
-import { processGoogleDriveUrl, downloadAndCacheImage } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
+import { ImageMap } from "./image-map"
+import { TrueOrFalse } from "./true_or_false"
+import { MultipleChoice } from "./multiple-choice-editor"
+import { PointAPoint } from "./point_a_point"
+import { motion, AnimatePresence } from "framer-motion"
+import { ChevronLeft, ChevronRight } from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
+import { ResultsDialog } from "./results-dialog"
+
+interface Question {
+  id: number
+  type: 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 'pointAPoint' | 'openQuestion' | 'identifyErrors' | 'phraseComplete' | 'trueOrFalse'
+  title: string
+  description: string
+  question: string
+  image?: string
+  areas?: Area[]
+  points?: {
+    id: string
+    text: string
+    type: 'left' | 'right'
+    correctMatch?: string
+  }[]
+  options?: {
+    id: string
+    text: string
+    isCorrect: boolean
+  }[]
+  correctAnswer?: boolean
+  scoring: {
+    correct: number
+    incorrect: number
+    retain: number
+  }
+}
+
+interface Connection {
+  start: string
+  end: string
+}
 
 interface TestViewerProps {
-  test: Test
-  onFinish?: () => void
-  onDelete?: () => void
+  test: {
+    id: string
+    name: string
+    description?: string
+    questions: Question[]
+    maxScore: number
+    minScore: number
+    passingMessage: string
+    failingMessage: string
+  }
 }
 
-const defaultScoring = {
-  correct: 1,    // Por defecto, gana 1 punto al acertar
-  incorrect: 1,  // Pierde 1 punto al fallar
-  retain: 0      // No mantiene puntos al fallar
-}
-
-export function TestViewer({ test, onFinish, onDelete }: TestViewerProps) {
-  const [currentScreen, setCurrentScreen] = useState(0)
+export function TestViewer({ test }: TestViewerProps) {
+  const [currentQuestion, setCurrentQuestion] = useState(0)
   const [score, setScore] = useState(0)
   const [answered, setAnswered] = useState<number[]>([])
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null)
-  const [imageError, setImageError] = useState(false)
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
-  const [processedImages, setProcessedImages] = useState<{[key: string]: string}>({})
-  const [cachedImages, setCachedImages] = useState<{[key: string]: string}>({})
-  const [maxScore, setMaxScore] = useState(0)
   const [showResults, setShowResults] = useState(false)
+  const [userAnswers, setUserAnswers] = useState<{[key: number]: boolean}>({})
+  const [testCompleted, setTestCompleted] = useState(false)
+  const [connections, setConnections] = useState<{[key: number]: Connection[]}>({})
 
-  const currentQuestion = test.questions[currentScreen]
-  const progress = (currentScreen / test.questions.length) * 100
-  const isCompleted = answered.length === test.questions.length
+  const handleAnswer = (isCorrect: boolean, questionId: number, connection?: Connection) => {
+    if (answered.includes(questionId) || testCompleted) return
 
-  useEffect(() => {
-    const loadImages = async () => {
-      const processed = {} as {[key: string]: string}
-      const cached = {} as {[key: string]: string}
+    const question = test.questions[currentQuestion]
+    const points = isCorrect ? question.scoring.correct : -question.scoring.incorrect
 
-      for (const question of test.questions) {
-        if (question.image.includes('drive.google.com')) {
-          const processedUrl = processGoogleDriveUrl(question.image)
-          processed[question.id] = processedUrl
-          // Descargar y cachear la imagen
-          cached[question.id] = await downloadAndCacheImage(processedUrl)
-        }
-      }
-      
-      setProcessedImages(processed)
-      setCachedImages(cached)
+    setScore(prev => Math.max(0, prev + points))
+    
+    if (connection) {
+      setConnections(prev => ({
+        ...prev,
+        [questionId]: [
+          ...(prev[questionId] || []).filter(conn => 
+            conn.start !== connection.start && 
+            conn.end !== connection.end
+          ),
+          connection
+        ]
+      }))
     }
 
-    loadImages()
+    setAnswered(prev => [...prev, questionId])
+    setUserAnswers(prev => ({ ...prev, [questionId]: isCorrect }))
+    
+    setShowFeedback({
+      correct: isCorrect,
+      message: isCorrect 
+        ? `¡Correcto! +${question.scoring.correct} puntos` 
+        : `Incorrecto. -${question.scoring.incorrect} puntos`
+    })
 
-    // Limpiar las URLs de objeto al desmontar
-    return () => {
-      Object.values(cachedImages).forEach(url => {
-        if (url.startsWith('blob:')) {
-          URL.revokeObjectURL(url)
-        }
-      })
-    }
-  }, [test])
-
-  useEffect(() => {
-    // Calcular puntuación máxima al cargar el test
-    const total = test.questions.reduce((sum, question) => 
-      sum + (question.scoring?.correct ?? 1), 0)
-    setMaxScore(total)
-  }, [test])
-
-  const getCurrentImage = () => {
-    const question = test.questions[currentScreen]
-    if (!question.image) return ''
-    return cachedImages[question.id] || processedImages[question.id] || question.image
+    setTimeout(() => {
+      setShowFeedback(null)
+    }, 2000)
   }
 
-  const handleAreaClick = (areaId: string) => {
-    if (answered.includes(currentQuestion.id)) return
-
-    const clickedArea = currentQuestion.areas.find((area) => area.id === areaId)
-    const scoring = currentQuestion.scoring ?? defaultScoring
-
-    if (clickedArea?.isCorrect) {
-      setScore((prev) => prev + scoring.correct)
-      setShowFeedback({ 
-        correct: true, 
-        message: `Correct! +${scoring.correct} ${scoring.correct === 1 ? 'point' : 'points'}` 
-      })
-    } else {
-      const pointsLost = Math.max(0, scoring.incorrect - scoring.retain)
-      setScore((prev) => Math.max(0, prev - pointsLost))
-      setShowFeedback({ 
-        correct: false, 
-        message: pointsLost > 0 
-          ? `Incorrect. -${pointsLost} ${pointsLost === 1 ? 'point' : 'points'}`
-          : "Incorrect. Continue with the next question." 
-      })
-    }
-
-    setAnswered((prev) => [...prev, currentQuestion.id])
-    setTimeout(() => setShowFeedback(null), 2000)
-  }
 
   const handleNext = () => {
-    if (currentScreen < test.questions.length - 1) {
-      setCurrentScreen((prev) => prev + 1)
-      setImageError(false)
-    } else if (isCompleted) {
-      setShowResults(true)
+    if (currentQuestion < test.questions.length - 1) {
+      setCurrentQuestion(prev => prev + 1)
     }
   }
 
   const handlePrevious = () => {
-    if (currentScreen > 0) {
-      setCurrentScreen((prev) => prev - 1)
-      setImageError(false)
+    if (currentQuestion > 0) {
+      setCurrentQuestion(prev => prev - 1)
     }
   }
 
+  const handleFinish = () => {
+    if (answered.length < test.questions.length) {
+      toast({
+        title: "Unanswered questions",
+        description: "Please answer all questions before finishing.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setTestCompleted(true)
+    setShowResults(true)
+  }
+
   const resetTest = () => {
-    setCurrentScreen(0)
+    setCurrentQuestion(0)
     setScore(0)
     setAnswered([])
     setShowFeedback(null)
-    setImageError(false)
+    setShowResults(false)
+    setUserAnswers({})
+    setTestCompleted(false)
+    setConnections({})
   }
 
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    setImageError(false)
-    const img = e.target as HTMLImageElement
-    const { naturalWidth, naturalHeight } = img
-    const aspectRatio = naturalHeight / naturalWidth
-    const width = Math.min(800, window.innerWidth - 48)
-    setDimensions({
-      width,
-      height: width * aspectRatio
-    })
-  }
+  const currentQuestionData = test.questions[currentQuestion]
+  const progress = ((answered.length) / test.questions.length) * 100
 
-  // Agregar componente de resultados
-  const ResultsCard = () => {
-    const hasPassedTest = score >= test.minScore
-    const percentage = ((score / test.maxScore) * 100).toFixed(1)
-
+  if (!test.questions || test.questions.length === 0) {
     return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle>Resultados del Test</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="text-center space-y-2">
-            <h3 className="text-2xl font-bold">
-              {score} / {test.maxScore} points
-            </h3>
-            <p className="text-muted-foreground">
-              {percentage}% de acierto
-            </p>
-            <Badge 
-              variant={hasPassedTest ? "default" : "destructive"}
-              className="text-base py-1.5"
-            >
-              {hasPassedTest ? "Aprobado" : "No aprobado"}
-            </Badge>
-          </div>
-
-          <Progress 
-            value={Number(percentage)} 
-            className="h-2"
-            indicatorColor={hasPassedTest ? "bg-green-600" : "bg-red-600"}
-          />
-
-          <div className="p-4 rounded-lg border bg-card text-card-foreground">
-            <p className="text-center">
-              {hasPassedTest 
-                ? (test.passingMessage || "Congratulations! You have passed the test.")
-                : (test.failingMessage || `You need at least ${test.minScore} points to pass the test.`)}
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <h4 className="font-medium">Desglose de preguntas:</h4>
-            {test.questions.map((question, index) => (
-              <div 
-                key={question.id}
-                className="flex justify-between items-center text-sm p-2 rounded bg-muted"
-              >
-                <span>Pregunta {index + 1}</span>
-                <div className="flex items-center gap-2">
-                  <Badge variant={answered.includes(question.id) ? "default" : "outline"}>
-                    {answered.includes(question.id) ? "Answered" : "Not answered"}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {question.scoring.correct} pts
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          <Button onClick={onFinish}>
-            Finalizar
-          </Button>
-        </CardFooter>
+      <Card className="w-full max-w-4xl mx-auto p-6">
+        <p className="text-center text-muted-foreground">No questions available</p>
       </Card>
     )
   }
 
-  if (showResults) {
-    return <ResultsCard />
+  const renderQuestion = (question: Question) => {
+    const isAnswered = answered.includes(question.id)
+
+    switch (question.type) {
+      case 'clickArea':
+        return (
+          <ImageMap
+            src={question.image || ''}
+            areas={question.areas || []}
+            onAreaClick={(areaId) => {
+              if (isAnswered) return
+              const area = question.areas?.find(a => a.id === areaId)
+              handleAnswer(area?.isCorrect || false, question.id)
+            }}
+            alt={question.title}
+            isDrawingMode={false}
+            isEditMode={false}
+          />
+        )
+
+      case 'trueOrFalse':
+        return (
+          <TrueOrFalse
+            question={question.question}
+            answer={(answer) => {
+              if (isAnswered) return
+              handleAnswer(answer === question.correctAnswer, question.id)
+            }}
+            isAnswered={isAnswered}
+            selectedAnswer={userAnswers[question.id]}
+          />
+        )
+
+      case 'multipleChoice':
+        return (
+          <MultipleChoice
+            options={question.options || []}
+            onSelect={(optionId) => {
+              if (isAnswered) return
+              const option = question.options?.find(o => o.id === optionId)
+              handleAnswer(option?.isCorrect || false, question.id)
+            }}
+            isAnswered={isAnswered}
+            selectedOption={userAnswers[question.id]}
+          />
+        )
+
+      case 'pointAPoint':
+        return (
+          <PointAPoint
+            points={question.points || []}
+            onSelect={(pointId, connection) => {
+              if (isAnswered) return
+              const point = question.points?.find(p => p.id === pointId)
+              if (connection && point?.type === 'right') {
+                const connectedLeftPoint = question.points?.find(p => p.id === connection.start)
+                const isCorrect = connectedLeftPoint?.correctMatch === point.id
+                handleAnswer(isCorrect, question.id, connection)
+              }
+            }}
+            isAnswered={isAnswered}
+            selectedPoint={userAnswers[question.id]}
+            existingConnections={connections[question.id] || []}
+          />
+        )
+
+      case 'dragAndDrop':
+      case 'sequence':
+      case 'openQuestion':
+      case 'identifyErrors':
+      case 'phraseComplete':
+        return (
+          <div className="p-4 text-center text-muted-foreground">
+            This type of question is not implemented yet
+          </div>
+        )
+
+      default:
+        return (
+          <div className="p-4 text-center text-muted-foreground">
+            Unsupported question type: {question.type}
+          </div>
+        )
+    }
   }
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4">
-      <Card className="w-full">
-        <CardHeader className="space-y-4 p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="space-y-1 flex-1 min-w-0">
-              <CardTitle className="text-xl font-bold truncate">
-                {test.name}
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Pregunta {currentScreen + 1} de {test.questions.length}
+    <div className="container mx-auto py-8">
+      <Card className="w-full max-w-4xl mx-auto">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">{test.name}</CardTitle>
+          {showResults ? (
+            <div className="text-center mt-4">
+              <h3 className="text-xl font-semibold mb-2">
+                Final score: {score} / {test.maxScore}
+              </h3>
+              <p className="text-muted-foreground">
+                {score >= test.minScore ? test.passingMessage : test.failingMessage}
               </p>
             </div>
-            <div className="flex items-center gap-2 self-end sm:self-auto">
-              <span className="font-medium">
-                Score: {score} / {maxScore}
-              </span>
-              {onDelete && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    if (window.confirm('Are you sure you want to delete this test?')) {
-                      onDelete()
-                    }
-                  }}
-                >
-                  Eliminar
-                </Button>
-              )}
-            </div>
-          </div>
 
-          <div className="w-full bg-secondary rounded-full h-2">
-            <div
-              className="bg-primary h-2 rounded-full transition-all"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+          ) : (
+            <>
+              <p className="text-muted-foreground">{test.description || ''}</p>
+              <div className="mt-2 text-sm text-muted-foreground">
+                Answered questions: {answered.length} of {test.questions.length}
+              </div>
+              {testCompleted && (
+                <div className="mt-2 text-sm text-yellow-600">
+                  You have completed this test. To try it again, click "Restart test".
+                </div>
+              )}
+            </>
+          )}
         </CardHeader>
 
-        <CardContent className="space-y-4 p-4 sm:p-6">
-          <div className="space-y-2">
-            <h3 className="text-base sm:text-lg font-medium">{currentQuestion.question}</h3>
-            <p className="text-sm text-muted-foreground">{currentQuestion.description}</p>
-          </div>
-
-          <div className="w-full border rounded-lg overflow-hidden bg-background">
-            <div className="relative" style={{ paddingBottom: '52.25%' }}>
-              {getCurrentImage() && (
-                <ImageMap
-                  src={getCurrentImage()}
-                  areas={currentQuestion.areas}
-                  onAreaClick={handleAreaClick}
-                  alt={currentQuestion.title}
-                  className="absolute top-0 left-0 w-full h-full"
-                  style={{ objectFit: 'contain', maxHeight: '70vh' }}
-                  onError={() => setImageError(true)}
-                  onLoad={handleImageLoad}
-                  isDrawingMode={false}
-                  isEditMode={false}
-                />
-              )}
-              {imageError && (
-                <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
-                  <div className="text-center p-4 max-w-md">
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Error al cargar la imagen
-                    </p>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setImageError(false)}
-                    >
-                      Reintentar
-                    </Button>
-                  </div>
-                </div>
-              )}
-              {!getCurrentImage() && (
-                <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
-                  <p className="text-sm text-muted-foreground">
-                    No hay imagen disponible
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {answered.includes(currentQuestion.id) && (
-            <div className="rounded-lg bg-muted p-4 flex items-start gap-3">
-              <Info className="h-5 w-5 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 text-sm">
-                {currentQuestion.areas.find((area) => area.isCorrect)?.isCorrect
-                  ? "Correct! The answer is in the marked area."
-                  : "Incorrect. Try again or continue with the next question."}
-              </div>
-            </div>
+        <CardContent>
+          {!showResults && currentQuestionData && (
+            <motion.div
+              key={currentQuestion}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <h2 className="text-xl font-semibold mb-4">
+                {currentQuestionData.question}
+              </h2>
+              {renderQuestion(currentQuestionData)}
+            </motion.div>
           )}
         </CardContent>
 
-        <CardFooter className="flex justify-between p-4 sm:p-6">
-          <Button
-            variant="outline"
-            onClick={handlePrevious}
-            disabled={currentScreen === 0}
-          >
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            Anterior
-          </Button>
+        <div className="px-6 pb-4">
+          <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+            <span>Progress</span>
+            <span>{answered.length} of {test.questions.length} answered</span>
+          </div>
+          <Progress value={progress} />
+        </div>
 
-          {currentScreen === test.questions.length - 1 ? (
-            <Button
-              onClick={() => setShowResults(true)}
-              variant="default"
+        <CardFooter className="border-t p-6">
+          <div className="flex justify-between w-full">
+            <Button 
+              variant="outline" 
+              onClick={handlePrevious}
+              disabled={currentQuestion === 0 || testCompleted}
             >
-              Ver Resultados
+              <ChevronLeft className="mr-2 h-4 w-4" /> Previous
             </Button>
-          ) : (
-            <Button onClick={handleNext}>
-              Siguiente
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
-          )}
+            
+            {testCompleted ? (
+              <Button onClick={() => setShowResults(true)}>View results</Button>
+            ) : (
+              currentQuestion === test.questions.length - 1 ? (
+                <Button 
+                  onClick={handleFinish}
+                  variant="default"
+                  disabled={answered.length < test.questions.length}
+                >
+                  Finish test
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleNext} 
+                  disabled={!answered.includes(currentQuestionData.id) || testCompleted}
+                >
+                  Next <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              )
+            )}
+          </div>
         </CardFooter>
       </Card>
 
       <AnimatePresence>
         {showFeedback && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-4 right-4 p-4 rounded-lg shadow-lg"
-            style={{
-              background: showFeedback.correct ? "rgb(220 252 231)" : "rgb(254 226 226)",
-              color: showFeedback.correct ? "rgb(22 101 52)" : "rgb(153 27 27)",
-            }}
+            className="fixed top-4 right-4 z-50"
           >
-            {showFeedback.message}
+            <div className={`
+              px-6 py-3 rounded-lg shadow-lg
+              ${showFeedback.correct 
+                ? "bg-green-500 text-white" 
+                : "bg-red-500 text-white"}
+            `}>
+              {showFeedback.message}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ResultsDialog
+        isOpen={showResults}
+        onClose={() => setShowResults(false)}
+        score={score}
+        maxScore={test.maxScore}
+        minScore={test.minScore}
+        passingMessage={test.passingMessage}
+        failingMessage={test.failingMessage}
+      />
     </div>
   )
 } 

@@ -1,50 +1,43 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { TestViewer } from "@/components/test-viewer"
-import { motion } from "framer-motion"
+import { ChevronLeft, Plus, Trash2 } from "lucide-react"
 import { useLocalStorage } from "@/lib/hooks/use-local-storage"
-import { Trash2, ArrowLeft } from "lucide-react"
-import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 import type { Test } from "@/lib/test-storage"
+import { toast } from "@/components/ui/use-toast"
 
 export default function TestsPage() {
   const [selectedTest, setSelectedTest] = useState<Test | null>(null)
-  const [tests, setTests, isLoading] = useLocalStorage('saved-tests', [])
+  const [tests, setTests] = useLocalStorage<Test[]>('saved-tests', [])
+  const router = useRouter()
 
-  const handleDeleteTest = (testId: string) => {
-    if (confirm('Are you sure you want to delete this test?')) {
-      setTests(tests.filter(t => t.id !== testId))
-      if (selectedTest?.id === testId) {
-        setSelectedTest(null)
-      }
-      toast.success('Test deleted successfully')
+  const handleDelete = (e: React.MouseEvent, testId: string) => {
+    e.stopPropagation() // Esto es clave para evitar que se abra el test
+    if (confirm("¿Estás seguro de que deseas eliminar este test?")) {
+      setTests(tests.filter(test => test.id !== testId))
+      toast({
+        title: "Test eliminado",
+        description: "El test se ha eliminado correctamente",
+      })
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto py-8 flex justify-center">
-        <p>Loading tests...</p>
-      </div>
-    )
-  }
-
+  // Si hay un test seleccionado, mostrar el TestViewer
   if (selectedTest) {
     return (
       <div className="container mx-auto py-8">
-        <div className="mb-4">
-          <Button
-            variant="ghost"
-            onClick={() => setSelectedTest(null)}
-            className="gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to list
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          onClick={() => setSelectedTest(null)}
+          className="mb-4"
+        >
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Volver a la lista
+        </Button>
         <TestViewer 
           test={selectedTest}
           onFinish={() => setSelectedTest(null)}
@@ -54,85 +47,57 @@ export default function TestsPage() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="container mx-auto py-8"
-    >
-      <motion.h1
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="text-3xl font-bold mb-8"
-      >
-        Available Tests
-      </motion.h1>
-
-      {tests.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">There are no saved tests.</p>
-          <Button 
-            className="mt-4" 
-            onClick={() => window.location.href = '/create'}
-          >
-            Create new test
-          </Button>
-        </div>
-      ) : (
-        <motion.div
-          variants={{
-            hidden: { opacity: 0 },
-            show: {
-              opacity: 1,
-              transition: { staggerChildren: 0.1 }
-            }
-          }}
-          initial="hidden"
-          animate="show"
-          className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+    <div className="container mx-auto py-8">
+      <div className="flex items-center justify-between mb-8">
+        <Button
+          variant="outline"
+          onClick={() => router.push("/")}
         >
-          {tests.map((test) => (
-            <motion.div
-              key={test.id}
-              variants={{
-                hidden: { opacity: 0, y: 20 },
-                show: { opacity: 1, y: 0 }
-              }}
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Volver al Inicio
+        </Button>
+        <h1 className="text-3xl font-bold">Tests Disponibles</h1>
+        <div className="w-[100px]" />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {tests.map((test) => (
+          <Card 
+            key={test.id}
+            className="relative group cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setSelectedTest(test)}
+          >
+            <CardHeader>
+              <CardTitle>{test.name || "Test sin nombre"}</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {test.description || "Sin descripción"}
+              </p>
+              <div className="text-sm text-muted-foreground mt-2">
+                {test.questions.length} preguntas
+              </div>
+            </CardHeader>
+            
+            <Button
+              variant="destructive"
+              size="icon"
+              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => handleDelete(e, test.id)}
             >
-              <Card className="hover:shadow-lg transition-all duration-300">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>{test.name}</CardTitle>
-                      <CardDescription>{test.description}</CardDescription>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteTest(test.id)
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {test.questions.length} questions
-                  </p>
-                  <Button 
-                    className="w-full"
-                    onClick={() => setSelectedTest(test)}
-                  >
-                    Start Test
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
-    </motion.div>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </Card>
+        ))}
+
+        <Card 
+          className="cursor-pointer border-dashed hover:shadow-md transition-shadow"
+          onClick={() => router.push("/tests/new")}
+        >
+          <CardHeader className="flex items-center justify-center">
+            <Plus className="h-8 w-8 text-muted-foreground" />
+            <CardTitle className="mt-2">Crear nuevo test</CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+    </div>
   )
 } 

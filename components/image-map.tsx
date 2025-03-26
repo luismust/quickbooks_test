@@ -1,265 +1,177 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect, useCallback } from "react"
-import { DrawingToolbar } from "./drawing-toolbar"
-import { Button } from "./ui/button"
-import { OptimizedImage } from "./ui/optimized-image"
+import { cn } from "@/lib/utils"
+import { Loader2 } from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
 
-type Area = {
+interface Area {
   id: string
-  shape: "rect" | "circle" | "poly"
+  shape: "rect"
   coords: number[]
   isCorrect: boolean
+  x?: number
+  y?: number
+  width?: number
+  height?: number
 }
 
-type ImageMapProps = {
+interface ImageMapProps {
   src: string
   areas: Area[]
+  drawingArea: Area | null
   onAreaClick: (areaId: string) => void
-  alt: string
+  alt?: string
   className?: string
   isDrawingMode?: boolean
-  onDrawingComplete?: (coords: number[]) => void
   isEditMode?: boolean
-  onError?: (e: React.SyntheticEvent<HTMLImageElement>) => void
-  onLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void
+  onDrawStart?: (x: number, y: number) => void
+  onDrawMove?: (x: number, y: number) => void
+  onDrawEnd?: () => void
+  onError?: () => void
 }
-
-type DrawingTool = "pencil" | "rectangle" | "circle" | "eraser"
 
 export function ImageMap({ 
   src, 
   areas, 
+  drawingArea,
   onAreaClick, 
-  alt, 
-  className,
+  alt = "",
+  className = "",
   isDrawingMode = false,
-  onDrawingComplete,
-  isEditMode = false,
-  onError,
-  onLoad,
+  isEditMode = true,
+  onDrawStart,
+  onDrawMove,
+  onDrawEnd,
+  onError
 }: ImageMapProps) {
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
-  const [scale, setScale] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [currentTool, setCurrentTool] = useState<DrawingTool>("pencil")
-  const [isDrawing, setIsDrawing] = useState(false)
-  const [startPos, setStartPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  const [hasDrawing, setHasDrawing] = useState(false)
-  const [drawnArea, setDrawnArea] = useState<{x1: number, y1: number, x2: number, y2: number} | null>(null)
-  const [imageError, setImageError] = useState(false)
+  const imageRef = useRef<HTMLImageElement>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [imgError, setImgError] = useState(false)
-  const [currentCoords, setCurrentCoords] = useState<number[]>([])
+  const [imageError, setImageError] = useState(false)
+  const [scale, setScale] = useState(1)
 
-  const scaleCoords = (coords: number[]): number[] => {
-    if (coords.length === 4) {
-      // rect: [x1, y1, x2, y2]
-      return [coords[0] * scale, coords[1] * scale, coords[2] * scale, coords[3] * scale]
-    } else if (coords.length === 3) {
-      // circle: [x, y, radius]
-      return [coords[0] * scale, coords[1] * scale, coords[2] * scale]
-    } else {
-      // poly: [x1, y1, x2, y2, ...]
-      return coords.map((coord) => coord * scale)
-    }
-  }
-
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isDrawingMode) return
-    if (!containerRef.current) return
-
-    const rect = containerRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-
-    // Verificar si el click está dentro de algún área
-    for (const area of areas) {
-      const scaledCoords = scaleCoords(area.coords)
-      if (area.shape === "rect") {
-        const [x1, y1, x2, y2] = scaledCoords
-        if (x >= x1 && x <= x2 && y >= y1 && y <= y2) {
-          onAreaClick(area.id)
-          return
-        }
-      }
-    }
-
-    onAreaClick("none")
-  }
-
-  const initCanvas = () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    canvas.width = dimensions.width
-    canvas.height = dimensions.height
-    const ctx = canvas.getContext("2d")
-    if (ctx) {
-      ctx.strokeStyle = "red"
-      ctx.lineWidth = 2
-    }
-  }
-
+  // Manejar la carga inicial de la imagen
   useEffect(() => {
-    if (canvasRef.current) {
-      const ctx = canvasRef.current.getContext("2d")
-      if (ctx) {
-        ctx.clearRect(0, 0, dimensions.width, dimensions.height)
-      }
+    if (!src) {
+      setIsLoading(false)
+      setImageError(true)
+      return
     }
-    setHasDrawing(false)
-    initCanvas()
-  }, [src, dimensions.width, dimensions.height])
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawingMode || !isEditMode) return // No permitir dibujo si no está en modo edición
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const img = new Image()
+    img.src = src
 
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const handleLoad = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth
+      const imageScale = containerWidth / img.naturalWidth
+        setScale(imageScale)
+      }
+      setIsLoading(false)
+    }
 
-    setIsDrawing(true)
-    setStartPos({ x, y })
-    setDrawnArea(null) // Limpiar área anterior
-  }
+    const handleError = () => {
+      console.error('Error loading image:', src)
+      setIsLoading(false)
+      setImageError(true)
+      onError?.()
+    }
 
-  const draw = useCallback((e: MouseEvent) => {
-    if (!isDrawingMode || !isEditMode) return // No permitir dibujo si no está en modo edición
-    if (!isDrawing || !canvasRef.current || !containerRef.current) return
+    img.addEventListener('load', handleLoad)
+    img.addEventListener('error', handleError)
 
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    return () => {
+      img.removeEventListener('load', handleLoad)
+      img.removeEventListener('error', handleError)
+    }
+  }, [src, onError])
 
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!isDrawingMode || !containerRef.current) return
+    
     const rect = containerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    onDrawStart?.(x / scale, y / scale)
+  }, [isDrawingMode, onDrawStart, scale])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDrawingMode || !containerRef.current) return
     
-    // Dibujar área con efecto de resaltado
-    ctx.fillStyle = 'rgba(59, 130, 246, 0.2)' // Azul semi-transparente
-    ctx.strokeStyle = '#3b82f6' // Azul sólido
-    ctx.lineWidth = 2
+    const rect = containerRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
 
-    const width = x - startPos.x
-    const height = y - startPos.y
+    onDrawMove?.(x / scale, y / scale)
+  }, [isDrawingMode, onDrawMove, scale])
 
-    ctx.fillRect(startPos.x, startPos.y, width, height)
-    ctx.strokeRect(startPos.x, startPos.y, width, height)
-
-    // Mostrar dimensiones
-    ctx.fillStyle = '#000'
-    ctx.font = '12px sans-serif'
-    ctx.fillText(`${Math.abs(width)}x${Math.abs(height)}`, x + 5, y + 5)
-
-    setCurrentCoords([startPos.x, startPos.y, x, y])
-  }, [isDrawing, startPos, isDrawingMode, isEditMode])
-
-  const stopDrawing = () => {
-    setIsDrawing(false)
-  }
-
-  const clearCanvas = () => {
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext("2d")
-    if (ctx && canvas) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-    }
-  }
-
-  const handleConfirmDrawing = () => {
-    if (drawnArea && onDrawingComplete) {
-      // Convertir coordenadas del canvas a coordenadas relativas a la imagen
-      const coords = [
-        Math.min(drawnArea.x1, drawnArea.x2) / scale,
-        Math.min(drawnArea.y1, drawnArea.y2) / scale,
-        Math.max(drawnArea.x1, drawnArea.x2) / scale,
-        Math.max(drawnArea.y1, drawnArea.y2) / scale
-      ]
-      onDrawingComplete(coords)
-      clearCanvas()
-      setHasDrawing(false)
-      setDrawnArea(null)
-    }
-  }
-
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    console.log('Error cargando imagen:', src)
-    console.log('Error de carga:', e)
-    setImageError(true)
-    setIsLoading(false)
-  }
-
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.target as HTMLImageElement
-    if (containerRef.current) {
-      const containerWidth = containerRef.current.clientWidth
-      const { naturalWidth, naturalHeight } = img
-      const newScale = containerWidth / naturalWidth
-      setDimensions({
-        width: containerWidth,
-        height: naturalHeight * newScale,
-      })
-      setScale(newScale)
-    }
-    
-    if (onLoad) {
-      onLoad(e)
-    }
-  }
-
-  const handleToolChange = (tool: DrawingTool) => {
-    setCurrentTool(tool)
-    clearCanvas()
-    setDrawnArea(null)
-    setHasDrawing(false)
+  if (imageError) {
+    return (
+      <div className="flex items-center justify-center p-8 border rounded-lg bg-muted">
+        <p className="text-sm text-muted-foreground">Error loading image</p>
+      </div>
+    )
   }
 
   return (
-    <div className="relative">
-      <div ref={containerRef} className="relative" style={{ height: dimensions.height }}>
-        <OptimizedImage
+    <div 
+      ref={containerRef}
+      className="relative"
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={onDrawEnd}
+      onMouseLeave={onDrawEnd}
+    >
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      )}
+      
+        <img
+          ref={imageRef}
           src={src}
           alt={alt}
-          className={className}
-          onError={onError}
-          onLoad={handleImageLoad}
-        />
-        
-        <canvas
-          ref={canvasRef}
-          className="absolute top-0 left-0 w-full h-full z-10"
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          style={{ cursor: isDrawingMode && isEditMode ? 'crosshair' : 'pointer' }}
-          onClick={handleClick}
-        />
-
-        {(isDrawingMode && isEditMode) && (
-          <div className="absolute top-2 left-2 z-20">
-            <DrawingToolbar
-              currentTool={currentTool}
-              onToolChange={handleToolChange}
-              onClear={clearCanvas}
-            />
-            {hasDrawing && (
-              <Button onClick={handleConfirmDrawing}>
-                {isEditMode ? "Guardar área correcta" : "Confirmar área"}
-              </Button>
-            )}
-          </div>
+        className={cn(
+          "max-w-full h-auto transition-opacity duration-200",
+          isLoading ? "opacity-0" : "opacity-100",
+          className
         )}
-      </div>
+        draggable={false}
+      />
+      
+      {!isLoading && areas.map((area) => (
+        <div
+          key={area.id}
+          className={cn(
+            "absolute border-2 cursor-pointer transition-colors",
+            isEditMode ? "border-blue-500 hover:border-blue-600" : "border-transparent",
+            !isEditMode && "hover:bg-blue-500/20"
+          )}
+          style={{
+            left: area.coords[0] * scale,
+            top: area.coords[1] * scale,
+            width: (area.coords[2] - area.coords[0]) * scale,
+            height: (area.coords[3] - area.coords[1]) * scale
+          }}
+          onClick={() => onAreaClick(area.id)}
+        />
+      ))}
+
+      {!isLoading && drawingArea && (
+        <div
+          className="absolute border-2 border-blue-500 bg-blue-500/20"
+          style={{
+            left: drawingArea.coords[0] * scale,
+            top: drawingArea.coords[1] * scale,
+            width: (drawingArea.coords[2] - drawingArea.coords[0]) * scale,
+            height: (drawingArea.coords[3] - drawingArea.coords[1]) * scale
+          }}
+        />
+      )}
     </div>
   )
 }
-

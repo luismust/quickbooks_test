@@ -6,6 +6,7 @@ import { Input } from "./ui/input"
 import { Textarea } from "./ui/textarea"
 import { Plus, Link } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
+import { processGoogleDriveUrl } from "@/lib/utils"
 
 interface QuestionFormProps {
   onAddQuestion: (question: {
@@ -24,57 +25,71 @@ interface QuestionFormProps {
 }
 
 export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
-  const [question, setQuestion] = useState("")
-  const [imageUrl, setImageUrl] = useState("")
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    question: "",
+    imageUrl: ""
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     
-    // Convertir URL de Google Drive si es necesario
-    const processedImageUrl = imageUrl.includes('drive.google.com/file/d/') 
-      ? imageUrl.replace(/\/file\/d\/(.+?)\/view.+/, '/uc?id=$1')
-      : imageUrl
-
-    const newQuestion = {
+    const newQuestion: Question = {
       id: Date.now(),
-      title,
-      description,
-      question,
-      image: processedImageUrl || "/placeholder.svg?height=600&width=800",
-      areas: []
-    }
+      title: formData.title,
+      description: formData.description,
+      question: formData.question,
+      image: processGoogleDriveUrl(formData.imageUrl) || "/placeholder.svg",
+      areas: [],
+      scoring: {
+        correct: 1,
+        incorrect: 1,
+        retain: 0
+      }
+    };
 
-    onAddQuestion(newQuestion)
-    
-    // Limpiar el formulario
-    setTitle("")
-    setDescription("")
-    setQuestion("")
-    setImageUrl("")
-  }
+    onAddQuestion(newQuestion);
+    setFormData({
+      title: "",
+      description: "",
+      question: "",
+      imageUrl: ""
+    });
+  };
 
   const handleGoogleDriveUrl = (url: string) => {
-    setImageUrl(url)
+    setFormData(prev => ({
+      ...prev,
+      imageUrl: url
+    }));
     // Aquí podrías agregar validación del formato de la URL
   }
 
   return (
     <Card className="mb-6">
       <CardHeader>
-        <CardTitle>Agregar nueva pregunta</CardTitle>
+        <CardTitle>Add new question</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="title" className="block text-sm font-medium mb-1">
-              Título
+              Title
             </label>
             <Input
               id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
               placeholder="Ej: QuickBooks Dashboard"
               required
             />
@@ -82,12 +97,13 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
 
           <div>
             <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">
-              URL de la imagen (Google Drive)
+              Image URL (Google Drive)
             </label>
             <div className="flex gap-2">
               <Input
                 id="imageUrl"
-                value={imageUrl}
+                name="imageUrl"
+                value={formData.imageUrl}
                 onChange={(e) => handleGoogleDriveUrl(e.target.value)}
                 placeholder="https://drive.google.com/file/d/..."
                 type="url"
@@ -102,18 +118,19 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Asegúrate de que la imagen sea pública en Google Drive
+              Ensure the image is public in Google Drive
             </p>
           </div>
 
           <div>
             <label htmlFor="description" className="block text-sm font-medium mb-1">
-              Descripción
+              Description
             </label>
             <Textarea
               id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
               placeholder="Ej: Identify the correct area to create a new invoice"
               required
             />
@@ -121,20 +138,21 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
 
           <div>
             <label htmlFor="question" className="block text-sm font-medium mb-1">
-              Pregunta
+              Question
             </label>
             <Input
               id="question"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Ej: ¿Dónde harías clic para crear una nueva factura?"
+              name="question"
+              value={formData.question}
+              onChange={handleChange}
+              placeholder="Ej: Where would you click to create a new invoice?"
               required
             />
           </div>
 
           <Button type="submit" className="w-full">
             <Plus className="w-4 h-4 mr-2" />
-            Agregar pregunta
+            Add question
           </Button>
         </form>
       </CardContent>
