@@ -15,7 +15,7 @@ export default function Home() {
 
   const handleFileUpload = async (file: File) => {
     if (file.type !== "application/json") {
-      toast.error("Por favor, sube un archivo JSON")
+      toast.error("Please upload a JSON file")
       return
     }
 
@@ -24,14 +24,14 @@ export default function Home() {
       const testData = JSON.parse(content)
       
       if (!validateTest(testData)) {
-        toast.error("El archivo no tiene el formato correcto de test")
+        toast.error("The file does not have the correct test format")
         return
       }
 
       saveTest(testData)
-      toast.success("Test cargado exitosamente")
+      toast.success("Test successfully loaded")
     } catch (error) {
-      toast.error("Error al cargar el archivo. Asegúrate de que sea un JSON válido")
+      toast.error("Error loading test: Ensure the file is a valid JSON")
       console.error("Error loading test:", error)
     }
   }
@@ -78,7 +78,7 @@ export default function Home() {
         animate={{ y: 0, opacity: 1 }}
         className="text-3xl font-bold mb-8 text-center"
       >
-        Sistema de Tests
+        Test System
       </motion.h1>
       
       <motion.div
@@ -90,9 +90,9 @@ export default function Home() {
         <motion.div variants={item} className="col-span-2">
           <Card className="col-span-2">
             <CardHeader>
-              <CardTitle>Subir Plantilla de Test</CardTitle>
+              <CardTitle>Upload Test Template</CardTitle>
               <CardDescription>
-                Arrastra y suelta tu archivo JSON o haz clic para seleccionarlo
+                Drag and drop your JSON file or click to select it
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -120,10 +120,10 @@ export default function Home() {
                 >
                   <Upload className="h-12 w-12 mb-4 text-gray-400" />
                   <p className="text-sm text-gray-600 mb-2">
-                    {isDragging ? "Suelta el archivo aquí" : "Arrastra tu archivo JSON aquí o haz clic para seleccionar"}
+                    {isDragging ? "Drop the file here" : "Drag your JSON file here or click to select"}
                   </p>
                   <p className="text-xs text-gray-400">
-                    Solo archivos JSON
+                    Only JSON files
                   </p>
                 </label>
               </div>
@@ -134,7 +134,7 @@ export default function Home() {
                   onClick={() => downloadExampleTemplate()}
                   className="text-sm"
                 >
-                  Descargar plantilla de ejemplo
+                  Download example template
                 </Button>
               </div>
             </CardContent>
@@ -146,16 +146,16 @@ export default function Home() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Edit className="h-5 w-5" />
-                Modo Edición
+                Edit Mode
               </CardTitle>
               <CardDescription>
-                Crea y modifica tests interactivos
+                Create and modify interactive tests
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/create">
                 <Button className="w-full">
-                  Ir a Modo Edición
+                  Go to Edit Mode
                 </Button>
               </Link>
             </CardContent>
@@ -167,16 +167,16 @@ export default function Home() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Play className="h-5 w-5" />
-                Modo Prueba
+                Test Mode
               </CardTitle>
               <CardDescription>
-                Toma los tests guardados
+                Take the saved tests
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/tests">
                 <Button className="w-full" variant="secondary">
-                  Ir a Modo Prueba
+                  Go to Test Mode
                 </Button>
               </Link>
             </CardContent>

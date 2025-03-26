@@ -1,391 +1,360 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState } from "react"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react"
-import { ImageMap } from "@/components/image-map"
-import { motion, AnimatePresence, Variants } from "framer-motion"
-import type { Test, Area } from "@/lib/test-storage"
 import { Progress } from "@/components/ui/progress"
+import { ImageMap } from "./image-map"
+import { TrueOrFalse } from "./true_or_false"
+import { MultipleChoice } from "./multiple-choice-editor"
+import { PointAPoint } from "./point_a_point"
+import { motion, AnimatePresence } from "framer-motion"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { Badge } from "@/components/ui/badge"
+import { ResultsDialog } from "./results-dialog"
 
-interface TestViewerProps {
-  test: Test
-  onFinish?: () => void
+interface Question {
+  id: number
+  type: 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 'pointAPoint' | 'openQuestion' | 'identifyErrors' | 'phraseComplete' | 'trueOrFalse'
+  title: string
+  description: string
+  question: string
+  image?: string
+  areas?: Area[]
+  points?: {
+    id: string
+    text: string
+    type: 'left' | 'right'
+    correctMatch?: string
+  }[]
+  options?: {
+    id: string
+    text: string
+    isCorrect: boolean
+  }[]
+  correctAnswer?: boolean
+  scoring: {
+    correct: number
+    incorrect: number
+    retain: number
+  }
 }
 
-// Crear el MotionButton
-const MotionButton = motion(Button)
+interface Connection {
+  start: string
+  end: string
+}
 
-export function TestViewer({ test, onFinish }: TestViewerProps) {
-  const [currentScreen, setCurrentScreen] = useState(0)
+interface TestViewerProps {
+  test: {
+    id: string
+    name: string
+    description?: string
+    questions: Question[]
+    maxScore: number
+    minScore: number
+    passingMessage: string
+    failingMessage: string
+  }
+}
+
+export function TestViewer({ test }: TestViewerProps) {
+  const [currentQuestion, setCurrentQuestion] = useState(0)
   const [score, setScore] = useState(0)
-  const [answered, setAnswered] = useState<string[]>([])
-  const [attempts, setAttempts] = useState<{[key: string]: number}>({})
+  const [answered, setAnswered] = useState<number[]>([])
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null)
-  const [isCompleted, setIsCompleted] = useState(false)
-  const [isLoadingImages, setIsLoadingImages] = useState(true)
   const [showResults, setShowResults] = useState(false)
-  const [finalScore, setFinalScore] = useState({
-    score: 0,
-    percentage: 0,
-    passed: false
-  })
+  const [userAnswers, setUserAnswers] = useState<{[key: number]: boolean}>({})
+  const [testCompleted, setTestCompleted] = useState(false)
+  const [connections, setConnections] = useState<{[key: number]: Connection[]}>({})
 
-  const currentQuestion = test.questions[currentScreen]
-  const progress = (currentScreen / test.questions.length) * 100
+  const handleAnswer = (isCorrect: boolean, questionId: number, connection?: Connection) => {
+    if (answered.includes(questionId) || testCompleted) return
 
-  // Usar la configuración de puntuación de la pregunta actual o valores por defecto
-  const scoring = currentQuestion?.scoring || {
-    correct: 1,
-    incorrect: 1,
-    retain: 0
-  }
+    const question = test.questions[currentQuestion]
+    const points = isCorrect ? question.scoring.correct : -question.scoring.incorrect
 
-  // Definimos las variantes de animación
-  const cardVariants: Variants = {
-    hidden: { 
-      opacity: 0, 
-      y: 20,
-      scale: 0.95
-    },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      scale: 1,
-      transition: {
-        duration: 0.4,
-        ease: "easeOut"
-      }
-    },
-    exit: {
-      opacity: 0,
-      y: -20,
-      scale: 0.95,
-      transition: {
-        duration: 0.3
-      }
-    }
-  }
-
-  const contentVariants: Variants = {
-    hidden: { opacity: 0, x: -20 },
-    visible: { 
-      opacity: 1, 
-      x: 0,
-      transition: {
-        delay: 0.2,
-        duration: 0.3
-      }
-    }
-  }
-
-  const imageVariants: Variants = {
-    hidden: { opacity: 0, scale: 0.9 },
-    visible: { 
-      opacity: 1, 
-      scale: 1,
-      transition: {
-        delay: 0.3,
-        duration: 0.4,
-        ease: "easeOut"
-      }
-    }
-  }
-
-  const handleAreaClick = (areaId: string) => {
-    if (answered.includes(currentQuestion.id)) return
-
-    const clickedArea = currentQuestion.areas.find(area => area.id === areaId)
+    setScore(prev => Math.max(0, prev + points))
     
-    if (clickedArea?.isCorrect) {
-      // Usar la puntuación configurada en la pregunta
-      const points = currentQuestion.scoring?.correct || 1
-      setScore(prev => prev + points)
-      setShowFeedback({ 
-        correct: true, 
-        message: `¡Correcto! +${points} puntos` 
-      })
-    } else {
-      const pointsLost = currentQuestion.scoring?.incorrect || 1
-      const pointsRetained = currentQuestion.scoring?.retain || 0
-      const newScore = Math.max(score - pointsLost + pointsRetained, 0)
-      setScore(newScore)
-      setShowFeedback({ 
-        correct: false, 
-        message: `Incorrecto. -${pointsLost} puntos` 
-      })
+    if (connection) {
+      setConnections(prev => ({
+        ...prev,
+        [questionId]: [
+          ...(prev[questionId] || []).filter(conn => 
+            conn.start !== connection.start && 
+            conn.end !== connection.end
+          ),
+          connection
+        ]
+      }))
     }
 
-    setAnswered(prev => [...prev, currentQuestion.id])
-    setTimeout(() => setShowFeedback(null), 2000)
+    setAnswered(prev => [...prev, questionId])
+    setUserAnswers(prev => ({ ...prev, [questionId]: isCorrect }))
+    
+    setShowFeedback({
+      correct: isCorrect,
+      message: isCorrect 
+        ? `¡Correcto! +${question.scoring.correct} puntos` 
+        : `Incorrecto. -${question.scoring.incorrect} puntos`
+    })
+
+    setTimeout(() => {
+      setShowFeedback(null)
+    }, 2000)
   }
 
   const handleNext = () => {
-    if (currentScreen < test.questions.length - 1) {
-      setCurrentScreen(prev => prev + 1)
-      setAnswered([])
+    if (currentQuestion < test.questions.length - 1) {
+      setCurrentQuestion(prev => prev + 1)
     }
   }
 
   const handlePrevious = () => {
-    if (currentScreen > 0) {
-      setCurrentScreen(prev => prev - 1)
-      setAnswered([])
+    if (currentQuestion > 0) {
+      setCurrentQuestion(prev => prev - 1)
     }
   }
 
-  const handleTestComplete = () => {
-    setIsCompleted(true)
-    const maxPossibleScore = test.maxScore || 100
-    const minRequiredScore = test.minScore || 60
-    const finalPercentage = (score / maxPossibleScore) * 100
-    const passed = finalPercentage >= minRequiredScore
-    
-    setFinalScore({
-      score: score,
-      percentage: finalPercentage,
-      passed: passed
-    })
-    
+  const handleFinish = () => {
+    if (answered.length < test.questions.length) {
+      toast({
+        title: "Unanswered questions",
+        description: "Please answer all questions before finishing.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setTestCompleted(true)
     setShowResults(true)
   }
 
   const resetTest = () => {
-    setCurrentScreen(0)
+    setCurrentQuestion(0)
     setScore(0)
     setAnswered([])
-    setAttempts({})
     setShowFeedback(null)
-    setIsCompleted(false)
     setShowResults(false)
-    setFinalScore({
-      score: 0,
-      percentage: 0,
-      passed: false
-    })
+    setUserAnswers({})
+    setTestCompleted(false)
+    setConnections({})
   }
 
-  // Función para limpiar todas las áreas marcadas
-  const clearAllAreas = () => {
-    setAnswered([])
-    setAttempts({})
-    setScore(0)
-    toast({
-      title: "Áreas limpiadas",
-      description: "Se han eliminado todas las áreas marcadas",
-    })
-  }
+  const currentQuestionData = test.questions[currentQuestion]
+  const progress = ((answered.length) / test.questions.length) * 100
 
+  if (!test.questions || test.questions.length === 0) {
     return (
-    <>
-      <AnimatePresence mode="wait">
-    <motion.div
-          key={currentScreen}
-          variants={cardVariants}
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          className="w-full"
-    >
-      <Card>
+      <Card className="w-full max-w-4xl mx-auto p-6">
+        <p className="text-center text-muted-foreground">No questions available</p>
+      </Card>
+    )
+  }
+
+  const renderQuestion = (question: Question) => {
+    const isAnswered = answered.includes(question.id)
+
+    switch (question.type) {
+      case 'clickArea':
+        return (
+          <ImageMap
+            src={question.image || ''}
+            areas={question.areas || []}
+            onAreaClick={(areaId) => {
+              if (isAnswered) return
+              const area = question.areas?.find(a => a.id === areaId)
+              handleAnswer(area?.isCorrect || false, question.id)
+            }}
+            alt={question.title}
+            isDrawingMode={false}
+            isEditMode={false}
+          />
+        )
+
+      case 'trueOrFalse':
+        return (
+          <TrueOrFalse
+            question={question.question}
+            answer={(answer) => {
+              if (isAnswered) return
+              handleAnswer(answer === question.correctAnswer, question.id)
+            }}
+            isAnswered={isAnswered}
+            selectedAnswer={userAnswers[question.id]}
+          />
+        )
+
+      case 'multipleChoice':
+        return (
+          <MultipleChoice
+            options={question.options || []}
+            onSelect={(optionId) => {
+              if (isAnswered) return
+              const option = question.options?.find(o => o.id === optionId)
+              handleAnswer(option?.isCorrect || false, question.id)
+            }}
+            isAnswered={isAnswered}
+            selectedOption={userAnswers[question.id]}
+          />
+        )
+
+      case 'pointAPoint':
+        return (
+          <PointAPoint
+            points={question.points || []}
+            onSelect={(pointId, connection) => {
+              if (isAnswered) return
+              const point = question.points?.find(p => p.id === pointId)
+              if (connection && point?.type === 'right') {
+                const connectedLeftPoint = question.points?.find(p => p.id === connection.start)
+                const isCorrect = connectedLeftPoint?.correctMatch === point.id
+                handleAnswer(isCorrect, question.id, connection)
+              }
+            }}
+            isAnswered={isAnswered}
+            selectedPoint={userAnswers[question.id]}
+            existingConnections={connections[question.id] || []}
+          />
+        )
+
+      case 'dragAndDrop':
+      case 'sequence':
+      case 'openQuestion':
+      case 'identifyErrors':
+      case 'phraseComplete':
+        return (
+          <div className="p-4 text-center text-muted-foreground">
+            This type of question is not implemented yet
+          </div>
+        )
+
+      default:
+        return (
+          <div className="p-4 text-center text-muted-foreground">
+            Unsupported question type: {question.type}
+          </div>
+        )
+    }
+  }
+
+  return (
+    <div className="container mx-auto py-8">
+      <Card className="w-full max-w-4xl mx-auto">
         <CardHeader>
-              <motion.div variants={contentVariants}>
-          <CardTitle className="text-2xl font-bold">
-            {currentQuestion?.title || "Nueva Pregunta"}
-          </CardTitle>
-            <p className="text-muted-foreground">
-              {currentQuestion?.description || "Agrega una descripción para la pregunta"}
-          </p>
-              </motion.div>
+          <CardTitle className="text-2xl font-bold">{test.name}</CardTitle>
+          {showResults ? (
+            <div className="text-center mt-4">
+              <h3 className="text-xl font-semibold mb-2">
+                Final score: {score} / {test.maxScore}
+              </h3>
+              <p className="text-muted-foreground">
+                {score >= test.minScore ? test.passingMessage : test.failingMessage}
+              </p>
+            </div>
+          ) : (
+            <>
+              <p className="text-muted-foreground">{test.description || ''}</p>
+              <div className="mt-2 text-sm text-muted-foreground">
+                Answered questions: {answered.length} of {test.questions.length}
+              </div>
+              {testCompleted && (
+                <div className="mt-2 text-sm text-yellow-600">
+                  You have completed this test. To try it again, click "Restart test".
+                </div>
+              )}
+            </>
+          )}
         </CardHeader>
 
         <CardContent>
-          <div className="space-y-4">
-                <motion.div 
-                  variants={imageVariants}
-                  className="relative aspect-video rounded-lg overflow-hidden border"
-                >
-                  {currentQuestion?.image && (
-                    <ImageMap
-                      src={currentQuestion.image}
-                      areas={currentQuestion.areas}
-                      onAreaClick={handleAreaClick}
-                      alt={currentQuestion.title || ""}
-                      hideCorrectAreas={!answered.includes(currentQuestion.id)}
-                      onClearAllAreas={clearAllAreas}
-                      hasMarkedAreas={answered.length > 0}
-                  className="w-full h-full object-contain"
-                  onError={() => {
-                        setIsLoadingImages(false)
-                        toast({
-                          title: "Error",
-                          description: "No se pudo cargar la imagen",
-                          variant: "destructive"
-                        })
-                      }}
-                      onLoad={() => setIsLoadingImages(false)}
-                    />
-                  )}
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="flex justify-between items-center mt-4"
-                >
-                  <MotionButton 
-                    onClick={handlePrevious} 
-                    disabled={currentScreen === 0}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <ChevronLeft className="mr-2" />
-                    Anterior
-                  </MotionButton>
-                  
-                  <motion.div 
-                    className="text-center"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.5 }}
-                  >
-                <p className="text-sm text-muted-foreground mb-1">
-                  Pregunta {currentScreen + 1} de {test.questions.length}
-                </p>
-                <p className="font-medium">
-                      Puntuación: {score} / {test.maxScore || 100}
-                    </p>
-                  </motion.div>
-
-                  <MotionButton 
-                    onClick={currentScreen === test.questions.length - 1 ? handleTestComplete : handleNext}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    {currentScreen === test.questions.length - 1 ? "Finalizar" : "Siguiente"}
-                    {currentScreen !== test.questions.length - 1 && <ChevronRight className="ml-2" />}
-                  </MotionButton>
-                </motion.div>
-
-                <motion.div
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{ delay: 0.6, duration: 0.5 }}
-                >
-                  <Progress 
-                    value={progress} 
-                    className="h-2"
-                  />
-                </motion.div>
-          </div>
+          {!showResults && currentQuestionData && (
+            <motion.div
+              key={currentQuestion}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <h2 className="text-xl font-semibold mb-4">
+                {currentQuestionData.question}
+              </h2>
+              {renderQuestion(currentQuestionData)}
+            </motion.div>
+          )}
         </CardContent>
-      </Card>
-        </motion.div>
-      </AnimatePresence>
 
-      {/* Feedback flotante con animación mejorada */}
+        <div className="px-6 pb-4">
+          <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+            <span>Progress</span>
+            <span>{answered.length} of {test.questions.length} answered</span>
+          </div>
+          <Progress value={progress} />
+        </div>
+
+        <CardFooter className="border-t p-6">
+          <div className="flex justify-between w-full">
+            <Button 
+              variant="outline" 
+              onClick={handlePrevious}
+              disabled={currentQuestion === 0 || testCompleted}
+            >
+              <ChevronLeft className="mr-2 h-4 w-4" /> Previous
+            </Button>
+            
+            {testCompleted ? (
+              <Button onClick={() => setShowResults(true)}>View results</Button>
+            ) : (
+              currentQuestion === test.questions.length - 1 ? (
+                <Button 
+                  onClick={handleFinish}
+                  variant="default"
+                  disabled={answered.length < test.questions.length}
+                >
+                  Finish test
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleNext} 
+                  disabled={!answered.includes(currentQuestionData.id) || testCompleted}
+                >
+                  Next <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              )
+            )}
+          </div>
+        </CardFooter>
+      </Card>
+
       <AnimatePresence>
         {showFeedback && (
           <motion.div
-            initial={{ opacity: 0, y: -50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.9 }}
-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className={`
-              fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg
-              ${showFeedback.correct ? "bg-green-500" : "bg-red-500"}
-              text-white
-            `}
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 right-4 z-50"
           >
-            {showFeedback.message}
+            <div className={`
+              px-6 py-3 rounded-lg shadow-lg
+              ${showFeedback.correct 
+                ? "bg-green-500 text-white" 
+                : "bg-red-500 text-white"}
+            `}>
+              {showFeedback.message}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Dialog de resultados con animaciones */}
-      <Dialog open={showResults} onOpenChange={setShowResults}>
-        <DialogContent className="sm:max-w-[425px]">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                Resultados del Test
-                <Badge variant={finalScore.passed ? "default" : "destructive"}>
-                  {finalScore.passed ? "Aprobado" : "No Aprobado"}
-                </Badge>
-              </DialogTitle>
-              <DialogDescription>
-                {finalScore.passed ? test.passingMessage : test.failingMessage}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="grid gap-4 py-4">
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Puntuación Final:</span>
-                  <span className="text-2xl font-bold">
-                    {finalScore.score} / {test.maxScore || 100}
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Porcentaje obtenido:</span>
-                    <span>{Math.round(finalScore.percentage)}%</span>
-                  </div>
-                  <Progress 
-                    value={finalScore.percentage}
-                    className={`h-2 ${
-                      finalScore.passed 
-                        ? "bg-green-500" 
-                        : "bg-red-500"
-                    }`}
-                  />
-                </div>
-
-                <div className="flex justify-between text-sm">
-                  <span>Puntuación mínima requerida:</span>
-                  <span>{test.minScore || 60}%</span>
-                </div>
-
-                <div className="text-sm text-muted-foreground mt-4">
-                  <h4 className="font-medium mb-2">Resumen:</h4>
-                  <ul className="list-disc pl-4 space-y-1">
-                    <li>Preguntas totales: {test.questions.length}</li>
-                    <li>Áreas correctas encontradas: {answered.length}</li>
-                    <li>Intentos realizados: {Object.values(attempts).reduce((a, b) => a + b, 0)}</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={resetTest}
-              >
-                Intentar de nuevo
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowResults(false)
-                  onFinish?.()
-                }}
-              >
-                Finalizar
-              </Button>
-            </DialogFooter>
-    </motion.div>
-        </DialogContent>
-      </Dialog>
-    </>
+      <ResultsDialog
+        isOpen={showResults}
+        onClose={() => setShowResults(false)}
+        score={score}
+        maxScore={test.maxScore}
+        minScore={test.minScore}
+        passingMessage={test.passingMessage}
+        failingMessage={test.failingMessage}
+      />
+    </div>
   )
 } 

@@ -18,19 +18,43 @@ import type { Area, Test } from "@/lib/test-storage" // Importar el tipo Area y 
 import { toast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { MultipleChoiceEditor } from "./multiple-choice-editor"
+import { DragAndDropEditor } from "./drag-and-drop-editor"
+import { SequenceEditor } from "./sequence-editor"
+import { PointAPoint } from "./point_a_point"
+import { OpenQuestion } from "./open_question"
+import { IdentifyErrors } from "./Identify_errors"
+import { PhraseComplete } from "./phrase_complete"
+import { TrueOrFalseEditor } from "./true_or_false_editor"
+import { ImageAreaSelector } from "@/components/image-area-selector"
+import { PointAPointEditor } from "./point_a_point_editor"
 
+
+
+// Primero definimos los tipos de preguntas posibles
+type QuestionType = 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 'pointAPoint' | 'openQuestion' | 'identifyErrors' | 'phraseComplete' | 'trueOrFalse'
+
+// Extendemos la interfaz Question
 interface Question {
   id: number
+  type: 'image-map' | 'true-false' | 'multiple-choice'  // Agregamos el tipo de pregunta
   title: string
   description: string
   question: string
-  image: string
+  image?: string
   originalImage?: string
-  areas: Area[]
-  scoring?: {
-    correct: number    // Puntos al acertar
-    incorrect: number  // Puntos que se pierden al fallar
-    retain: number     // Puntos que se mantienen al fallar
+  areas?: Area[]
+  options?: {
+    id: string
+    text: string
+    isCorrect: boolean
+  }[]
+  correctAnswer?: boolean  // Para preguntas true/false
+  scoring: {
+    correct: number
+    incorrect: number
+    retain: number
   }
 }
 
@@ -38,10 +62,10 @@ interface Question {
 const testScreens = [
   {
     id: 1,
-    title: "Nueva Pregunta",
-    description: "Agrega una descripción para la pregunta",
+    title: "New Question",
+    description: "Add a description for the question",
     image: "",
-    question: "¿Qué acción debe realizar el usuario?",
+    question: "What action should the user perform?",
     areas: [],
     scoring: {
       correct: 1,
@@ -64,9 +88,9 @@ const defaultScoring = {
 
 const defaultQuestion = {
   id: Date.now(),
-  title: "Nueva Pregunta",
-  description: "Agrega una descripción para la pregunta",
-  question: "¿Qué acción debe realizar el usuario?",
+  title: "New Question",
+  description: "Add a description for the question",
+  question: "What action should the user perform?",
   image: "/placeholder.svg",
   areas: [],
   scoring: {
@@ -109,8 +133,8 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   const [testDescription, setTestDescription] = useState(initialTest?.description || "")
   const [testMaxScore, setTestMaxScore] = useState(initialTest?.maxScore || 100)
   const [testMinScore, setTestMinScore] = useState(initialTest?.minScore || 60)
-  const [testPassingMessage, setTestPassingMessage] = useState(initialTest?.passingMessage || "¡Felicitaciones! Has aprobado el test.")
-  const [testFailingMessage, setTestFailingMessage] = useState(initialTest?.failingMessage || "Necesitas mejorar para aprobar el test.")
+  const [testPassingMessage, setTestPassingMessage] = useState(initialTest?.passingMessage || "Congratulations! You have passed the test.")
+  const [testFailingMessage, setTestFailingMessage] = useState(initialTest?.failingMessage || "You need to improve to pass the test.")
   const [isLoading, setIsLoading] = useState(false)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
@@ -120,26 +144,6 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     type: "warning" as "warning" | "success"
   })
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-
-  const handleImageUrlChange = async (url: string) => {
-    try {
-      const processedUrl = processGoogleDriveUrl(url);
-      const cachedUrl = await downloadAndCacheImage(processedUrl);
-      
-      handleTestUpdate({
-        image: cachedUrl,
-        originalImage: url // Guardar la URL original
-      });
-      
-    } catch (error) {
-      console.error('Error procesando imagen:', error);
-      toast({
-        title: "Error",
-        description: "No se pudo procesar la imagen. Por favor, verifica la URL.",
-        variant: "destructive",
-      });
-    }
-  }
 
   const handleToggleMode = () => {
     setIsEditMode(!isEditMode)
@@ -243,17 +247,14 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
   const handleAddQuestion = () => {
     const newQuestion: Question = {
-      id: parseInt(generateId('q')), // Generamos un ID estable
-      title: "Nueva Pregunta",
-      description: "Agrega una descripción para la pregunta",
-      question: "¿Qué acción debe realizar el usuario?",
+      id: parseInt(generateId('q')),
+      type: 'image-map', // Tipo por defecto
+      title: "New Question",
+      description: "Add a description for the question",
+      question: "What action should the user perform?",
       image: "",
       areas: [],
-      scoring: {
-        correct: 1,
-        incorrect: 1,
-        retain: 0
-      }
+      scoring: defaultScoring
     }
 
     setScreens(prev => [...prev, newQuestion])
@@ -276,30 +277,54 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   const handleSaveTest = async () => {
     try {
       setIsLoading(true)
-      
-      // Asegurarnos de que todas las preguntas tengan configuración de puntuación
-      const formattedQuestions = screens.map(question => ({
+
+      // Formatear las preguntas según su tipo
+      const formattedQuestions = screens.map(question => {
+        const baseQuestion = {
         ...question,
-        scoring: question.scoring || defaultScoring,
-        areas: question.areas.map(area => ({
+          scoring: question.scoring || defaultScoring,
+        }
+
+        switch (question.type) {
+          case 'image-map':
+            return {
+              ...baseQuestion,
+              areas: (question.areas || []).map(area => ({
           ...area,
-          coords: [
+                coords: [
             Math.round(area.x || 0),
             Math.round(area.y || 0),
             Math.round((area.x || 0) + (area.width || 0)),
             Math.round((area.y || 0) + (area.height || 0))
-          ]
-        }))
-      }))
+                ]
+              }))
+            }
+
+          case 'true-false':
+            return {
+              ...baseQuestion,
+              correctAnswer: question.correctAnswer || false
+            }
+
+          case 'multiple-choice':
+            return {
+              ...baseQuestion,
+              options: question.options || []
+            }
+
+          default:
+            return baseQuestion
+        }
+      })
 
       const testData = {
         id: initialTest?.id || generateId(),
-        name: testName,
-        description: testDescription,
+      name: testName,
+      description: testDescription,
         questions: formattedQuestions,
-        maxScore: testMaxScore,
-        minScore: testMinScore,
-        passingMessage: testPassingMessage,
+      maxScore: testMaxScore,
+      minScore: testMinScore,
+      passingMessage: testPassingMessage,
         failingMessage: testFailingMessage
       }
 
@@ -385,7 +410,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   }, [])
 
   const handleDeleteQuestion = (index: number) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar esta pregunta? Esta acción no se puede deshacer.')) {
+    if (window.confirm('Are you sure you want to delete this question? This action cannot be undone.')) {
       setScreens((prev: typeof screens) => prev.filter((_: typeof screens[0], i: number) => i !== index))
       if (currentScreen >= index) {
         setCurrentScreen(prev => Math.max(0, prev - 1))
@@ -402,11 +427,19 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
   const handleExportTest = () => {
     try {
-      // Asegurarnos de que todas las áreas tengan el formato correcto
-      const formattedQuestions = screens.map(question => ({
+      // Usar la misma lógica de formateo que en handleSaveTest
+      const formattedQuestions = screens.map(question => {
+        const baseQuestion = {
         ...question,
         image: question.originalImage || question.image,
-        areas: question.areas.map(area => ({
+          scoring: question.scoring || defaultScoring,
+        }
+
+        switch (question.type) {
+          case 'image-map':
+            return {
+              ...baseQuestion,
+              areas: (question.areas || []).map(area => ({
           id: area.id,
           shape: "rect",
           isCorrect: true,
@@ -417,7 +450,24 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
             Math.round(area.y! + area.height!)
           ]
         }))
-      }))
+            }
+
+          case 'true-false':
+            return {
+              ...baseQuestion,
+              correctAnswer: question.correctAnswer
+            }
+
+          case 'multiple-choice':
+            return {
+              ...baseQuestion,
+              options: question.options
+            }
+
+          default:
+            return baseQuestion
+        }
+      })
 
       const testData = {
                   id: initialTest?.id || Date.now().toString(),
@@ -430,7 +480,6 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
         questions: formattedQuestions
       }
                 
-                // Crear y descargar el archivo JSON
       const jsonStr = JSON.stringify(testData, null, 2)
                 const blob = new Blob([jsonStr], { type: 'application/json' })
                 const url = URL.createObjectURL(blob)
@@ -443,15 +492,14 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 URL.revokeObjectURL(url)
 
       toast({
-        title: "Éxito",
-        description: "Test exportado correctamente",
-        variant: "default",
+        title: "Success",
+        description: "Test exported successfully",
       })
     } catch (error) {
       console.error('Error exporting test:', error)
       toast({
         title: "Error",
-        description: "No se pudo exportar el test",
+        description: "Failed to export test",
         variant: "destructive",
       })
     }
@@ -459,8 +507,8 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
   const handleCancelClick = () => {
     setDialogConfig({
-      title: "¿Deseas cancelar?",
-      description: "Los cambios no guardados se perderán. ¿Estás seguro?",
+      title: "Do you want to cancel?",
+      description: "Unsaved changes will be lost. Are you sure?",
       type: "warning"
     })
     setShowCancelDialog(true)
@@ -474,10 +522,21 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     
     setHasUnsavedChanges(true)
     toast({
-      title: "Áreas limpiadas",
-      description: "Se han eliminado todas las áreas marcadas"
+      title: "Areas cleaned",
+      description: "All marked areas have been deleted"
     })
   }, [currentScreen, screens])
+
+  // Agregar selector de tipo de pregunta
+  const handleQuestionTypeChange = (type: QuestionType) => {
+    handleScreenUpdate(currentScreen, {
+      type,
+      // Resetear campos específicos según el tipo
+      areas: type === 'clickArea' ? [] : undefined,
+      options: type === 'multipleChoice' ? [] : undefined,
+      sequence: type === 'sequence' ? [] : undefined
+    })
+  }
 
   return (
     <>
@@ -492,7 +551,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-2xl font-bold">
-                {isEditMode ? "Editor de Test" : "Realizar Test"}
+                {isEditMode ? "Test Editor" : "Take the test"}
               </CardTitle>
               <div className="flex gap-2">
                 {isEditMode && (
@@ -503,7 +562,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         onClick={handleCancelClick}
                         disabled={isLoading}
                       >
-                        Cancelar
+                        Cancel
                       </Button>
                     </motion.div>
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -515,12 +574,12 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         {isLoading ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Exportando...
+                            Exporting...
                           </>
                         ) : (
                           <>
                             <Download className="mr-2 h-4 w-4" />
-              Exportar JSON
+                            Export JSON
                           </>
                         )}
             </Button>
@@ -533,12 +592,12 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         {isLoading ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Guardando...
+                            Saving...
                           </>
                         ) : (
                           <>
                             <Save className="mr-2 h-4 w-4" />
-                            Guardar y Salir
+                            Save and Exit
                           </>
                         )}
             </Button>
@@ -554,12 +613,12 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                     {isEditMode ? (
                       <>
                         <Play className="mr-2 h-4 w-4" />
-                        Modo Prueba
+                        Test Mode
                       </>
                     ) : (
                       <>
                         <Edit className="mr-2 h-4 w-4" />
-                        Modo Edición
+                        Edit Mode
                       </>
                     )}
                   </Button>
@@ -581,35 +640,35 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
                 whileHover={{ y: -2 }}
               >
-                <h3 className="text-lg font-medium mb-4">Configuración general</h3>
+                <h3 className="text-lg font-medium mb-4">General configuration</h3>
                 <div>
                   <label htmlFor="testName" className="block text-sm font-medium mb-1">
-                    Nombre del test
+                    Test name
                   </label>
                   <Input
                     id="testName"
                     value={testName}
                     onChange={(e) => setTestName(e.target.value)}
-                    placeholder="Nombre del test"
+                    placeholder="Test name"
                   />
                 </div>
 
                 <div>
                   <label htmlFor="testDescription" className="block text-sm font-medium mb-1">
-                    Descripción
+                    Description
                   </label>
                   <Textarea
                     id="testDescription"
                     value={testDescription}
                     onChange={(e) => setTestDescription(e.target.value)}
-                    placeholder="Descripción del test"
+                    placeholder="Test description"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="maxScore" className="block text-sm font-medium mb-1">
-                      Puntuación máxima del test
+                      Maximum score
                     </label>
                     <Input
                       id="maxScore"
@@ -620,13 +679,13 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       placeholder="100"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Puntuación total que se puede obtener en el test
+                      Total score that can be obtained in the test
                     </p>
                   </div>
 
                   <div>
                     <label htmlFor="minScore" className="block text-sm font-medium mb-1">
-                      Puntuación mínima para aprobar
+                      Minimum score to pass
                     </label>
                     <Input
                       id="minScore"
@@ -637,7 +696,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       placeholder="60"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Puntuación necesaria para considerar el test como aprobado
+                      Score needed to consider the test as passed
                     </p>
                   </div>
                 </div>
@@ -645,26 +704,26 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 <div className="space-y-4">
                   <div>
                     <label htmlFor="passingMessage" className="block text-sm font-medium mb-1">
-                      Mensaje al aprobar
+                      Passing message
                     </label>
                     <Textarea
                       id="passingMessage"
                       value={testPassingMessage}
                       onChange={(e) => setTestPassingMessage(e.target.value)}
-                      placeholder="¡Felicitaciones! Has aprobado el test."
+                      placeholder="Congratulations! You have passed the test."
                       className="h-20"
                     />
                   </div>
 
                   <div>
                     <label htmlFor="failingMessage" className="block text-sm font-medium mb-1">
-                      Mensaje al no aprobar
+                      Message when failing
                     </label>
                     <Textarea
                       id="failingMessage"
                       value={testFailingMessage}
                       onChange={(e) => setTestFailingMessage(e.target.value)}
-                      placeholder="Necesitas mejorar para aprobar el test."
+                      placeholder="You need to improve to pass the test."
                       className="h-20"
                     />
                   </div>
@@ -677,14 +736,14 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 whileHover={{ y: -2 }}
               >
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-medium">Pregunta {currentScreen + 1} de {screens.length}</h3>
+                  <h3 className="text-lg font-medium">Question {currentScreen + 1} of {screens.length}</h3>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                         onClick={() => handleAddQuestion()}
                     >
-                      Agregar pregunta
+                      Add question
                     </Button>
                     <Button
                       variant="destructive"
@@ -692,7 +751,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       onClick={() => handleDeleteQuestion(currentScreen)}
                       disabled={screens.length <= 1}
                     >
-                      Eliminar pregunta
+                      Delete question
                     </Button>
                   </div>
                 </div>
@@ -702,7 +761,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                   <div className="grid gap-4">
                     <div>
                       <label htmlFor="questionTitle" className="block text-sm font-medium mb-1">
-                        Título de la pregunta
+                        Question title
                       </label>
                       <Input
                         id="questionTitle"
@@ -714,7 +773,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
                     <div>
                       <label htmlFor="questionText" className="block text-sm font-medium mb-1">
-                        Pregunta
+                        Question
                       </label>
                       <Input
                         id="questionText"
@@ -726,58 +785,151 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
                     <div>
                       <label htmlFor="questionDescription" className="block text-sm font-medium mb-1">
-                        Descripción o instrucciones
+                        Description or instructions
                       </label>
                       <Textarea
                         id="questionDescription"
                         value={currentTestScreen.description}
                         onChange={(e) => handleScreenUpdate(currentScreen, { description: e.target.value })}
-                        placeholder="Proporciona instrucciones o contexto adicional para la pregunta"
+                        placeholder="Provide instructions or additional context for the question"
                         className="h-24"
                       />
                     </div>
-
-                    {/* URL de imagen movida aquí */}
-                    <div className="border-t pt-4">
-                      <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">
-                        URL de imagen (Google Drive)
-                      </label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="imageUrl"
-                          placeholder="https://drive.google.com/file/d/..."
-                            value={currentTestScreen.image || ''}
-                          onChange={(e) => handleImageUrlChange(e.target.value)}
-                          type="url"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => window.open('https://drive.google.com', '_blank')}
-                          title="Abrir Google Drive"
-                        >
-                          <Link className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1 space-y-1">
-                        <p>Asegúrate de que la imagen sea pública en Google Drive</p>
-                        <p>Formatos de URL soportados:</p>
-                        <ul className="list-disc pl-4">
-                          <li>https://drive.google.com/file/d/ID_ARCHIVO/view</li>
-                          <li>https://drive.google.com/open?id=ID_ARCHIVO</li>
-                        </ul>
-                      </div>
                     </div>
-                  </div>
 
+                  {/* Selector de tipo de pregunta */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1">
+                      Question type
+                      </label>
+                    <Select
+                      value={currentTestScreen.type}
+                      onValueChange={(value: QuestionType) => handleQuestionTypeChange(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select the question type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="clickArea">Click area</SelectItem>
+                        <SelectItem value="multipleChoice">Multiple choice</SelectItem>
+                        <SelectItem value="dragAndDrop">Drag and drop</SelectItem>
+                        <SelectItem value="sequence">Sequence</SelectItem>
+                        <SelectItem value="pointAPoint">Point to point</SelectItem>
+                        <SelectItem value="openQuestion">Open question</SelectItem>
+                        <SelectItem value="identifyErrors">Identify errors</SelectItem>
+                        <SelectItem value="phraseComplete">Phrase complete</SelectItem>
+                        <SelectItem value="trueOrFalse">True or false</SelectItem>
+                      </SelectContent>
+                    </Select>
+                      </div>
+
+                  {/* Renderizar el editor específico según el tipo */}
+                  {currentTestScreen.type === 'clickArea' && (
+                    <div className="border-t pt-6">
+                      <ImageAreaSelector
+                        image={currentTestScreen.image || ''}
+                        areas={currentTestScreen.areas || []}
+                        onChange={(data) => handleScreenUpdate(currentScreen, {
+                          image: data.image,
+                          originalImage: data.originalImage,
+                          areas: data.areas
+                        })}
+                        isEditMode={isEditMode}
+                      />
+                      </div>
+                  )}
+
+                  {currentTestScreen.type === 'multipleChoice' && (
+                    <div className="border-t pt-6">
+                      <MultipleChoiceEditor
+                        options={currentTestScreen.options || []}
+                        onChange={(options) => handleScreenUpdate(currentScreen, { options })}
+                      />
+                    </div>
+                  )}
+
+                  {currentTestScreen.type === 'dragAndDrop' && (
+                    <div className="border-t pt-6">
+                      <DragAndDropEditor
+                        items={currentTestScreen.items || []}
+                        onChange={(items) => handleScreenUpdate(currentScreen, { items })}
+                      />
+                  </div>
+                  )}
+
+                  {currentTestScreen.type === 'sequence' && (
+                    <div className="border-t pt-6">
+                      <SequenceEditor
+                        sequence={currentTestScreen.sequence || []}
+                        onChange={(sequence) => handleScreenUpdate(currentScreen, { sequence })}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'pointAPoint' && (
+                    <div className="border-t pt-6">
+                      <PointAPointEditor
+                        points={currentTestScreen.points || []}
+                        onChange={(points) => handleScreenUpdate(currentScreen, { points })}
+                      />
+                    </div>
+                  )}
+                    {currentTestScreen.type === 'openQuestion' && (
+                    <div className="border-t pt-6">
+                      <OpenQuestion
+                        question={currentTestScreen.openQuestion?.question || ''}
+                        answer={currentTestScreen.openQuestion?.answer || ''}
+                        onChange={(data) => handleScreenUpdate(currentScreen, { 
+                          openQuestion: { 
+                            ...currentTestScreen.openQuestion,
+                            ...data 
+                          } 
+                        })}
+                        isEditMode={isEditMode}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'identifyErrors' && (
+                    <div className="border-t pt-6">
+                      <IdentifyErrors
+                        question={currentTestScreen.identifyErrors?.question || ''}
+                        answer={currentTestScreen.identifyErrors?.answer || ''}
+                        onChange={(data) => handleScreenUpdate(currentScreen, { 
+                          identifyErrors: { 
+                            ...currentTestScreen.identifyErrors,
+                            ...data 
+                          } 
+                        })}
+                        isEditMode={isEditMode}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'phraseComplete' && (
+                    <div className="border-t pt-6">
+                      <PhraseComplete
+                        question={currentTestScreen.phraseComplete?.question || ''}
+                        answer={currentTestScreen.phraseComplete?.answer || ''}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'trueOrFalse' && (
+                    <div className="border-t pt-6">
+                      <TrueOrFalseEditor
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.correctAnswer || false}
+                        onChange={(data) => handleScreenUpdate(currentScreen, { 
+                          question: data.question,
+                          correctAnswer: data.answer
+                        })}
+                      />
+                    </div>
+                  )}
                   {/* Configuración de puntuación */}
                   <div className="border-t pt-6">
-                    <h4 className="text-sm font-medium mb-4">Puntuación de la pregunta</h4>
+                    <h4 className="text-sm font-medium mb-4">Question scoring</h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label htmlFor="correctPoints" className="block text-sm font-medium mb-1">
-                          Puntos al acertar
+                          Points for correct answer
                         </label>
                         <Input
                           id="correctPoints"
@@ -796,7 +948,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
                       <div>
                         <label htmlFor="incorrectPoints" className="block text-sm font-medium mb-1">
-                          Puntos que se pierden
+                          Points for incorrect answer
                         </label>
                         <Input
                           id="incorrectPoints"
@@ -815,7 +967,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
                       <div>
                         <label htmlFor="retainPoints" className="block text-sm font-medium mb-1">
-                          Puntos que se mantienen
+                          Points for correct answer
                         </label>
                         <Input
                           id="retainPoints"
@@ -833,44 +985,9 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                      Ejemplo: Si configuras "Puntos al acertar" = 2, "Puntos que se pierden" = 1, y "Puntos que se mantienen" = 0,
-                      entonces el usuario ganará 2 puntos al acertar y perderá 1 punto al fallar.
+                      Example: If you configure "Points for correct answer" = 2, "Points for incorrect answer" = 1, and "Points for correct answer" = 0,
+                      then the user will gain 2 points for a correct answer and lose 1 point for an incorrect answer.
                     </p>
-                  </div>
-
-                  {/* Área de dibujo */}
-                  <div className="border-t pt-6">
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className="text-sm font-medium">Área correcta</h4>
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsDrawingMode(!isDrawingMode)}
-                      >
-                        {isDrawingMode ? "Modo selección" : "Dibujar área correcta"}
-                      </Button>
-                    </div>
-                    {currentImage && (
-                        <div className="relative">
-          <ImageMap
-                            key={`${currentScreen}-${isDrawingMode}`}
-                            src={currentImage}
-                        areas={currentAreas}
-            onAreaClick={handleAreaClick}
-            alt={`Screenshot of ${currentTestScreen.title}`}
-            className="w-full h-auto border rounded-md"
-                        isDrawingMode={isDrawingMode}
-                        isEditMode={isEditMode}
-                            onDrawingComplete={handleDrawingComplete}
-                            onClearAllAreas={handleClearAllAreas}
-                            hasMarkedAreas={currentAreas.length > 0}
-                          />
-                        </div>
-                    )}
-                    {!currentImage && (
-                      <div className="border rounded-md p-4 text-center text-muted-foreground">
-                        Agrega una URL de imagen para comenzar
-                      </div>
-                    )}
                   </div>
 
                   {/* Navegación entre preguntas */}
@@ -945,7 +1062,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         onError={() => {
                           toast({
                             title: "Error",
-                            description: "No se pudo cargar la imagen",
+                            description: "Failed to load image",
                             variant: "destructive"
                           })
                         }}
@@ -954,7 +1071,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 )}
                 {!currentImage && isEditMode && (
                   <div className="border rounded-md p-4 text-center text-muted-foreground">
-                    Agrega una URL de imagen para comenzar
+                    Add an image URL to start
             </div>
           )}
               </motion.div>
@@ -965,8 +1082,8 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
           {/* Agregar indicador de progreso */}
           <div className="px-6 pb-4">
             <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
-              <span>Progreso</span>
-              <span>{currentScreen + 1} de {screens.length}</span>
+              <span>Progress</span>
+              <span>{currentScreen + 1} of {screens.length}</span>
             </div>
             <Progress value={((currentScreen + 1) / screens.length) * 100} />
           </div>
@@ -975,16 +1092,16 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
           <div className="flex justify-between w-full">
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
         <Button variant="outline" onClick={handlePrevious} disabled={currentScreen === 0}>
-          <ChevronLeft className="mr-2 h-4 w-4" /> Anterior
+          <ChevronLeft className="mr-2 h-4 w-4" /> Previous
         </Button>
             </motion.div>
 
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               {isCompleted && !isEditMode ? (
-          <Button onClick={resetTest}>Reiniciar prueba</Button>
+          <Button onClick={resetTest}>Restart test</Button>
         ) : (
                 <Button onClick={handleNext} disabled={currentScreen === screens.length - 1}>
-            Siguiente <ChevronRight className="ml-2 h-4 w-4" />
+            Next <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
         )}
             </motion.div>

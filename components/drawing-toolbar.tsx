@@ -38,16 +38,16 @@ export function DrawingToolbar({
         variant="destructive"
         size="icon"
         onClick={() => {
-          console.log('Limpiando áreas...'); // Para debug
+          console.log('Clearing marked areas...'); // For debugging
           onClearAllAreas?.();
         }}
         disabled={!hasMarkedAreas}
-        title="Limpiar todas las áreas marcadas"
+        title="Clear all marked areas"
         className="hover:bg-red-600 relative group"
       >
         <Eraser className="h-5 w-5" />
         <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black/75 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-          Borrar todo
+          Clear all marked areas
         </span>
       </Button>
 
@@ -59,7 +59,7 @@ export function DrawingToolbar({
           size="icon"
           onClick={onUndo}
           disabled={!canUndo}
-          title="Deshacer"
+          title="Undo"
         >
           <Undo className="h-4 w-4" />
         </Button>
@@ -70,7 +70,7 @@ export function DrawingToolbar({
         size="icon"
         onClick={onClear}
         disabled={!hasDrawing}
-        title="Limpiar área actual"
+        title="Clear current area"
         className="hover:bg-red-600"
       >
         <Trash2 className="h-4 w-4" />
@@ -81,7 +81,7 @@ export function DrawingToolbar({
           variant="default"
           size="icon"
           onClick={onConfirm}
-          title="Confirmar área"
+          title="Confirm area"
         >
           <Check className="h-4 w-4" />
         </Button>
@@ -93,7 +93,7 @@ export function DrawingToolbar({
           size="icon"
           onClick={onSave}
           disabled={isPendingSave}
-          title="Guardar cambios"
+          title="Save changes"
         >
           <Save className="h-4 w-4" />
         </Button>

@@ -77,13 +77,13 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
   return (
     <Card className="mb-6">
       <CardHeader>
-        <CardTitle>Agregar nueva pregunta</CardTitle>
+        <CardTitle>Add new question</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="title" className="block text-sm font-medium mb-1">
-              Título
+              Title
             </label>
             <Input
               id="title"
@@ -97,7 +97,7 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
 
           <div>
             <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">
-              URL de la imagen (Google Drive)
+              Image URL (Google Drive)
             </label>
             <div className="flex gap-2">
               <Input
@@ -118,13 +118,13 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Asegúrate de que la imagen sea pública en Google Drive
+              Ensure the image is public in Google Drive
             </p>
           </div>
 
           <div>
             <label htmlFor="description" className="block text-sm font-medium mb-1">
-              Descripción
+              Description
             </label>
             <Textarea
               id="description"
@@ -138,21 +138,21 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
 
           <div>
             <label htmlFor="question" className="block text-sm font-medium mb-1">
-              Pregunta
+              Question
             </label>
             <Input
               id="question"
               name="question"
               value={formData.question}
               onChange={handleChange}
-              placeholder="Ej: ¿Dónde harías clic para crear una nueva factura?"
+              placeholder="Ej: Where would you click to create a new invoice?"
               required
             />
           </div>
 
           <Button type="submit" className="w-full">
             <Plus className="w-4 h-4 mr-2" />
-            Agregar pregunta
+            Add question
           </Button>
         </form>
       </CardContent>
