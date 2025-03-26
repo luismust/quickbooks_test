@@ -104,6 +104,7 @@ export function TestViewer({ test }: TestViewerProps) {
     }, 2000)
   }
 
+
   const handleNext = () => {
     if (currentQuestion < test.questions.length - 1) {
       setCurrentQuestion(prev => prev + 1)
@@ -252,6 +253,7 @@ export function TestViewer({ test }: TestViewerProps) {
                 {score >= test.minScore ? test.passingMessage : test.failingMessage}
               </p>
             </div>
+
           ) : (
             <>
               <p className="text-muted-foreground">{test.description || ''}</p>

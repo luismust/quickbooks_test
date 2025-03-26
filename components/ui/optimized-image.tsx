@@ -12,6 +12,7 @@ interface OptimizedImageProps {
   onError?: () => void
 }
 
+
 export function OptimizedImage({ src, alt, className = "", onLoad, onError }: OptimizedImageProps) {
   const [imageSrc, setImageSrc] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
@@ -22,6 +23,7 @@ export function OptimizedImage({ src, alt, className = "", onLoad, onError }: Op
       try {
         setIsLoading(true)
         setError(false)
+
 
         if (src.includes('drive.google.com')) {
           const processedUrl = processGoogleDriveUrl(src)
@@ -65,7 +67,6 @@ export function OptimizedImage({ src, alt, className = "", onLoad, onError }: Op
           objectFit: 'contain'
         }}
       />
-
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-destructive/10 text-destructive">
           Error al cargar la imagen

@@ -198,7 +198,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
     if (clickedArea?.isCorrect) {
       setScore((prev) => prev + 1)
-      setShowFeedback({ correct: true, message: "¡Correcto! +1 punto" })
+      setShowFeedback({ correct: true, message: "Correct! +1 point" })
     } else {
       // Verificar si el click está dentro del área dibujada
       const drawnArea = customAreas[currentScreen]?.[0]
@@ -209,13 +209,13 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
         
         if (clickX >= x1 && clickX <= x2 && clickY >= y1 && clickY <= y2) {
           setScore((prev) => prev + 1)
-          setShowFeedback({ correct: true, message: "¡Correcto! +1 punto" })
+          setShowFeedback({ correct: true, message: "Correct! +1 point" })
           return
         }
       }
 
       setScore((prev) => Math.max(0, prev - 1))
-      setShowFeedback({ correct: false, message: "Incorrecto. -1 punto" })
+      setShowFeedback({ correct: false, message: "Incorrect. -1 point" })
     }
 
     setAnswered((prev) => [...prev, screens[currentScreen].id])
@@ -327,7 +327,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
       passingMessage: testPassingMessage,
         failingMessage: testFailingMessage
       }
-
+      
       await saveTest(testData)
       
       setDialogConfig({
@@ -635,7 +635,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
               transition={{ duration: 0.3 }}
               className="space-y-6"
             >
-              {/* Sección de configuración */}
+              {/* Configuration section */}
               <motion.div 
                 className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
                 whileHover={{ y: -2 }}
@@ -730,7 +730,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 </div>
               </motion.div>
 
-              {/* Sección de preguntas */}
+              {/* Questions section */}
               <motion.div 
                 className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
                 whileHover={{ y: -2 }}
@@ -757,7 +757,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 </div>
 
                 <div className="space-y-6">
-                  {/* Campos básicos de la pregunta */}
+                  {/* Basic question fields */}
                   <div className="grid gap-4">
                     <div>
                       <label htmlFor="questionTitle" className="block text-sm font-medium mb-1">
@@ -767,7 +767,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         id="questionTitle"
                         value={currentTestScreen.title}
                         onChange={(e) => handleScreenUpdate(currentScreen, { title: e.target.value })}
-                        placeholder="Ej: Crear una nueva factura"
+                        placeholder="Ex: Where would you click to create a new invoice?"
                       />
                     </div>
 
@@ -779,7 +779,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         id="questionText"
                         value={currentTestScreen.question}
                         onChange={(e) => handleScreenUpdate(currentScreen, { question: e.target.value })}
-                        placeholder="Ej: ¿Dónde harías clic para crear una nueva factura?"
+                        placeholder="Ex: ¿Dónde harías clic para crear una nueva factura?"
                       />
                     </div>
 
@@ -948,6 +948,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
                       <div>
                         <label htmlFor="incorrectPoints" className="block text-sm font-medium mb-1">
+
                           Points for incorrect answer
                         </label>
                         <Input
@@ -967,6 +968,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
                       <div>
                         <label htmlFor="retainPoints" className="block text-sm font-medium mb-1">
+
                           Points for correct answer
                         </label>
                         <Input
@@ -1018,7 +1020,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
-              {/* Vista de prueba */}
+              {/* Test view */}
               <div className="text-center mb-8">
                 <motion.h2 
                   className="text-2xl font-bold"
@@ -1038,7 +1040,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 </motion.p>
               </div>
 
-              {/* Área de imagen */}
+              {/* Image area */}
               <motion.div
                 className="rounded-lg overflow-hidden border shadow-lg"
                 initial={{ scale: 0.95 }}
@@ -1109,7 +1111,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
       </CardFooter>
     </Card>
 
-      {/* Feedback flotante */}
+      {/* Floating feedback */}
       <AnimatePresence>
         {showFeedback && (
           <motion.div

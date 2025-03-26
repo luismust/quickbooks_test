@@ -1,14 +1,14 @@
 export const questionTemplates = [
   {
     id: "blank",
-    name: "Test en blanco",
+    name: "Blank Test",
     questions: [
       {
         id: 1,
-        title: "Nueva Pregunta",
-        description: "Agrega una descripción para la pregunta",
+        title: "New Question",
+        description: "Add a description for the question",
         image: "",
-        question: "¿Qué acción debe realizar el usuario?",
+        question: "What action should the user perform?",
         areas: []
       }
     ]
@@ -20,9 +20,9 @@ export const questionTemplates = [
       {
         id: 1,
         title: "Nueva Pregunta",
-        description: "Agrega una descripción para la pregunta",
+        description: "Add a description for the question",
         image: "",
-        question: "¿Qué acción debe realizar el usuario?",
+        question: "What action should the user perform?",
         areas: []
       }
     ]
@@ -39,14 +39,14 @@ export const questionTemplates = [
 
 export const exampleTemplate = {
   id: "example-test",
-  name: "Test de Ejemplo",
-  description: "Este es un ejemplo de la estructura que debe tener el archivo JSON",
+  name: "Example Test",
+  description: "This is an example of the structure that the JSON file must have",
   questions: [
     {
       id: 1,
-      title: "Primera Pregunta",
-      description: "Descripción detallada de la tarea",
-      question: "¿Dónde harías clic para...?",
+      title: "First Question",
+      description: "Detailed task description",
+      question: "Where would you click to...?",
       image: "URL_DE_LA_IMAGEN",
       areas: [
         {
@@ -74,9 +74,9 @@ export const downloadExampleTemplate = () => {
 
 export const defaultQuestion = {
   id: Date.now(),
-  title: "Nueva Pregunta",
-  description: "Agrega una descripción para la pregunta",
+  title: "New Question",
+  description: "Add a description for the question",
   image: "",
-  question: "¿Qué acción debe realizar el usuario?",
+  question: "What action should the user perform?",
   areas: []
 } 

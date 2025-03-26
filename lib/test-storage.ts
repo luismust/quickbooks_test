@@ -20,9 +20,9 @@ export interface Question {
   originalImage?: string // URL original antes de procesar
   areas: Area[]
   scoring: {
-    correct: number    // Puntos al acertar
-    incorrect: number  // Puntos que se pierden al fallar
-    retain: number     // Puntos que se mantienen al fallar
+    correct: number    // Points when correct
+    incorrect: number  // Points lost when incorrect
+    retain: number     // Points retained when incorrect
   }
 }
 
@@ -31,10 +31,10 @@ export interface Test {
   name: string
   description: string
   questions: Question[]
-  maxScore: number     // Puntuación máxima del test
-  minScore: number     // Puntuación mínima para aprobar
-  passingMessage?: string  // Mensaje cuando aprueba
-  failingMessage?: string  // Mensaje cuando no aprueba
+  maxScore: number     // Maximum test score
+  minScore: number     // Minimum score to pass
+  passingMessage?: string  // Message when passing
+  failingMessage?: string  // Message when failing
 }
 
 export const validateTest = (test: Test): boolean => {
@@ -59,7 +59,7 @@ export const validateTest = (test: Test): boolean => {
       }
     }
 
-    // Validar URLs de imágenes
+    // Validate image URLs
     const hasValidImages = test.questions.every(question => {
       if (!question.image) return false
       if (question.image.includes('drive.google.com')) {
@@ -69,7 +69,7 @@ export const validateTest = (test: Test): boolean => {
     })
 
     if (!hasValidImages) {
-      console.error('Las URLs de las imágenes deben ser válidas y públicas en Google Drive')
+      console.error('Image URLs must be valid and public in Google Drive')
       return false
     }
 
@@ -129,5 +129,5 @@ export const exportTest = (test: Test): string => {
 }
 
 export const downloadExampleTemplate = () => {
-  // ... implementación
+  // ... implementation
 } 
