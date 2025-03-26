@@ -36,7 +36,7 @@ export default function TestsPage() {
           className="mb-4"
         >
           <ChevronLeft className="mr-2 h-4 w-4" />
-          Volver a la lista
+          Back to list
         </Button>
         <TestViewer 
           test={selectedTest}
@@ -54,9 +54,9 @@ export default function TestsPage() {
           onClick={() => router.push("/")}
         >
           <ChevronLeft className="mr-2 h-4 w-4" />
-          Volver al Inicio
+          Back to Home
         </Button>
-        <h1 className="text-3xl font-bold">Tests Disponibles</h1>
+        <h1 className="text-3xl font-bold">Available Tests</h1>
         <div className="w-[100px]" />
       </div>
 
@@ -68,12 +68,12 @@ export default function TestsPage() {
             onClick={() => setSelectedTest(test)}
           >
             <CardHeader>
-              <CardTitle>{test.name || "Test sin nombre"}</CardTitle>
+              <CardTitle>{test.name || "Test without name"}</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {test.description || "Sin descripción"}
+                {test.description || "No description"}
               </p>
               <div className="text-sm text-muted-foreground mt-2">
-                {test.questions.length} preguntas
+                {test.questions.length} questions
               </div>
             </CardHeader>
             
@@ -94,7 +94,7 @@ export default function TestsPage() {
         >
           <CardHeader className="flex items-center justify-center">
             <Plus className="h-8 w-8 text-muted-foreground" />
-            <CardTitle className="mt-2">Crear nuevo test</CardTitle>
+            <CardTitle className="mt-2">Create new test</CardTitle>
           </CardHeader>
         </Card>
       </div>

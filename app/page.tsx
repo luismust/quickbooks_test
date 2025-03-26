@@ -9,6 +9,7 @@ import { Upload, Edit, Play } from "lucide-react"
 import { saveTest, validateTest, downloadExampleTemplate } from "@/lib/test-storage"
 import { motion } from "framer-motion"
 import { toast } from "sonner"
+import FloatingIcons from "@/components/floating-icons"
 
 export default function Home() {
   const [isDragging, setIsDragging] = useState(false)
@@ -73,6 +74,7 @@ export default function Home() {
       animate={{ opacity: 1 }}
       className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 bg-gray-50"
     >
+      <FloatingIcons />
       <motion.h1
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -88,7 +90,7 @@ export default function Home() {
         className="grid gap-6 md:grid-cols-2 max-w-4xl w-full"
       >
         <motion.div variants={item} className="col-span-2">
-          <Card className="col-span-2">
+          <Card className="col-span-2 relative z-10">
             <CardHeader>
               <CardTitle>Upload Test Template</CardTitle>
               <CardDescription>
@@ -142,7 +144,7 @@ export default function Home() {
         </motion.div>
 
         <motion.div variants={item}>
-          <Card className="hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+          <Card className="hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 relative z-10">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Edit className="h-5 w-5" />
@@ -163,7 +165,7 @@ export default function Home() {
         </motion.div>
 
         <motion.div variants={item}>
-          <Card className="hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+          <Card className="hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 relative z-10">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Play className="h-5 w-5" />
