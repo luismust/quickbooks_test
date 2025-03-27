@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { uploadImageToDrive } from '@/lib/google-drive'
+import { uploadImageToDrive } from '@/lib/google-drive-client'
 
 export async function POST(request: Request) {
   try {
