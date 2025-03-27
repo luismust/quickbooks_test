@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { deleteTest } from '@/lib/test-storage'
 
+interface Params {
+  id: string;
+}
+
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Params }
 ) {
   try {
+    const { params } = context;
     const success = await deleteTest(params.id)
     
     if (success) {
