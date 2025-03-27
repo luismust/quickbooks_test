@@ -18,10 +18,11 @@ export default function TestPage() {
     if (params.testId === 'new') {
       setCurrentTest({
         id: Date.now().toString(),
-        name: "Nuevo Test",
+        name: "New Test",
+        description: "Test description",
         questions: [],
-        passingMessage: "¡Felicitaciones! Has aprobado el test.",
-        failingMessage: "Necesitas mejorar para aprobar el test.",
+        passingMessage: "Congratulations! You have passed the test.",
+        failingMessage: "You need to improve to pass the test.",
         minScore: 60,
         maxScore: 100
       })

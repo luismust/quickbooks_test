@@ -165,4 +165,19 @@ export function generateId(prefix: string = ''): string {
     return `${prefix}_${Math.random().toString(36).substring(2)}${Date.now().toString(36)}`;
   }
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
-} 
+}
+
+export const deleteTest = async (testId: string): Promise<boolean> => {
+  try {
+    if (typeof window === 'undefined') return false;
+    
+    const tests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
+    const filteredTests = tests.filter((t: Test) => t.id !== testId);
+    
+    localStorage.setItem('saved-tests', JSON.stringify(filteredTests));
+    return true;
+  } catch (error) {
+    console.error('Error deleting test:', error);
+    return false;
+  }
+}; 
