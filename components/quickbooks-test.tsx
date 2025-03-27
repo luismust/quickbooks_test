@@ -44,12 +44,12 @@ const defaultScoring = {
 
 const defaultQuestion: Question = {
   id: generateId(),
-  title: "New Question",
-  description: "Add a description for the question",
-  question: "What action should the user perform?",
+    title: "New Question",
+    description: "Add a description for the question",
+    question: "What action should the user perform?",
   image: "",
   type: "clickArea",
-  areas: [],
+    areas: [],
   scoring: defaultScoring
 }
 
@@ -865,7 +865,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         isEditMode={isEditMode}
                         onImageUpload={handleImageUpload}
                       />
-                    </div>
+                      </div>
                   )}
 
                   {currentTestScreen.type === 'multipleChoice' && (
@@ -1075,18 +1075,18 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 transition={{ delay: 0.4 }}
               >
                 {currentImage && (
-                  <div className="relative">
-                    <ImageMap
-                      key={`${currentScreen}-${isDrawingMode}`}
-                      src={currentImage}
-                      areas={currentAreas}
+                    <div className="relative">
+                  <ImageMap
+                        key={`${currentScreen}-${isDrawingMode}`}
+                        src={currentImage}
+                    areas={currentAreas}
                       drawingArea={null}
-                      onAreaClick={handleAreaClick}
-                      alt={`Screenshot of ${currentTestScreen.title}`}
-                      className="w-full h-auto border rounded-md"
-                      isDrawingMode={isDrawingMode}
-                      isEditMode={isEditMode}
-                      onError={() => {
+                    onAreaClick={handleAreaClick}
+                    alt={`Screenshot of ${currentTestScreen.title}`}
+                    className="w-full h-auto border rounded-md"
+                    isDrawingMode={isDrawingMode}
+                    isEditMode={isEditMode}
+                        onError={() => {
                         if (currentImage) {
                           console.error('Failed to load image:', currentImage)
                           toast({
@@ -1095,15 +1095,15 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                             variant: "destructive"
                           })
                         }
-                      }}
-                    />
-                  </div>
+                        }}
+                      />
+                    </div>
                 )}
                 {!currentImage && isEditMode && (
                   <div className="border rounded-md p-4 text-center text-muted-foreground">
                     Add an image URL to start
-                  </div>
-                )}
+            </div>
+          )}
               </motion.div>
             </motion.div>
           )}

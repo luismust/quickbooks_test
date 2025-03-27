@@ -42,8 +42,8 @@ export function ImageAreaSelector({
         setCurrentImage(formattedUrl)
       } else if (image.startsWith('blob:')) {
         setCurrentImage(image)
-      } else {
-        setCurrentImage(image)
+    } else {
+      setCurrentImage(image)
       }
     }
   }, [image])
@@ -80,8 +80,8 @@ export function ImageAreaSelector({
       setLocalFile(file)
       
       setCurrentImage(localUrl)
-      
-      onChange({ 
+        
+        onChange({ 
         image: localUrl, 
         areas: areas,
         localFile: file
@@ -115,7 +115,7 @@ export function ImageAreaSelector({
 
   const handleDrawMove = (x: number, y: number) => {
     if (!drawingArea) return
-    
+
     console.log('Draw move to:', x, y)
     
     setDrawingArea((prev: any) => {
@@ -132,7 +132,7 @@ export function ImageAreaSelector({
 
   const handleDrawEnd = () => {
     if (!drawingArea) return
-    
+
     console.log('Draw end')
     
     const width = Math.abs(drawingArea.coords[2] - drawingArea.coords[0])
@@ -181,32 +181,32 @@ export function ImageAreaSelector({
 
   return (
     <Card className="p-4">
-      <div className="space-y-4">
+    <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Input
+              <Input
             type="file"
             accept="image/*"
             onChange={handleImageUrlChange}
             className="hidden"
             ref={fileInputRef}
-          />
-          <Button
-            variant="outline"
+              />
+              <Button
+                variant="outline"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
-          >
+                disabled={isLoading}
+              >
             {isLoading ? 'Loading...' : 'Upload Image'}
-          </Button>
-          {isDrawingMode && (
-            <DrawingToolbar
-              selectedTool={selectedTool}
+              </Button>
+              {isDrawingMode && (
+                <DrawingToolbar
+                  selectedTool={selectedTool}
               onToolSelect={setSelectedTool}
               onClear={handleClearAllAreas}
             />
           )}
         </div>
 
-        {currentImage && (
+      {currentImage && (
           <div className="relative">
             <ImageMap
               src={currentImage}
@@ -254,8 +254,8 @@ export function ImageAreaSelector({
           <div className="flex items-center justify-center h-48 bg-gray-100 rounded-md">
             <p className="text-gray-500">No image selected. Upload an image to start.</p>
           </div>
-        )}
-      </div>
+      )}
+    </div>
     </Card>
   )
 } 

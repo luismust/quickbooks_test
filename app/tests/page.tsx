@@ -15,10 +15,29 @@ export default function TestsPage() {
   const [tests, setTests] = useLocalStorage<Test[]>('saved-tests', [])
   const router = useRouter()
 
-  const handleDelete = (e: React.MouseEvent, testId: string) => {
+  const handleDelete = async (e: React.MouseEvent, testId: string) => {
     e.stopPropagation() // Esto es clave para evitar que se abra el test
     if (confirm("¿Estás seguro de que deseas eliminar este test?")) {
+      // Eliminar localmente
       setTests(tests.filter(test => test.id !== testId))
+      
+      // Eliminar en el servidor
+      try {
+        const response = await fetch('/api/delete-test', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ id: testId }),
+        });
+        
+        if (!response.ok) {
+          console.error('Error deleting test on server');
+        }
+      } catch (error) {
+        console.error('Error calling delete API:', error);
+      }
+      
       toast({
         title: "Test eliminado",
         description: "El test se ha eliminado correctamente",
