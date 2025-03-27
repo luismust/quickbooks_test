@@ -30,6 +30,15 @@ interface ImageMapProps {
   onDrawMove?: (x: number, y: number) => void
   onDrawEnd?: () => void
   onError?: () => void
+  highlightArea?: boolean
+  userAnswer?: boolean
+  showAreas?: boolean
+  areaStyles?: {
+    default: React.CSSProperties
+    hover: React.CSSProperties
+    correct: React.CSSProperties
+    incorrect: React.CSSProperties
+  }
 }
 
 export function ImageMap({ 
@@ -44,7 +53,11 @@ export function ImageMap({
   onDrawStart,
   onDrawMove,
   onDrawEnd,
-  onError
+  onError,
+  highlightArea,
+  userAnswer,
+  showAreas,
+  areaStyles
 }: ImageMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
@@ -119,7 +132,7 @@ export function ImageMap({
   return (
     <div 
       ref={containerRef}
-      className="relative"
+      className={cn("relative", className)}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={onDrawEnd}
@@ -131,10 +144,10 @@ export function ImageMap({
         </div>
       )}
       
-        <img
-          ref={imageRef}
-          src={src}
-          alt={alt}
+      <img
+        ref={imageRef}
+        src={src}
+        alt={alt}
         className={cn(
           "max-w-full h-auto transition-opacity duration-200",
           isLoading ? "opacity-0" : "opacity-100",
@@ -146,18 +159,22 @@ export function ImageMap({
       {!isLoading && areas.map((area) => (
         <div
           key={area.id}
-          className={cn(
-            "absolute border-2 cursor-pointer transition-colors",
-            isEditMode ? "border-blue-500 hover:border-blue-600" : "border-transparent",
-            !isEditMode && "hover:bg-blue-500/20"
-          )}
+          onClick={() => !showAreas && onAreaClick(area.id)}
           style={{
-            left: area.coords[0] * scale,
-            top: area.coords[1] * scale,
-            width: (area.coords[2] - area.coords[0]) * scale,
-            height: (area.coords[3] - area.coords[1]) * scale
+            position: 'absolute',
+            left: `${area.coords[0] * scale}px`,
+            top: `${area.coords[1] * scale}px`,
+            width: `${(area.coords[2] - area.coords[0]) * scale}px`,
+            height: `${(area.coords[3] - area.coords[1]) * scale}px`,
+            ...areaStyles?.default,
+            ...(highlightArea && area.isCorrect && areaStyles?.correct),
+            ...(highlightArea && !area.isCorrect && areaStyles?.incorrect),
+            pointerEvents: showAreas ? 'none' : 'auto',
+            cursor: 'default'
           }}
-          onClick={() => onAreaClick(area.id)}
+          className={cn(
+            "transition-all duration-200 ease-in-out"
+          )}
         />
       ))}
 

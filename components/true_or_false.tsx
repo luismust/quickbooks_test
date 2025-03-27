@@ -53,10 +53,18 @@ interface TrueOrFalseProps {
   question: string
   answer: (value: boolean) => void
   isAnswered?: boolean
+  selectedAnswer?: boolean
+  correctAnswer?: boolean
 }
 
-export function TrueOrFalse({ question, answer, isAnswered = false }: TrueOrFalseProps) {
-  const [selected, setSelected] = useState<boolean | null>(null)
+export function TrueOrFalse({ 
+  question, 
+  answer, 
+  isAnswered = false,
+  selectedAnswer,
+  correctAnswer
+}: TrueOrFalseProps) {
+  const [selected, setSelected] = useState<boolean | null>(selectedAnswer ?? null)
 
   const handleSelect = (value: boolean) => {
     if (isAnswered) return
@@ -74,7 +82,11 @@ export function TrueOrFalse({ question, answer, isAnswered = false }: TrueOrFals
           disabled={isAnswered}
           className={cn(
             "w-full",
-            isAnswered && selected === true && "bg-green-500 hover:bg-green-500"
+            isAnswered && selected === true && (
+              selected === correctAnswer 
+                ? "bg-green-500 hover:bg-green-500" 
+                : "bg-red-500 hover:bg-red-500"
+            )
           )}
         >
           Verdadero
@@ -85,12 +97,26 @@ export function TrueOrFalse({ question, answer, isAnswered = false }: TrueOrFals
           disabled={isAnswered}
           className={cn(
             "w-full",
-            isAnswered && selected === false && "bg-red-500 hover:bg-red-500"
+            isAnswered && selected === false && (
+              selected === correctAnswer 
+                ? "bg-green-500 hover:bg-green-500" 
+                : "bg-red-500 hover:bg-red-500"
+            )
           )}
         >
           Falso
         </Button>
       </div>
+      {isAnswered && (
+        <div className={cn(
+          "mt-4 p-4 rounded-lg text-center",
+          selected === correctAnswer 
+            ? "bg-green-100 text-green-800"
+            : "bg-red-100 text-red-800"
+        )}>
+          {selected === correctAnswer ? "¡Correcto!" : "Incorrecto"}
+        </div>
+      )}
     </div>
   )
 }

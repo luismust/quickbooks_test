@@ -9,7 +9,7 @@ import { Upload, Edit, Play } from "lucide-react"
 import { saveTest, validateTest, downloadExampleTemplate } from "@/lib/test-storage"
 import { motion } from "framer-motion"
 import { toast } from "sonner"
-import FloatingIcons from "@/components/floating-icons"
+import { FloatingIcons } from "@/components/floating-icons"
 
 export default function Home() {
   const [isDragging, setIsDragging] = useState(false)

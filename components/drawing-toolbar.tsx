@@ -7,22 +7,25 @@ interface DrawingToolbarProps {
   onClear: () => void
   hasDrawing: boolean
   onConfirm: () => void
-  isDrawingMode?: boolean
+  onCancel?: () => void
   onUndo?: () => void
   onDelete?: () => void
   canUndo?: boolean
   showSaveButton?: boolean
   hasUnsavedChanges?: boolean
-  onSave?: () => void
+  onSave: () => Promise<void>
   isPendingSave?: boolean
   onClearAllAreas?: () => void
   hasMarkedAreas?: boolean
+  isConfirming?: boolean
+  isSaving?: boolean
 }
 
 export function DrawingToolbar({
   onClear,
   hasDrawing,
   onConfirm,
+  onCancel,
   onUndo,
   canUndo,
   showSaveButton,
@@ -30,7 +33,9 @@ export function DrawingToolbar({
   onSave,
   isPendingSave,
   onClearAllAreas,
-  hasMarkedAreas
+  hasMarkedAreas,
+  isConfirming,
+  isSaving
 }: DrawingToolbarProps) {
   return (
     <div className="flex items-center gap-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-2 rounded-lg shadow-lg border">
@@ -38,8 +43,8 @@ export function DrawingToolbar({
         variant="destructive"
         size="icon"
         onClick={() => {
-          console.log('Clearing marked areas...'); // For debugging
-          onClearAllAreas?.();
+          console.log('Clearing marked areas...')
+          onClearAllAreas?.()
         }}
         disabled={!hasMarkedAreas}
         title="Clear all marked areas"
@@ -81,23 +86,46 @@ export function DrawingToolbar({
           variant="default"
           size="icon"
           onClick={onConfirm}
+          disabled={isConfirming}
           title="Confirm area"
+          className="relative"
         >
-          <Check className="h-4 w-4" />
+          {isConfirming ? (
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-background" />
+          ) : (
+            <Check className="h-4 w-4" />
+          )}
         </Button>
       )}
 
-      {showSaveButton && hasUnsavedChanges && (
+      {onCancel && (
         <Button
-          variant="default"
+          variant="outline"
           size="icon"
-          onClick={onSave}
-          disabled={isPendingSave}
-          title="Save changes"
+          onClick={onCancel}
+          title="Cancel drawing"
         >
-          <Save className="h-4 w-4" />
+          <X className="h-4 w-4" />
         </Button>
       )}
+
+      <Button
+        variant="default"
+        size="icon"
+        onClick={onSave}
+        disabled={isSaving || !hasUnsavedChanges}
+        title={hasUnsavedChanges ? "Save changes" : "No changes to save"}
+        className="relative"
+      >
+        {isSaving ? (
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-background" />
+        ) : (
+          <Save className="h-4 w-4" />
+        )}
+        {hasUnsavedChanges && (
+          <span className="absolute -top-1 -right-1 h-2 w-2 bg-primary rounded-full" />
+        )}
+      </Button>
     </div>
   )
-} 
+}

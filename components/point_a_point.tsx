@@ -16,6 +16,7 @@ interface PointAPointProps {
   isAnswered?: boolean
   selectedPoint?: string
   existingConnections?: {start: string, end: string}[]
+  className?: string
 }
 
 export function PointAPoint({
@@ -23,7 +24,8 @@ export function PointAPoint({
   onSelect,
   isAnswered = false,
   selectedPoint,
-  existingConnections = []
+  existingConnections = [],
+  className
 }: PointAPointProps) {
   const [selected, setSelected] = useState<string | null>(null)
   const [connections, setConnections] = useState<{start: string, end: string}[]>(existingConnections)
@@ -132,7 +134,7 @@ export function PointAPoint({
   const rightPoints = points.filter(p => p.type === 'right')
 
   return (
-    <div className="relative min-h-[400px]" ref={containerRef}>
+    <div className={cn("relative", className)}>
       <canvas
         ref={canvasRef}
         className="absolute inset-0 pointer-events-none"

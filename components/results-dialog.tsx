@@ -9,7 +9,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Trophy, XCircle } from "lucide-react"
+import { Trophy, XCircle, CheckCircle } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 interface ResultsDialogProps {
   isOpen: boolean
@@ -30,38 +32,42 @@ export function ResultsDialog({
   passingMessage,
   failingMessage,
 }: ResultsDialogProps) {
+  const router = useRouter()
   const passed = score >= minScore
+  const percentage = (score / maxScore) * 100
+
+  const handleClose = () => {
+    onClose()
+    router.push("/")
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-center text-2xl">
-            {passed ? "Congratulations!" : "Test completed"}
+          <DialogTitle className="text-center">
+            Resultados del Test
           </DialogTitle>
-          <DialogDescription className="text-center space-y-4">
-            <div className="flex justify-center py-4">
+          <div className="space-y-4 text-center">
+            <div className="flex justify-center">
               {passed ? (
-                <Trophy className="h-16 w-16 text-yellow-500" />
+                <CheckCircle className="h-12 w-12 text-green-500" />
               ) : (
-                <XCircle className="h-16 w-16 text-red-500" />
+                <XCircle className="h-12 w-12 text-red-500" />
               )}
             </div>
-            <div className="text-xl font-semibold">
-              Final score: {score} / {maxScore}
+            <div>
+              <div className="text-2xl font-bold">
+                {score} / {maxScore}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {passed ? passingMessage : failingMessage}
+              </div>
             </div>
-            <p className="text-muted-foreground">
-              {passed ? passingMessage : failingMessage}
-            </p>
-          </DialogDescription>
+          </div>
         </DialogHeader>
         <DialogFooter>
-          <Button 
-            onClick={onClose}
-            className="w-full"
-          >
-            Close
-          </Button>
+          <Button onClick={handleClose}>Cerrar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
