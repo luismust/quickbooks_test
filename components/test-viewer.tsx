@@ -12,35 +12,8 @@ import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { ResultsDialog } from "./results-dialog"
-import type { Area } from "@/lib/test-storage"
+import type { Area, Test, Question } from "@/lib/test-storage"
 import { formatGoogleDriveUrl } from "@/lib/utils"
-
-interface Question {
-  id: number
-  type: 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 'pointAPoint' | 'openQuestion' | 'identifyErrors' | 'phraseComplete' | 'trueOrFalse'
-  title: string
-  description: string
-  question: string
-  image?: string
-  areas?: Area[]
-  points?: {
-    id: string
-    text: string
-    type: 'left' | 'right'
-    correctMatch?: string
-  }[]
-  options?: {
-    id: string
-    text: string
-    isCorrect: boolean
-  }[]
-  correctAnswer?: boolean
-  scoring: {
-    correct: number
-    incorrect: number
-    retain: number
-  }
-}
 
 interface Connection {
   start: string
@@ -48,27 +21,19 @@ interface Connection {
 }
 
 interface TestViewerProps {
-  test: {
-    id: string
-    name: string
-    description?: string
-    questions: Question[]
-    maxScore: number
-    minScore: number
-    passingMessage: string
-    failingMessage: string
-  }
+  test: Test
+  onFinish?: () => void
 }
 
-export function TestViewer({ test }: TestViewerProps) {
+export function TestViewer({ test, onFinish }: TestViewerProps) {
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [score, setScore] = useState(0)
-  const [answered, setAnswered] = useState<number[]>([])
+  const [answered, setAnswered] = useState<string[]>([])
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null)
   const [showResults, setShowResults] = useState(false)
-  const [userAnswers, setUserAnswers] = useState<{[key: number]: boolean}>({})
+  const [userAnswers, setUserAnswers] = useState<{[key: string]: boolean}>({})
   const [testCompleted, setTestCompleted] = useState(false)
-  const [connections, setConnections] = useState<{[key: number]: Connection[]}>({})
+  const [connections, setConnections] = useState<{[key: string]: Connection[]}>({})
 
   // Procesar las imágenes de Google Drive
   const processedQuestions = useMemo(() => {
@@ -95,7 +60,7 @@ export function TestViewer({ test }: TestViewerProps) {
   const currentQuestionData = processedQuestions[currentQuestion]
   const progress = ((answered.length) / processedQuestions.length) * 100
 
-  const handleAnswer = (isCorrect: boolean, questionId: number, connection?: Connection) => {
+  const handleAnswer = (isCorrect: boolean, questionId: string, connection?: Connection) => {
     if (answered.includes(questionId) || testCompleted) return
     
     const question = processedQuestions.find(q => q.id === questionId)
@@ -249,7 +214,7 @@ export function TestViewer({ test }: TestViewerProps) {
               }
             }}
             isAnswered={isAnswered}
-            selectedPoint={userAnswers[question.id] ? question.id.toString() : ""}
+            selectedPoint={userAnswers[question.id] ? question.id : ""}
             existingConnections={connections[question.id] || []}
           />
         )
