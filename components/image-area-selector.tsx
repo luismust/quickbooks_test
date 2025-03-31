@@ -9,11 +9,12 @@ import { DrawingToolbar } from "./drawing-toolbar"
 import { processImageUrl, formatGoogleDriveUrl } from "@/lib/utils"
 import { generateId } from "@/lib/test-storage"
 import { toast } from "sonner"
+import type { Area } from "@/lib/test-storage"
 
 interface ImageAreaSelectorProps {
   image: string
-  areas: any[]
-  onChange: (data: { image?: string; areas?: any[]; localFile?: File }) => void
+  areas: Area[]
+  onChange: (data: { image?: string; areas?: Area[]; localFile?: File }) => void
   isEditMode?: boolean
   onImageUpload?: (file: File) => Promise<string>
 }

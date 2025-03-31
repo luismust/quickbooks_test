@@ -5,12 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Trash2, GripVertical, Target } from "lucide-react"
 import { motion, Reorder } from "framer-motion"
-
-interface DragItem {
-  id: string
-  text: string
-  correctZone: string
-}
+import type { DragItem } from "@/lib/test-storage"
 
 interface DropZone {
   id: string
@@ -36,7 +31,8 @@ export function DragAndDropEditor({ items, onChange }: DragAndDropEditorProps) {
     const newItem: DragItem = {
       id: crypto.randomUUID(),
       text: newItemText,
-      correctZone: zones[0]?.id || ""
+      correctZone: zones[0]?.id || "",
+      order: items.length
     }
 
     onChange([...items, newItem])

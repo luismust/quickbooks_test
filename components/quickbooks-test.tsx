@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -9,27 +10,33 @@ import { ChevronLeft, ChevronRight, Info, Edit, Play, Link, Download, Save, Load
 import { ImageMap } from "@/components/image-map"
 import { QuestionForm } from "./question-form"
 import { questionTemplates } from "@/lib/templates"
-import { saveTest, exportTest } from "@/lib/test-storage"
+import { saveTest, exportTest, getTests } from "@/lib/test-storage"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { motion, AnimatePresence } from "framer-motion"
-import { processGoogleDriveUrl, downloadAndCacheImage, generateId } from "@/lib/utils"
+import { generateId } from "@/lib/utils"
 import type { Area, Test, Question, DragItem, SequenceItem } from "@/lib/test-storage"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
-import { MultipleChoiceEditor } from "./multiple-choice-editor"
-import { DragAndDropEditor } from "./drag-and-drop-editor"
-import { SequenceEditor } from "./sequence-editor"
-import { PointAPoint } from "./point_a_point"
-import { OpenQuestion } from "./open_question"
-import { IdentifyErrors } from "./Identify_errors"
-import { PhraseComplete } from "./phrase_complete"
-import { TrueOrFalseEditor } from "./true_or_false_editor"
-import { ImageAreaSelector } from "@/components/image-area-selector"
-import { PointAPointEditor } from "./point_a_point_editor"
-import { uploadTestToDrive } from "@/lib/google-drive-client"
+import { MultipleChoiceEditor } from "@/components/questions/editors/multiple-choice-editor"
+import { DragAndDropEditor } from "@/components/questions/editors/drag-and-drop-editor"
+import { SequenceEditor } from "@/components/questions/editors/sequence-editor"
+import { PointAPoint } from "@/components/questions/viewers/point_a_point"
+import { OpenQuestion } from "@/components/questions/viewers/open_question"
+import { IdentifyErrors } from "@/components/questions/viewers/Identify_errors"
+import { PhraseComplete } from "@/components/questions/viewers/phrase_complete"
+import { TrueOrFalseEditor } from "@/components/questions/editors/true_or_false_editor"
+import { PointAPointEditor } from "@/components/questions/editors/point_a_point_editor"
+import { ImageAreaSelector } from "./image-area-selector"
+import { ImageDescriptionEditor } from "@/components/questions/editors/image_description_editor"
+import { ImageComparisonEditor } from "@/components/questions/editors/image_comparison_editor"
+import { ImageErrorEditor } from "@/components/questions/editors/image_error_editor"
+import { ImageHotspotsEditor } from "@/components/questions/editors/image_hotspots_editor"
+import { ImageSequenceEditor } from "@/components/questions/editors/image_sequence_editor"
+
+// Definir el tipo MotionDiv para TypeScript
+const MotionDiv = motion.div
 
 interface QuickbooksTestProps {
   initialTest?: Test
@@ -112,6 +119,8 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     type: "warning" as "warning" | "success"
   })
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [test, setTest] = useState<Test | null>(initialTest || null)
 
   const handleToggleMode = () => {
     setIsEditMode(!isEditMode)
@@ -421,128 +430,67 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
   // Actualizar la función handleSaveTest para usar el diálogo de éxito
   const handleSaveTest = async () => {
-    setIsLoading(true);
     try {
-      console.log('Processing questions for save:', screens.length);
+      setIsSaving(true)
       
-      // Procesar cada pregunta para subir imágenes locales a Google Drive
-      const processedQuestions = await Promise.all(
-        screens.map(async (screen, index) => {
-          console.log(`Processing question ${index + 1}:`, screen.title);
-          // Si la imagen es una URL local (blob:), subirla a Google Drive
-          if (screen.image && screen.image.startsWith('blob:')) {
-            try {
-              // Obtener el archivo del estado local
-              const localFile = screen._localFile;
-              if (localFile) {
-                console.log(`Uploading image for question ${index + 1}`);
-                const driveUrl = await handleImageUpload(localFile);
-                console.log(`Image uploaded, URL: ${driveUrl}`);
-                // Retornar la pregunta con la URL de Google Drive
-                return { 
-                  ...screen, 
-                  image: driveUrl, 
-                  _localFile: undefined 
-                } as ExtendedQuestion;
-              }
-            } catch (error) {
-              console.error(`Error uploading image for question ${index + 1}:`, error);
-              toast({
-                title: 'Error',
-                description: `Failed to upload image for question ${index + 1}`,
-                variant: 'destructive'
-              });
-              // En caso de error, mantenemos la pregunta original
-              return screen;
-            }
-          }
-          return screen;
-        })
-      );
+      // Validar datos requeridos
+      if (!testName.trim()) {
+        toast.error("Test name is required")
+        return
+      }
 
-      console.log('Questions processed successfully');
-      
-      // Actualizar el estado con las preguntas procesadas
-      setScreens(processedQuestions);
+      console.log('Current states before save:', {
+        testName,
+        testDescription,
+        screensCount: screens.length,
+        maxScore: testMaxScore,
+        minScore: testMinScore
+      })
 
-      const testData: Test = {
-        id: initialTest?.id || generateId(),
-        name: testName,
-        description: testDescription,
+      const testData = {
+        id: test?.id || generateId(),
+        name: testName.trim(),
+        description: testDescription.trim(),
+        questions: screens,
         maxScore: testMaxScore,
         minScore: testMinScore,
-        passingMessage: testPassingMessage,
-        failingMessage: testFailingMessage,
-        questions: processedQuestions.map((screen) => {
-          // Asegurarse de que no se incluyan campos temporales en los datos guardados
-          const { _localFile, ...cleanedScreen } = screen;
-          return cleanedScreen;
-        })
-      };
-
-      console.log('Uploading test to Google Drive');
-      await uploadTestToDrive(testData);
-      console.log('Test uploaded successfully');
-      
-      // También guardar en localStorage para acceso inmediato
-      try {
-        const tests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
-        const existingIndex = tests.findIndex((t: Test) => t.id === testData.id);
-        
-        if (existingIndex >= 0) {
-          tests[existingIndex] = testData;
-        } else {
-          tests.push(testData);
-        }
-        
-        localStorage.setItem('saved-tests', JSON.stringify(tests));
-        console.log('Test saved to localStorage');
-      } catch (localError) {
-        console.error('Error saving test to localStorage:', localError);
+        passingMessage: testPassingMessage.trim(),
+        failingMessage: testFailingMessage.trim()
       }
-      
-      setHasUnsavedChanges(false);
-      
-      // Mostrar diálogo de éxito (que redirigirá al usuario)
-      setDialogConfig({
-        title: "Test guardado",
-        description: "El test se ha guardado correctamente.",
-        type: "success"
-      });
-      setShowSuccessDialog(true);
+
+      console.log('Test data prepared:', testData)
+
+      const savedTest = await saveTest(testData)
+      console.log('Test saved:', savedTest)
+
+      setTest(savedTest)
+      setHasUnsavedChanges(false)
+      toast.success("Test saved successfully")
       
     } catch (error) {
-      console.error('Error saving test:', error);
-      toast({
-        title: "Error",
-        description: "No se pudo guardar el test. Por favor, intenta de nuevo.",
-        variant: "destructive",
-      });
+      console.error('Error in handleSaveTest:', error)
+      toast.error("Failed to save test")
     } finally {
-      setIsLoading(false);
+      setIsSaving(false)
     }
-  };
+  }
 
   const handleLoad = async () => {
     try {
       setIsLoading(true)
 
-      // Intentar cargar desde localStorage primero
-      const localTest = localStorage.getItem(`test_${initialTest?.id}`)
-      if (localTest) {
-        const parsedTest = JSON.parse(localTest)
-        setScreens(parsedTest.screens)
-        setIsLoading(false)
-        return
+      // Cargar directamente desde Airtable
+      const tests = await getTests()
+      const test = tests.find(t => t.id === initialTest?.id)
+      
+      if (test) {
+        setTest(test)
+        setScreens(test.questions)
+        setCurrentScreen(0)
+        setScore(0)
+        setAnswered([])
       }
 
-      // Si no está en localStorage, cargar desde Google Drive
-      const driveTest = await exportTest(initialTest?.id || "")
-      if (driveTest) {
-        setScreens(driveTest.screens)
-        // Guardar en localStorage para acceso offline
-        localStorage.setItem(`test_${driveTest.id}`, JSON.stringify(driveTest))
-      }
     } catch (error) {
       console.error('Error loading test:', error)
       toast({
@@ -555,9 +503,73 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     }
   }
 
+  const handleSave = async () => {
+    try {
+      setIsSaving(true)
+      
+      // Crear objeto de test
+      const testToSave: Test = {
+        id: test?.id || generateId(),
+        name: test?.name || "New Test",
+        description: test?.description || "",
+        questions: screens.map(screen => ({
+          ...screen,
+          // Si la imagen es blob, ya debería estar en Airtable
+          image: screen.image?.startsWith('blob:') ? '' : screen.image,
+        })),
+        maxScore,
+        minScore,
+        passingMessage: test?.passingMessage || "Congratulations!",
+        failingMessage: test?.failingMessage || "Try again"
+      }
+
+      // Guardar en Airtable
+      const savedTest = await saveTest(testToSave)
+      
+      toast.success("Test saved successfully")
+      
+      // Actualizar el estado local
+      setTest(savedTest)
+
+    } catch (error) {
+      console.error('Error saving test:', error)
+      toast.error("Error saving test")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const loadInitialTest = async () => {
+    if (initialTest?.id) {
+      try {
+        setIsLoading(true)
+        // Cargar test desde Airtable
+        const tests = await getTests()
+        const test = tests.find(t => t.id === initialTest.id)
+        
+        if (test) {
+          setTest(test)
+          setScreens(test.questions)
+          setCurrentScreen(0)
+          setScore(0)
+          setAnswered([])
+        }
+      } catch (error) {
+        console.error('Error loading test:', error)
+        toast.error("Error loading test")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+  }
+
+  useEffect(() => {
+    loadInitialTest()
+  }, [initialTest?.id])
+
   return (
     <>
-      <motion.div
+      <MotionDiv
         initial="initial"
         animate="animate"
         exit="exit"
@@ -573,7 +585,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
               <div className="flex gap-2">
                 {isEditMode && (
                   <>
-                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <MotionDiv whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                       <Button
                         variant="outline"
                         onClick={handleCancelClick}
@@ -581,8 +593,8 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       >
                         Cancel
                       </Button>
-                    </motion.div>
-                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    </MotionDiv>
+                    <MotionDiv whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                       <Button
                         variant="outline"
                         onClick={handleExportTest}
@@ -600,13 +612,13 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                           </>
                         )}
             </Button>
-                    </motion.div>
-                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    </MotionDiv>
+                    <MotionDiv whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Button 
               onClick={handleSaveTest}
-                        disabled={isLoading}
+                        disabled={isSaving}
                       >
-                        {isLoading ? (
+                        {isSaving ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Saving...
@@ -614,14 +626,14 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         ) : (
                           <>
                             <Save className="mr-2 h-4 w-4" />
-                            Save and Exit
+                            Save Test
                           </>
                         )}
             </Button>
-                    </motion.div>
+                    </MotionDiv>
                   </>
                 )}
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <MotionDiv whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   <Button
                     variant="outline"
                     onClick={handleToggleMode}
@@ -639,34 +651,40 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       </>
                     )}
                   </Button>
-                </motion.div>
+                </MotionDiv>
               </div>
           </div>
       </CardHeader>
 
         <CardContent className="p-6">
           {isEditMode ? (
-            <motion.div
+            <MotionDiv
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
               className="space-y-6"
             >
               {/* Sección de configuración */}
-              <motion.div 
+              <MotionDiv 
                 className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
                 whileHover={{ y: -2 }}
               >
                 <h3 className="text-lg font-medium mb-4">General configuration</h3>
+                <div className="space-y-4">
                 <div>
                   <label htmlFor="testName" className="block text-sm font-medium mb-1">
-                    Test name
+                      Test name *
                   </label>
                   <Input
                     id="testName"
                     value={testName}
-                    onChange={(e) => setTestName(e.target.value)}
-                    placeholder="Test name"
+                      onChange={(e) => {
+                        console.log('Test name changed:', e.target.value)
+                        setTestName(e.target.value)
+                        setHasUnsavedChanges(true)
+                      }}
+                      placeholder="Enter test name"
+                      required
                   />
                 </div>
 
@@ -677,9 +695,15 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                   <Textarea
                     id="testDescription"
                     value={testDescription}
-                    onChange={(e) => setTestDescription(e.target.value)}
-                    placeholder="Test description"
-                  />
+                      onChange={(e) => {
+                        console.log('Test description changed:', e.target.value)
+                        setTestDescription(e.target.value)
+                        setHasUnsavedChanges(true)
+                      }}
+                      placeholder="Enter test description"
+                      className="h-24"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -745,10 +769,10 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                     />
                   </div>
                 </div>
-              </motion.div>
+              </MotionDiv>
 
               {/* Sección de preguntas */}
-              <motion.div 
+              <MotionDiv 
                 className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
                 whileHover={{ y: -2 }}
               >
@@ -820,22 +844,30 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       Question type
                       </label>
                     <Select
-                      value={currentTestScreen.type || ''}
-                      onValueChange={(value: 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 'pointAPoint' | 'openQuestion' | 'identifyErrors' | 'phraseComplete' | 'trueOrFalse') => handleQuestionTypeChange(value)}
+                      value={currentTestScreen.type}
+                      onValueChange={(value) => handleScreenUpdate(currentScreen, { type: value })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
+                        <SelectValue placeholder="Select question type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="clickArea">Click area</SelectItem>
-                        <SelectItem value="multipleChoice">Multiple choice</SelectItem>
-                        <SelectItem value="dragAndDrop">Drag and drop</SelectItem>
+                        {/* Preguntas básicas */}
+                        <SelectItem value="clickArea">Click Area</SelectItem>
+                        <SelectItem value="multipleChoice">Multiple Choice</SelectItem>
+                        <SelectItem value="dragAndDrop">Drag and Drop</SelectItem>
                         <SelectItem value="sequence">Sequence</SelectItem>
-                        <SelectItem value="pointAPoint">Point to point</SelectItem>
-                        <SelectItem value="openQuestion">Open question</SelectItem>
-                        <SelectItem value="identifyErrors">Identify errors</SelectItem>
-                        <SelectItem value="phraseComplete">Phrase complete</SelectItem>
-                        <SelectItem value="trueOrFalse">True or false</SelectItem>
+                        <SelectItem value="pointAPoint">Point to Point</SelectItem>
+                        <SelectItem value="openQuestion">Open Question</SelectItem>
+                        <SelectItem value="identifyErrors">Identify Errors</SelectItem>
+                        <SelectItem value="phraseComplete">Phrase Complete</SelectItem>
+                        <SelectItem value="trueOrFalse">True or False</SelectItem>
+                        
+                        {/* Preguntas basadas en imágenes */}
+                        <SelectItem value="imageDescription">Image Description</SelectItem>
+                        <SelectItem value="imageComparison">Image Comparison</SelectItem>
+                        <SelectItem value="imageError">Image Error</SelectItem>
+                        <SelectItem value="imageHotspots">Image Hotspots</SelectItem>
+                        <SelectItem value="imageSequence">Image Sequence</SelectItem>
                       </SelectContent>
                     </Select>
                       </div>
@@ -905,38 +937,30 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                     {currentTestScreen.type === 'openQuestion' && (
                     <div className="border-t pt-6">
                       <OpenQuestion
-                        question={currentTestScreen.openQuestion?.question || ''}
-                        answer={currentTestScreen.openQuestion?.answer || ''}
-                        onChange={(data) => handleScreenUpdate(currentScreen, { 
-                          openQuestion: { 
-                            ...currentTestScreen.openQuestion,
-                            ...data 
-                          } 
-                        })}
-                        isEditMode={isEditMode}
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.answer || ''}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                        isEditMode={true}
                       />
                     </div>
                   )}
                   {currentTestScreen.type === 'identifyErrors' && (
                     <div className="border-t pt-6">
                       <IdentifyErrors
-                        question={currentTestScreen.identifyErrors?.question || ''}
-                        answer={currentTestScreen.identifyErrors?.answer || ''}
-                        onChange={(data) => handleScreenUpdate(currentScreen, { 
-                          identifyErrors: { 
-                            ...currentTestScreen.identifyErrors,
-                            ...data 
-                          } 
-                        })}
-                        isEditMode={isEditMode}
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.answer || ''}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                        isEditMode={true}
                       />
                     </div>
                   )}
                   {currentTestScreen.type === 'phraseComplete' && (
                     <div className="border-t pt-6">
                       <PhraseComplete
-                        question={currentTestScreen.phraseComplete?.question || ''}
-                        answer={currentTestScreen.phraseComplete?.answer || ''}
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.answer || ''}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                        isEditMode={true}
                       />
                     </div>
                   )}
@@ -949,6 +973,57 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                           question: data.question,
                           correctAnswer: data.answer
                         })}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'imageDescription' && (
+                    <div className="border-t pt-6">
+                      <ImageDescriptionEditor
+                        imageUrl={currentTestScreen.image || ''}
+                        question={currentTestScreen.question}
+                        correctDescription={currentTestScreen.correctDescription || ''}
+                        keywords={currentTestScreen.keywords || []}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'imageComparison' && (
+                    <div className="border-t pt-6">
+                      <ImageComparisonEditor
+                        imageUrl1={currentTestScreen.image || ''}
+                        imageUrl2={currentTestScreen.secondImage || ''}
+                        question={currentTestScreen.question}
+                        differences={currentTestScreen.differences || []}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'imageError' && (
+                    <div className="border-t pt-6">
+                      <ImageErrorEditor
+                        imageUrl={currentTestScreen.image || ''}
+                        question={currentTestScreen.question}
+                        errors={currentTestScreen.errors || []}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'imageHotspots' && (
+                    <div className="border-t pt-6">
+                      <ImageHotspotsEditor
+                        imageUrl={currentTestScreen.image || ''}
+                        question={currentTestScreen.question}
+                        hotspots={currentTestScreen.hotspots || []}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'imageSequence' && (
+                    <div className="border-t pt-6">
+                      <ImageSequenceEditor
+                        images={currentTestScreen.sequence || []}
+                        question={currentTestScreen.question}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
                       />
                     </div>
                   )}
@@ -1022,7 +1097,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                   {/* Navegación entre preguntas */}
                   <div className="flex justify-center gap-2 pt-4">
                     {screens.map((_, index) => (
-                        <motion.div
+                        <MotionDiv
                         key={index}
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
@@ -1035,40 +1110,40 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       >
                         {index + 1}
                       </Button>
-                        </motion.div>
+                        </MotionDiv>
                     ))}
                   </div>
                 </div>
-              </motion.div>
-            </motion.div>
+              </MotionDiv>
+            </MotionDiv>
           ) : (
-            <motion.div
+            <MotionDiv
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
               {/* Vista de prueba */}
               <div className="text-center mb-8">
-                <motion.h2 
+                <MotionDiv 
                   className="text-2xl font-bold"
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
                 >
                   {currentTestScreen.question}
-                </motion.h2>
-                <motion.p 
+                </MotionDiv>
+                <MotionDiv 
                   className="text-muted-foreground mt-2"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.3 }}
                 >
                   {currentTestScreen.description}
-                </motion.p>
+                </MotionDiv>
               </div>
 
               {/* Área de imagen */}
-              <motion.div
+              <MotionDiv
                 className="rounded-lg overflow-hidden border shadow-lg"
                 initial={{ scale: 0.95 }}
                 animate={{ scale: 1 }}
@@ -1104,8 +1179,8 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                     Add an image URL to start
             </div>
           )}
-              </motion.div>
-            </motion.div>
+              </MotionDiv>
+            </MotionDiv>
           )}
       </CardContent>
 
@@ -1120,13 +1195,13 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
         <CardFooter className="border-t p-6 bg-card">
           <div className="flex justify-between w-full">
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <MotionDiv whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
         <Button variant="outline" onClick={handlePrevious} disabled={currentScreen === 0}>
           <ChevronLeft className="mr-2 h-4 w-4" /> Previous
         </Button>
-            </motion.div>
+            </MotionDiv>
 
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <MotionDiv whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               {isCompleted && !isEditMode ? (
           <Button onClick={resetTest}>Restart test</Button>
         ) : (
@@ -1134,7 +1209,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
             Next <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
         )}
-            </motion.div>
+            </MotionDiv>
           </div>
       </CardFooter>
     </Card>
@@ -1142,7 +1217,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
       {/* Feedback flotante */}
       <AnimatePresence>
         {showFeedback && (
-          <motion.div
+          <MotionDiv
               initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -1156,10 +1231,10 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
             `}>
               {showFeedback.message}
             </div>
-          </motion.div>
+          </MotionDiv>
         )}
       </AnimatePresence>
-    </motion.div>
+    </MotionDiv>
 
       {/* Diálogo de confirmación para cancelar */}
       <ConfirmationDialog

@@ -2,27 +2,60 @@
 
 import { Upload } from "lucide-react"
 import { Button } from "./ui/button"
+import { toast } from "sonner"
 
 interface ImageUploadProps {
   onImageUpload: (imageUrl: string) => void
+  testId?: string  // Opcional: ID del test para asociar la imagen
 }
 
-export function ImageUpload({ onImageUpload }: ImageUploadProps) {
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+export function ImageUpload({ onImageUpload, testId }: ImageUploadProps) {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file) {
-      // Verificar que es una imagen
-      if (!file.type.startsWith('image/')) {
-        alert('Por favor, selecciona un archivo de imagen válido')
-        return
+    if (!file) return
+
+    // Verificar que es una imagen
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor, selecciona un archivo de imagen válido')
+      return
+    }
+
+    try {
+      // Convertir archivo a base64
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.readAsDataURL(file)
+      })
+
+      // Subir a Airtable
+      const response = await fetch('/api/airtable', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          file: base64,
+          testId
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to upload image')
       }
 
-      const imageUrl = URL.createObjectURL(file)
-      console.log("Creando URL para imagen:", imageUrl) // Para debugging
-      onImageUpload(imageUrl)
+      const data = await response.json()
       
-      // Limpiar el input para permitir cargar la misma imagen nuevamente
+      // Usar la URL de Airtable
+      onImageUpload(data.url)
+      toast.success('Imagen subida correctamente')
+      
+      // Limpiar el input
       event.target.value = ''
+
+    } catch (error) {
+      console.error('Error subiendo imagen:', error)
+      toast.error('Error al subir la imagen')
     }
   }
 

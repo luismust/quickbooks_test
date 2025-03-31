@@ -31,7 +31,20 @@ export interface Question {
   question: string
   image?: string
   originalImage?: string
-  type: 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 'pointAPoint' | 'openQuestion' | 'identifyErrors' | 'phraseComplete' | 'trueOrFalse'
+  type: 'clickArea' | 
+        'multipleChoice' | 
+        'dragAndDrop' | 
+        'sequence' | 
+        'pointAPoint' | 
+        'openQuestion' | 
+        'identifyErrors' | 
+        'phraseComplete' | 
+        'trueOrFalse' |
+        'imageDescription' |
+        'imageComparison' |
+        'imageError' |
+        'imageHotspots' |
+        'imageSequence'
   areas?: Area[]
   options?: {
     id: string
@@ -107,24 +120,91 @@ export const validateTest = (test: Test): boolean => {
   }
 }
 
-export const saveTest = (test: Test): boolean => {
+export async function saveTest(test: Test): Promise<Test> {
   try {
-    const tests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
-    const existingIndex = tests.findIndex((t: Test) => t.id === test.id);
-    
-    if (existingIndex >= 0) {
-      tests[existingIndex] = test;
-    } else {
-      tests.push(test);
+    console.log('=== Client: Starting saveTest ===')
+    console.log('Test data to save:', {
+      id: test.id,
+      name: test.name,
+      description: test.description,
+      questionsCount: test.questions?.length,
+      maxScore: test.maxScore,
+      minScore: test.minScore
+    })
+
+    // Limpiar los datos antes de enviar
+    const cleanedTest = {
+      ...test,
+      questions: test.questions.map(q => {
+        // Limpiar campos temporales o circulares
+        const { _localFile, ...cleanQuestion } = q as any
+        return {
+          ...cleanQuestion,
+          // Limpiar la imagen si es blob
+          image: q.image?.startsWith('blob:') ? '' : q.image,
+          // Asegurarnos de que las áreas sean serializables
+          areas: (q.areas || []).map(area => ({
+            id: area.id,
+            shape: area.shape,
+            coords: area.coords,
+            isCorrect: area.isCorrect
+          }))
+        }
+      })
     }
-    
-    localStorage.setItem('saved-tests', JSON.stringify(tests));
-    return true;
+
+    console.log('Cleaned test data:', {
+      id: cleanedTest.id,
+      name: cleanedTest.name,
+      description: cleanedTest.description,
+      questionsCount: cleanedTest.questions.length
+    })
+
+    const response = await fetch('/api/tests', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(cleanedTest)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('Server error response:', errorData)
+      throw new Error(errorData.error || 'Failed to save test')
+    }
+
+    const savedTest = await response.json()
+    console.log('Test saved successfully:', {
+      id: savedTest.id,
+      name: savedTest.name,
+      description: savedTest.description,
+      questionsCount: savedTest.questions?.length
+    })
+
+    return savedTest
+
   } catch (error) {
-    console.error('Error saving test:', error);
-    return false;
+    console.error('Error saving test:', error)
+    throw error
   }
-};
+}
+
+export async function getTests(): Promise<Test[]> {
+  try {
+    const response = await fetch('/api/tests')
+    if (!response.ok) {
+      throw new Error('Failed to fetch tests')
+    }
+
+    const { tests } = await response.json()
+    return tests
+
+  } catch (error) {
+    console.error('Error in getTests:', error)
+    return []
+  }
+}
 
 export const loadTest = (testId: string): Test | null => {
   try {
