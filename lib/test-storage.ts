@@ -1,5 +1,7 @@
 "use client"
 
+import { uploadImageToAirtable } from './airtable-utils'
+
 export interface Area {
   id: string
   shape: "rect" | "circle" | "poly"
@@ -122,68 +124,53 @@ export const validateTest = (test: Test): boolean => {
 
 export async function saveTest(test: Test): Promise<Test> {
   try {
-    console.log('=== Client: Starting saveTest ===')
-    console.log('Test data to save:', {
-      id: test.id,
+    // Procesar las preguntas y subir imágenes
+    const processedQuestions = await Promise.all(test.questions.map(async (question) => {
+      let imageUrl = question.image
+
+      // Si hay un archivo local (_localFile), súbelo a Airtable
+      if (question._localFile) {
+        try {
+          const uploadedUrl = await uploadImageToAirtable(question._localFile)
+          imageUrl = uploadedUrl
+        } catch (error) {
+          console.error('Error uploading image:', error)
+          throw error
+        }
+      }
+
+      return {
+        ...question,
+        image: imageUrl,
+        _localFile: undefined // Removemos el archivo local después de subir
+      }
+    }))
+
+    // Preparar datos para Airtable
+    const testData = {
       name: test.name,
       description: test.description,
-      questionsCount: test.questions?.length,
-      maxScore: test.maxScore,
-      minScore: test.minScore
-    })
-
-    // Limpiar los datos antes de enviar
-    const cleanedTest = {
-      ...test,
-      questions: test.questions.map(q => {
-        // Limpiar campos temporales o circulares
-        const { _localFile, ...cleanQuestion } = q as any
-        return {
-          ...cleanQuestion,
-          // Limpiar la imagen si es blob
-          image: q.image?.startsWith('blob:') ? '' : q.image,
-          // Asegurarnos de que las áreas sean serializables
-          areas: (q.areas || []).map(area => ({
-            id: area.id,
-            shape: area.shape,
-            coords: area.coords,
-            isCorrect: area.isCorrect
-          }))
-        }
-      })
+      questions: JSON.stringify(processedQuestions),
+      max_score: test.maxScore,
+      min_score: test.minScore,
+      passing_message: test.passingMessage,
+      failing_message: test.failingMessage
     }
 
-    console.log('Cleaned test data:', {
-      id: cleanedTest.id,
-      name: cleanedTest.name,
-      description: cleanedTest.description,
-      questionsCount: cleanedTest.questions.length
-    })
-
+    // Guardar en Airtable
     const response = await fetch('/api/tests', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(cleanedTest)
+      body: JSON.stringify(testData),
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      console.error('Server error response:', errorData)
-      throw new Error(errorData.error || 'Failed to save test')
+      throw new Error('Failed to save test')
     }
 
-    const savedTest = await response.json()
-    console.log('Test saved successfully:', {
-      id: savedTest.id,
-      name: savedTest.name,
-      description: savedTest.description,
-      questionsCount: savedTest.questions?.length
-    })
-
-    return savedTest
-
+    return await response.json()
   } catch (error) {
     console.error('Error saving test:', error)
     throw error

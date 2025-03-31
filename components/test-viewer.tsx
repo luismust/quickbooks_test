@@ -13,7 +13,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { ResultsDialog } from "./results-dialog"
 import type { Area, Test, Question } from "@/lib/test-storage"
-import { formatGoogleDriveUrl } from "@/lib/utils"
+import { formatGoogleDriveUrl, getImageUrl } from "@/lib/utils"
 
 interface Connection {
   start: string
@@ -35,27 +35,13 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
   const [testCompleted, setTestCompleted] = useState(false)
   const [connections, setConnections] = useState<{[key: string]: Connection[]}>({})
 
-  // Procesar las imágenes de Google Drive
+  // Procesar las imágenes
   const processedQuestions = useMemo(() => {
-    return test.questions.map(q => {
-      // Si no hay imagen, devolver la pregunta tal cual
-      if (!q.image) return q;
-      
-      // Procesar la imagen
-      let processedImage = q.image;
-      
-      // Comprobar si es una URL de Google Drive y formatearla
-      if (q.image.includes('drive.google.com')) {
-        processedImage = formatGoogleDriveUrl(q.image);
-        console.log('Formatted Google Drive URL:', processedImage);
-      }
-      
-      return {
-        ...q,
-        image: processedImage
-      };
-    });
-  }, [test.questions]);
+    return test.questions.map(q => ({
+      ...q,
+      image: getImageUrl(q.image)
+    }))
+  }, [test.questions])
   
   const currentQuestionData = processedQuestions[currentQuestion]
   const progress = ((answered.length) / processedQuestions.length) * 100
@@ -280,6 +266,20 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
               <h2 className="text-xl font-semibold mb-4">
                 {currentQuestionData.question}
               </h2>
+              {currentQuestionData.image && (
+                <div className="relative rounded-lg overflow-hidden">
+                  <img
+                    src={currentQuestionData.image}
+                    alt={currentQuestionData.title}
+                    className="w-full h-auto"
+                    onError={(e) => {
+                      console.error('Error loading image:', currentQuestionData.image)
+                      e.currentTarget.src = '/placeholder-image.png' // Imagen de fallback
+                      toast.error("Failed to load image")
+                    }}
+                  />
+                </div>
+              )}
               {renderQuestion(currentQuestionData)}
             </motion.div>
           )}

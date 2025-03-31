@@ -567,6 +567,26 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     loadInitialTest()
   }, [initialTest?.id])
 
+  // Agregar la función para eliminar imagen de Airtable
+  const deleteImageFromAirtable = async (imageUrl: string) => {
+    try {
+      const response = await fetch('/api/airtable/delete-image', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ imageUrl }),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete image')
+      }
+    } catch (error) {
+      console.error('Error deleting image:', error)
+      throw error
+    }
+  }
+
   return (
     <>
       <MotionDiv
@@ -1094,23 +1114,104 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                     </p>
                   </div>
 
+                  {/* Botones de acción para la pregunta actual */}
+                  <div className="flex justify-end gap-2 mt-4">
+                    <Button 
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          // Si hay una imagen en Airtable, eliminarla
+                          if (currentTestScreen.image && !currentTestScreen._localFile) {
+                            await deleteImageFromAirtable(currentTestScreen.image)
+                          }
+                          
+                          // Limpiar la imagen local y su URL temporal
+                          if (currentTestScreen._localFile) {
+                            URL.revokeObjectURL(currentTestScreen.image)
+                          }
+                          
+                          // Actualizar el estado
+                          const updatedScreens = [...screens]
+                          updatedScreens[currentScreen] = {
+                            ...currentTestScreen,
+                            image: '', // Limpiar la URL de la imagen
+                            _localFile: undefined // Limpiar el archivo local
+                          }
+                          setScreens(updatedScreens)
+                          
+                          toast.success("Changes discarded and image deleted")
+                        } catch (error) {
+                          console.error('Error canceling changes:', error)
+                          toast.error("Failed to delete image")
+                        }
+                      }}
+                      disabled={isSaving}
+                    >
+                      Cancel
+                    </Button>
+
+                    <Button 
+                      onClick={async () => {
+                        try {
+                          setIsSaving(true)
+                          const updatedScreens = [...screens]
+                          const currentQuestion = updatedScreens[currentScreen]
+                          
+                          // Si hay imagen local, subirla primero
+                          if (currentQuestion._localFile) {
+                            try {
+                              const uploadedUrl = await uploadImageToAirtable(currentQuestion._localFile)
+                              currentQuestion.image = uploadedUrl
+                              delete currentQuestion._localFile
+                            } catch (error) {
+                              // Si falla la subida, limpiar la imagen
+                              URL.revokeObjectURL(currentQuestion.image)
+                              currentQuestion.image = ''
+                              delete currentQuestion._localFile
+                              throw error
+                            }
+                          }
+                          
+                          setScreens(updatedScreens)
+                          setHasUnsavedChanges(true)
+                          
+                          toast.success("Question saved successfully")
+                        } catch (error) {
+                          console.error('Error saving question:', error)
+                          toast.error("Failed to save question")
+                        } finally {
+                          setIsSaving(false)
+                        }
+                      }}
+                      disabled={isSaving}
+                      className="gap-2"
+                    >
+                      {isSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      Save Question
+                    </Button>
+                  </div>
+
                   {/* Navegación entre preguntas */}
                   <div className="flex justify-center gap-2 pt-4">
                     {screens.map((_, index) => (
-                        <MotionDiv
+                      <MotionDiv
                         key={index}
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                        >
-                          <Button
-                        variant={currentScreen === index ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setCurrentScreen(index)}
-                            className="w-8 h-8 p-0"
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
                       >
-                        {index + 1}
-                      </Button>
-                        </MotionDiv>
+                        <Button
+                          variant={currentScreen === index ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentScreen(index)}
+                          className="w-8 h-8 p-0"
+                        >
+                          {index + 1}
+                        </Button>
+                      </MotionDiv>
                     ))}
                   </div>
                 </div>
