@@ -7,8 +7,22 @@ export async function uploadImageToAirtable(file: File, testId?: string): Promis
     
     console.log('Uploading image to Airtable with testId:', testId)
     
+    // Detectar si estamos en Vercel (producción)
+    const isVercel = typeof window !== 'undefined' && (
+      window.location.hostname.includes('vercel.app') || 
+      process.env.NODE_ENV === 'production'
+    )
+    
+    // URL base del API
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app';
+    
+    // URL del endpoint a usar
+    const apiUrl = isVercel 
+      ? `${API_BASE_URL}/airtable`  // URL del API serverless
+      : '/api/airtable';  // URL local en desarrollo
+    
     // Subir a Airtable
-    const response = await fetch('/api/airtable', {
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -51,7 +65,21 @@ function fileToBase64(file: File): Promise<string> {
 // Función para eliminar imágenes de un test
 export async function deleteTestImages(testId: string): Promise<boolean> {
   try {
-    const response = await fetch('/api/airtable', {
+    // Detectar si estamos en Vercel (producción)
+    const isVercel = typeof window !== 'undefined' && (
+      window.location.hostname.includes('vercel.app') || 
+      process.env.NODE_ENV === 'production'
+    )
+    
+    // URL base del API
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app';
+    
+    // URL del endpoint a usar
+    const apiUrl = isVercel 
+      ? `${API_BASE_URL}/airtable`  // URL del API serverless
+      : '/api/airtable';  // URL local en desarrollo
+    
+    const response = await fetch(apiUrl, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

@@ -196,7 +196,7 @@ export async function saveTest(test: Test): Promise<Test> {
 
     // URL del endpoint a usar
     const apiUrl = isVercel 
-      ? `${API_BASE_URL}/api/tests`  // URL de tu API serverless
+      ? `${API_BASE_URL}/tests`  // URL del API serverless (sin /api/ que se agrega en el backend)
       : '/api/tests';  // URL local en desarrollo
     
     // Guardar en Airtable a través del endpoint correspondiente
@@ -253,11 +253,11 @@ export async function getTests(): Promise<Test[]> {
     )
     
     // URL base del API
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tu-backend-desplegado.vercel.app';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app';
     
     // URL del endpoint a usar
     const apiUrl = isVercel 
-      ? `${API_BASE_URL}/api/tests`  // URL de tu API serverless
+      ? `${API_BASE_URL}/tests`  // URL del API serverless (sin /api/ que se agrega en el backend)
       : '/api/tests';  // URL local en desarrollo
       
     console.log('Fetching tests from API:', apiUrl)
@@ -387,11 +387,11 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
     }
     
     // URL base del API
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tu-backend-desplegado.vercel.app';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app';
     
     // URL del endpoint a usar
     const apiUrl = isVercel 
-      ? `${API_BASE_URL}/api/tests/${testId}`  // URL de tu API serverless
+      ? `${API_BASE_URL}/tests/${testId}`  // URL de tu API serverless
       : `/api/tests/${testId}`;  // URL local en desarrollo
     
     const response = await fetch(apiUrl, {
