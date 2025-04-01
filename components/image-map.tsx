@@ -101,17 +101,118 @@ export function ImageMap({
     return placeholderImage;
   }, [src])
 
+  // Definir handleImageLoad y handleError antes de usarlos en useEffect
+  const handleImageLoad = () => {
+    if (imageRef.current && containerRef.current) {
+      const containerWidth = containerRef.current.clientWidth
+      const imageScale = containerWidth / (imageRef.current as any).naturalWidth || 1
+      
+      console.log('Image loaded successfully:', {
+        src: formattedSrc,
+        naturalWidth: (imageRef.current as any).naturalWidth || 300,
+        naturalHeight: (imageRef.current as any).naturalHeight || 200,
+        containerWidth,
+        scale: imageScale,
+        wasLoading: isLoading,
+        hadError: error
+      })
+      
+      setScale(imageScale)
+    }
+    setIsLoading(false)
+    setError(false)
+  }
+
+  const handleError = () => {
+    // Aumentar el máximo de reintentos
+    if (retryCount >= 4) {
+      console.error('Error loading image after multiple attempts:', formattedSrc)
+      setIsLoading(false)
+      setError(true)
+      setErrorMessage(`Could not load the image after multiple attempts.`)
+      
+      // Depurar la causa del error
+      console.log('Source format analysis:', {
+        isBase64: formattedSrc?.startsWith('data:image/'),
+        isHttp: formattedSrc?.startsWith('http'),
+        isBlob: formattedSrc?.startsWith('blob:'),
+        isAirtable: formattedSrc?.includes('api.airtable.com'),
+        sourceLength: formattedSrc?.length || 0,
+        sourceStart: formattedSrc?.substring(0, 50) || 'empty'
+      });
+      
+      // Intentar corregir URLs de Airtable como último intento
+      if (formattedSrc?.includes('api.airtable.com') && !formattedSrc.startsWith('https://')) {
+        const correctedUrl = `https://api.airtable.com/${formattedSrc.replace(/^\/+/, '')}`;
+        console.log('Attempting with corrected Airtable URL:', correctedUrl);
+      }
+      
+      onError?.()
+      return
+    }
+    
+    setRetryCount(prev => prev + 1)
+    console.error(`Error loading image (attempt ${retryCount + 1}):`, formattedSrc)
+    
+    // Si es una URL relativa de Airtable, intentar corregirla
+    if (formattedSrc?.includes('api.airtable.com') && !formattedSrc.startsWith('https://')) {
+      const correctedUrl = `https://api.airtable.com/${formattedSrc.replace(/^\/+/, '')}`;
+      console.log('Attempting with corrected Airtable URL:', correctedUrl);
+    }
+    
+    // Si es una URL blob que falló, reportar el error
+    if (formattedSrc?.startsWith('blob:')) {
+      console.log('Blob URL failed, likely expired');
+      setIsLoading(false)
+      setError(true)
+      setErrorMessage("Image URL has expired. Please refresh the test.")
+      toast.error("Image URL has expired. Please refresh the test.")
+      onError?.()
+      return;
+    }
+    
+    setIsLoading(false)
+    setError(true)
+    setErrorMessage("Could not load the image.")
+    toast.error("Could not load the image. Check the URL.")
+    onError?.()
+  }
+  
+  // Ahora definimos el useEffect después de las funciones que usa
   useEffect(() => {
-    if (src) {
+    if (formattedSrc) {
       setIsLoading(true)
       setError(false)
       setErrorMessage("")
-      setRetryCount(0)
+      
+      // Cargar la imagen en segundo plano para poder manejar los eventos
+      const img = new Image();
+      img.onload = () => {
+        handleImageLoad();
+        setIsLoading(false);
+        setError(false);
+      };
+      img.onerror = () => {
+        handleError();
+      };
+      
+      // IMPORTANTE: Evitar solicitudes GET para imágenes data:
+      if (formattedSrc.startsWith('data:')) {
+        // Para imágenes data:, confiar en que son correctas
+        setTimeout(() => {
+          handleImageLoad();
+          setIsLoading(false);
+          setError(false);
+        }, 100);
+      } else {
+        // Para URLs normales, cargar normalmente
+        img.src = formattedSrc;
+      }
     } else {
       setIsLoading(false)
       setError(true)
     }
-  }, [src])
+  }, [formattedSrc])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (!isDrawingMode || !containerRef.current) return
@@ -166,92 +267,6 @@ export function ImageMap({
       }
     }
   }, [isDrawingMode, isDragging, onDrawEnd])
-
-  const handleError = () => {
-    // Aumentar el máximo de reintentos
-    if (retryCount >= 4) {
-      console.error('Error loading image after multiple attempts:', formattedSrc)
-      setIsLoading(false)
-      setError(true)
-      setErrorMessage(`Could not load the image after multiple attempts.`)
-      
-      // Depurar la causa del error
-      console.log('Source format analysis:', {
-        isBase64: formattedSrc?.startsWith('data:image/'),
-        isHttp: formattedSrc?.startsWith('http'),
-        isBlob: formattedSrc?.startsWith('blob:'),
-        isAirtable: formattedSrc?.includes('api.airtable.com'),
-        sourceLength: formattedSrc?.length || 0,
-        sourceStart: formattedSrc?.substring(0, 50) || 'empty'
-      });
-      
-      // Intentar corregir URLs de Airtable como último intento
-      if (formattedSrc?.includes('api.airtable.com') && !formattedSrc.startsWith('https://')) {
-        const correctedUrl = `https://api.airtable.com/${formattedSrc.replace(/^\/+/, '')}`;
-        console.log('Attempting with corrected Airtable URL:', correctedUrl);
-        
-        if (imageRef.current) {
-          imageRef.current.src = correctedUrl;
-          return;
-        }
-      }
-      
-      onError?.()
-      return
-    }
-    
-    setRetryCount(prev => prev + 1)
-    console.error(`Error loading image (attempt ${retryCount + 1}):`, formattedSrc)
-    
-    // Si es una URL relativa de Airtable, intentar corregirla
-    if (formattedSrc?.includes('api.airtable.com') && !formattedSrc.startsWith('https://')) {
-      const correctedUrl = `https://api.airtable.com/${formattedSrc.replace(/^\/+/, '')}`;
-      console.log('Attempting with corrected Airtable URL:', correctedUrl);
-      
-      if (imageRef.current) {
-        imageRef.current.src = correctedUrl;
-        return;
-      }
-    }
-    
-    // Si es una URL blob que falló, reportar el error
-    if (formattedSrc?.startsWith('blob:')) {
-      console.log('Blob URL failed, likely expired');
-      setIsLoading(false)
-      setError(true)
-      setErrorMessage("Image URL has expired. Please refresh the test.")
-      toast.error("Image URL has expired. Please refresh the test.")
-      onError?.()
-      return;
-    }
-    
-    setIsLoading(false)
-    setError(true)
-    setErrorMessage("Could not load the image.")
-    toast.error("Could not load the image. Check the URL.")
-    onError?.()
-  }
-
-  const handleImageLoad = () => {
-    if (imageRef.current && containerRef.current) {
-      const containerWidth = containerRef.current.clientWidth
-      const imageScale = containerWidth / imageRef.current.naturalWidth
-      
-      console.log('Image loaded successfully:', {
-        src: formattedSrc,
-        naturalWidth: imageRef.current.naturalWidth,
-        naturalHeight: imageRef.current.naturalHeight,
-        containerWidth,
-        scale: imageScale,
-        wasLoading: isLoading,
-        hadError: error
-      })
-      
-      setScale(imageScale)
-    }
-    setIsLoading(false)
-    setError(false)
-  }
 
   // Determinar el estilo de las áreas basado en el modo
   const getAreaStyle = (area: Area) => {
@@ -308,21 +323,21 @@ export function ImageMap({
         </div>
       )}
       {!error && src && (
-    <div 
-      ref={containerRef}
+        <div 
+          ref={containerRef}
           className={cn("relative border border-border rounded-md overflow-hidden", getCursorClass(isDrawingMode, isEditMode))}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-    >
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
-          <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-      )}
-        {/* Usar embedded image en un div de fondo para imágenes base64 */}
-        {formattedSrc.startsWith('data:') ? (
+        >
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          )}
+          
+          {/* IMPORTANTE: Siempre usar div con background-image para evitar solicitudes HTTP */}
           <div 
             ref={imageRef as React.RefObject<HTMLDivElement>}
             style={{
@@ -331,7 +346,7 @@ export function ImageMap({
               backgroundPosition: 'center',
               backgroundRepeat: 'no-repeat',
               width: '100%',
-              height: '300px'
+              height: formattedSrc.startsWith('data:') ? '300px' : '400px'
             }}
             className={cn(
               "transition-opacity duration-200",
@@ -339,48 +354,32 @@ export function ImageMap({
               className
             )}
             onLoad={handleImageLoad}
-          ></div>
-        ) : (
-          // Usar img normal para URLs http/https
-          <img
-            ref={imageRef as React.RefObject<HTMLImageElement>}
-            src={formattedSrc}
-            alt={alt}
-            className={cn(
-              "max-w-full h-auto transition-opacity duration-200",
-              isLoading ? "opacity-0" : "opacity-100",
-              className
-            )}
-            draggable={false}
-            onLoad={handleImageLoad}
             onError={handleError}
-            key={`img-${src.substring(0, 20)}`}
-          />
-        )}
+          ></div>
       
-      {!isLoading && areas.map((area) => (
-        <div
-          key={area.id}
+          {!isLoading && areas.map((area) => (
+            <div
+              key={area.id}
               className={`absolute transition-colors ${
                 getAreaStyle(area)
               } ${isDrawingMode ? 'pointer-events-none' : ''} ${
                 !isEditMode ? 'cursor-default' : 'cursor-pointer'
               }`}
               style={getAreaDimensions(area)}
-          onClick={() => onAreaClick(area.id)}
-        />
-      ))}
+              onClick={() => onAreaClick(area.id)}
+            />
+          ))}
 
-      {!isLoading && drawingArea && (
-        <div
-          className="absolute border-2 border-blue-500 bg-blue-500/20"
-          style={{
-            left: drawingArea.coords[0] * scale,
-            top: drawingArea.coords[1] * scale,
-            width: (drawingArea.coords[2] - drawingArea.coords[0]) * scale,
-            height: (drawingArea.coords[3] - drawingArea.coords[1]) * scale
-          }}
-        />
+          {!isLoading && drawingArea && (
+            <div
+              className="absolute border-2 border-blue-500 bg-blue-500/20"
+              style={{
+                left: drawingArea.coords[0] * scale,
+                top: drawingArea.coords[1] * scale,
+                width: (drawingArea.coords[2] - drawingArea.coords[0]) * scale,
+                height: (drawingArea.coords[3] - drawingArea.coords[1]) * scale
+              }}
+            />
           )}
         </div>
       )}

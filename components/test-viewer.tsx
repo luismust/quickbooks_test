@@ -45,7 +45,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       
       // Si no hay imagen o la imagen es una cadena vacía, no hay nada que procesar
       if (!q.image) {
-        return { ...q, image: '', _imageKey: imageKey };
+        return { ...q, image: '', _imageKey: imageKey, _imageType: 'none' };
       }
 
       try {
@@ -53,15 +53,15 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         if (q.image.startsWith('image_reference_')) {
           console.log('TestViewer: Found image reference:', q.image);
           
-          // IMPORTANTE: USAR UNA PROPIEDAD DIFERENTE PARA INDICAR QUE ES UNA REFERENCIA
-          // Y NO INTENTAR CARGARLA COMO UNA URL
+          // IMPORTANTE: ESTABLECER DIRECTAMENTE LA IMAGEN AL PLACEHOLDER
+          // para evitar cualquier intento de obtener la referencia como URL
           return {
             ...q,
             _imageType: 'reference',
             _imageRef: q.image,
             _imageKey: imageKey,
-            // Dejamos image como vacío para que no intente cargarse
-            image: '' 
+            // Usamos directamente el placeholder, NO dejamos la imagen vacía
+            image: placeholderImage 
           };
         }
         
@@ -122,7 +122,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         };
       }
     });
-  }, [test.questions]);
+  }, [test.questions, placeholderImage]);
   
   const currentQuestionData = processedQuestions[currentQuestion]
   const progress = ((answered.length) / processedQuestions.length) * 100
@@ -213,68 +213,38 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       case 'clickArea':
         return (
           <div className="relative">
-            {(currentQuestionData as any)._imageType === 'reference' ? (
-              // Si es una referencia, mostrar solo el placeholder
-              <div className="relative border border-border rounded-md overflow-hidden">
-                <div
-                  style={{
-                    backgroundImage: `url(${placeholderImage})`,
-                    backgroundSize: 'contain',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat',
-                    width: '100%',
-                    height: '350px'
-                  }}
-                  className="w-full h-auto"
-                >
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                    <div className="bg-white/80 px-3 py-2 rounded-md text-sm text-gray-600">
-                      Referencia: {(currentQuestionData as any)._imageRef || 'imagen externa'}
-                    </div>
-                  </div>
-                  {question.areas?.map((area) => (
-                    <div
-                      key={area.id}
-                      className="absolute cursor-pointer"
-                      style={{
-                        left: `${area.coords[0]}%`,
-                        top: `${area.coords[1]}%`,
-                        width: `${area.coords[2] - area.coords[0]}%`,
-                        height: `${area.coords[3] - area.coords[1]}%`
-                      }}
-                      onClick={() => {
-                        if (isAnswered) return;
-                        handleAnswer(area.isCorrect, question.id);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <ImageMap
-                src={question.image || ''}
-                areas={question.areas || []} 
-                drawingArea={null}
-                onAreaClick={(areaId) => {
-                  if (isAnswered) return
-                  const area = question.areas?.find(a => a.id === areaId)
-                  handleAnswer(area?.isCorrect || false, question.id)
-                }}
-                alt={question.title}
-                isDrawingMode={false}
-                isEditMode={false}
-                key={(question as any)._imageKey || `question-${question.id}`}
-                onError={() => {
-                  console.error('Failed to load image in test view:', question.image);
-                  toast.error("Could not load test image. Using a placeholder image instead.");
-                }}
-              />
-            )}
+            <ImageMap
+              src={question.image || ''}
+              areas={question.areas || []} 
+              drawingArea={null}
+              onAreaClick={(areaId) => {
+                if (isAnswered) return
+                const area = question.areas?.find(a => a.id === areaId)
+                handleAnswer(area?.isCorrect || false, question.id)
+              }}
+              alt={question.title}
+              isDrawingMode={false}
+              isEditMode={false}
+              key={(question as any)._imageKey || `question-${question.id}`}
+              onError={() => {
+                console.error('Failed to load image in test view:', question.image);
+                toast.error("Could not load test image. Using a placeholder image instead.");
+              }}
+            />
             {/* Mensaje sutil para indicar que se debe hacer clic en la imagen */}
             {!isAnswered && (
               <div className="absolute bottom-2 left-0 right-0 flex justify-center pointer-events-none">
                 <div className="bg-black/40 text-white px-3 py-1 rounded-full text-xs">
                   Click on the correct answer
+                </div>
+              </div>
+            )}
+            
+            {/* Mostrar el indicador de referencia si corresponde */}
+            {(currentQuestionData as any)._imageType === 'reference' && (
+              <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                <div className="bg-white/80 px-3 py-2 rounded-md text-sm text-gray-600">
+                  Referencia: {(currentQuestionData as any)._imageRef || 'imagen externa'}
                 </div>
               </div>
             )}
@@ -387,73 +357,29 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                 {currentQuestionData.question}
               </h2>
               {/* Solo mostrar la imagen directamente para tipos que no sean clickArea */}
-              {(currentQuestionData.image || (currentQuestionData as any)._imageType === 'reference') && currentQuestionData.type !== 'clickArea' && (
+              {currentQuestionData.image && currentQuestionData.type !== 'clickArea' && (
                 <div className="relative rounded-lg overflow-hidden">
-                  {/* Si es una referencia de imagen, mostrar placeholder */}
-                  {(currentQuestionData as any)._imageType === 'reference' && (
-                    <div
-                      style={{
-                        backgroundImage: `url(${placeholderImage})`,
-                        backgroundSize: 'contain',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat',
-                        width: '100%',
-                        height: '300px'
-                      }}
-                      className="w-full h-auto rounded-lg"
-                    >
+                  {/* Para todas las imágenes (tanto base64 como referencias, que ahora son base64) */}
+                  <div
+                    style={{
+                      backgroundImage: `url(${currentQuestionData.image})`,
+                      backgroundSize: 'contain',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat',
+                      width: '100%',
+                      height: '300px'
+                    }}
+                    className="w-full h-auto rounded-lg"
+                  >
+                    {/* Mostrar el indicador de referencia si corresponde */}
+                    {(currentQuestionData as any)._imageType === 'reference' && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/10">
                         <div className="bg-white/80 px-3 py-2 rounded-md text-sm text-gray-600">
                           Referencia: {(currentQuestionData as any)._imageRef || 'imagen externa'}
                         </div>
                       </div>
-                    </div>
-                  )}
-                  
-                  {/* Si es base64, mostrar como background-image */}
-                  {(currentQuestionData as any)._imageType === 'base64' && (
-                    <div
-                      style={{
-                        backgroundImage: `url(${currentQuestionData.image})`,
-                        backgroundSize: 'contain',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat',
-                        width: '100%',
-                        height: '300px'
-                      }}
-                      className="w-full h-auto rounded-lg"
-                    ></div>
-                  )}
-                  
-                  {/* Si es URL o blob, usar imagen normal */}
-                  {((currentQuestionData as any)._imageType === 'url' || (currentQuestionData as any)._imageType === 'blob') && (
-                    <img
-                      key={`test-image-${(currentQuestionData as any)._imageKey || currentQuestion}`}
-                      src={currentQuestionData.image}
-                      alt={currentQuestionData.title || "Test image"}
-                      className="w-full h-auto"
-                      onError={(e) => {
-                        console.error('Failed to load test image after retrying');
-                        toast.error("Could not load test image. Using placeholder instead.");
-                        
-                        // Usar placeholder como último recurso
-                        const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
-                        
-                        // Crear un div con background-image en lugar de usar src
-                        const divImg = document.createElement('div');
-                        divImg.style.backgroundImage = `url(${placeholderImage})`;
-                        divImg.style.backgroundSize = 'contain';
-                        divImg.style.backgroundPosition = 'center';
-                        divImg.style.backgroundRepeat = 'no-repeat';
-                        divImg.style.width = '100%';
-                        divImg.style.height = '300px';
-                        divImg.className = 'w-full h-auto rounded-lg';
-                        
-                        // Reemplazar la imagen con el div
-                        e.currentTarget.parentNode?.replaceChild(divImg, e.currentTarget);
-                      }}
-                    />
-                  )}
+                    )}
+                  </div>
                 </div>
               )}
               {renderQuestion(currentQuestionData)}
