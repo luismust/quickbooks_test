@@ -7,14 +7,11 @@ export async function uploadImageToAirtable(file: File, testId?: string): Promis
     
     console.log('Uploading image to Airtable with testId:', testId)
     
-    // Detectar si estamos en Vercel (producción)
-    const isVercel = typeof window !== 'undefined' && (
-      window.location.hostname.includes('vercel.app') || 
-      process.env.NODE_ENV === 'production'
-    )
+    // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
+    const isVercel = true; // Siempre usaremos la URL externa en la build de producción
     
     // URL base del API
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
     
     // URL del endpoint a usar
     const apiUrl = isVercel 
@@ -65,14 +62,11 @@ function fileToBase64(file: File): Promise<string> {
 // Función para eliminar imágenes de un test
 export async function deleteTestImages(testId: string): Promise<boolean> {
   try {
-    // Detectar si estamos en Vercel (producción)
-    const isVercel = typeof window !== 'undefined' && (
-      window.location.hostname.includes('vercel.app') || 
-      process.env.NODE_ENV === 'production'
-    )
+    // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
+    const isVercel = true; // Siempre usaremos la URL externa en la build de producción
     
     // URL base del API
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
     
     // URL del endpoint a usar
     const apiUrl = isVercel 

@@ -126,14 +126,11 @@ export async function saveTest(test: Test): Promise<Test> {
   try {
     console.log('Starting saveTest function')
     
-    // Detectar si estamos en Vercel (producción)
-    const isVercel = typeof window !== 'undefined' && (
-      window.location.hostname.includes('vercel.app') || 
-      process.env.NODE_ENV === 'production'
-    )
+    // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
+    const isVercel = true; // Siempre usaremos la URL externa en la build de producción
     
     // URL base del API
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
     
     // Procesamos las preguntas para asegurar la persistencia de las imágenes
     const processedQuestions = test.questions.map(question => {
@@ -246,14 +243,11 @@ export async function getTests(): Promise<Test[]> {
   try {
     console.log('Starting getTests function')
     
-    // Detectar si estamos en Vercel (producción)
-    const isVercel = typeof window !== 'undefined' && (
-      window.location.hostname.includes('vercel.app') || 
-      process.env.NODE_ENV === 'production'
-    )
+    // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
+    const isVercel = true; // Siempre usaremos la URL externa en la build de producción
     
     // URL base del API
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
     
     // URL del endpoint a usar
     const apiUrl = isVercel 
@@ -375,19 +369,16 @@ export function generateId(prefix: string = ''): string {
 
 export const deleteTest = async (testId: string): Promise<boolean> => {
   try {
-    // Detectar si estamos en Vercel (producción)
-    const isVercel = typeof window !== 'undefined' && (
-      window.location.hostname.includes('vercel.app') || 
-      process.env.NODE_ENV === 'production'
-    )
+    // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
+    const isVercel = true; // Siempre usaremos la URL externa en la build de producción
+    
+    // URL base del API
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
     
     // Eliminar imágenes de Airtable
     if (!isVercel) {
       await deleteTestImages(testId)
     }
-    
-    // URL base del API
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app';
     
     // URL del endpoint a usar
     const apiUrl = isVercel 
