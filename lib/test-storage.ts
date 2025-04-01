@@ -33,9 +33,10 @@ export interface Question {
   question: string
   image?: string
   originalImage?: string
-  _localFile?: File
-  isImageReference?: boolean     // Indica si la imagen es una referencia
-  imageReference?: string        // Guarda la referencia original a la imagen
+  _localFile?: File | string   // Puede ser un objeto File o una string base64
+  _imageData?: string          // Para almacenar datos base64 de la imagen
+  isImageReference?: boolean   // Indica si la imagen es una referencia
+  imageReference?: string      // Guarda la referencia original a la imagen
   type: 'clickArea' | 
         'multipleChoice' | 
         'dragAndDrop' | 
@@ -125,25 +126,53 @@ export async function saveTest(test: Test): Promise<Test> {
   try {
     console.log('Saving test with ID:', test.id)
     
-    // No procesamos las imágenes, solo simplificamos las preguntas
-    // para el envío a Airtable, manteniendo las imágenes base64 en el cliente
+    // Procesamos las preguntas para asegurar la persistencia de las imágenes
     const processedQuestions = test.questions.map(question => {
-      // Crear una versión de la pregunta sin el archivo local
-      // pero manteniendo la imagen base64 (no la subimos a Airtable)
-      const cleanQuestion = {
-        ...question,
-        _localFile: undefined // Removemos el archivo local
+      // Crear una versión limpia de la pregunta
+      const cleanQuestion = { ...question };
+      
+      // Manejar las imágenes según su formato
+      if (question.image) {
+        // Si es una URL blob y tenemos un _localFile que es string (base64), usarlo
+        if (
+          question.image.startsWith('blob:') && 
+          question._localFile && 
+          typeof question._localFile === 'string' && 
+          question._localFile.startsWith('data:')
+        ) {
+          console.log('Found blob URL with string _localFile, using it');
+          cleanQuestion.image = question._localFile;
+        }
+        
+        // Si la imagen ya es base64, mantenerla
+        if (question.image.startsWith('data:')) {
+          console.log('Image is already base64, keeping it');
+          // Asegurar que tenemos una copia en _imageData
+          (cleanQuestion as any)._imageData = question.image;
+        }
       }
+      
+      // Guardar específicamente el campo _imageData para recuperarlo más tarde
+      // solo si _localFile es un string (base64)
+      if (question._localFile && typeof question._localFile === 'string') {
+        if (question._localFile.startsWith('data:')) {
+          (cleanQuestion as any)._imageData = question._localFile;
+        }
+      }
+      
+      // Eliminar la referencia al archivo File que no podemos enviar a la API
+      // o cualquier _localFile que no sea útil
+      delete cleanQuestion._localFile;
 
-      return cleanQuestion
-    })
+      return cleanQuestion;
+    });
 
     // Preparar datos para Airtable
     const testData = {
       id: test.id, // Incluir el ID si existe
       name: test.name,
       description: test.description,
-      questions: processedQuestions, // Enviamos el objeto con las imágenes base64
+      questions: processedQuestions, // Enviamos el objeto con las imágenes procesadas
       maxScore: test.maxScore,
       minScore: test.minScore,
       passingMessage: test.passingMessage,
@@ -193,7 +222,39 @@ export async function getTests(): Promise<Test[]> {
       console.log('Sample test fields:', Object.keys(tests[0]))
     }
     
-    return tests
+    // Procesar las imágenes en cada test
+    const processedTests = tests.map((test: Test) => {
+      // Procesar cada pregunta para verificar las imágenes
+      const processedQuestions = test.questions.map((question: Question) => {
+        // Crear un objeto limpio
+        const cleanQuestion = { ...question };
+        
+        // Si tenemos _imageData, usarlo como imagen principal
+        if (question._imageData && typeof question._imageData === 'string' && 
+            question._imageData.startsWith('data:')) {
+          console.log('Found _imageData, using it as main image');
+          cleanQuestion.image = question._imageData;
+        }
+        
+        // Si la imagen es una referencia y no tenemos _imageData, intentar con placeholder
+        if (question.isImageReference && 
+            (!question._imageData || 
+             typeof question._imageData !== 'string' || 
+             !question._imageData.startsWith('data:'))) {
+          console.log('Reference image without _imageData, using placeholder');
+          // Usar un placeholder o podríamos buscar la imagen en otro lugar
+        }
+        
+        return cleanQuestion;
+      });
+      
+      return {
+        ...test,
+        questions: processedQuestions
+      };
+    });
+    
+    return processedTests;
 
   } catch (error) {
     console.error('Error in getTests:', error)

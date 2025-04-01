@@ -201,6 +201,7 @@ export function ImageAreaSelector({
       {currentImage && (
           <div className="relative">
             <ImageMap
+              key={`image-selector-${currentImage.slice(-20)}`}
               src={currentImage}
               areas={areas}
               drawingArea={drawingArea}

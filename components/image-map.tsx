@@ -45,8 +45,43 @@ export function ImageMap({
   const [retryCount, setRetryCount] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   
+  // Placeholder constante para imágenes que fallan
+  const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
+  
   const formattedSrc = useMemo(() => {
-    return src
+    // Si no hay imagen, devolver vacío
+    if (!src) {
+      return '';
+    }
+    
+    // Si ya es una URL de imagen base64, devolverla directamente
+    if (src.startsWith('data:image/')) {
+      return src;
+    }
+    
+    // Manejo de URLs blob (que pueden expirar)
+    if (src.startsWith('blob:')) {
+      console.log('Detected blob URL in ImageMap:', src.substring(0, 40) + '...');
+      return src;
+    }
+    
+    // Para URLs de Airtable, asegurarse de que tengan el formato correcto
+    if (src.includes('api.airtable.com')) {
+      if (!src.startsWith('http')) {
+        // Convertir URLs relativas de Airtable a absolutas
+        return `https://api.airtable.com/${src.replace(/^\/+/, '')}`;
+      }
+      return src;
+    }
+    
+    // Para otras URLs HTTP normales
+    if (src.startsWith('http')) {
+      return src;
+    }
+    
+    // Para otros casos desconocidos, mantener el formato original
+    console.log('Unknown image source format:', src.substring(0, 30));
+    return src;
   }, [src])
 
   useEffect(() => {
@@ -123,26 +158,55 @@ export function ImageMap({
       setError(true)
       setErrorMessage(`Could not load the image after multiple attempts.`)
       
-      // Intentar cargar una imagen de fallback para que al menos haya algo visible
-      if (imageRef.current) {
-        console.log('Loading fallback image...');
-        imageRef.current.src = '/fallback-image.jpg';
+      // Depurar la causa del error
+      console.log('Source format analysis:', {
+        isBase64: formattedSrc?.startsWith('data:image/'),
+        isHttp: formattedSrc?.startsWith('http'),
+        isBlob: formattedSrc?.startsWith('blob:'),
+        isAirtable: formattedSrc?.includes('api.airtable.com'),
+        sourceLength: formattedSrc?.length || 0,
+        sourceStart: formattedSrc?.substring(0, 50) || 'empty'
+      });
+      
+      // Intentar corregir URLs de Airtable como último intento
+      if (formattedSrc?.includes('api.airtable.com') && !formattedSrc.startsWith('https://')) {
+        const correctedUrl = `https://api.airtable.com/${formattedSrc.replace(/^\/+/, '')}`;
+        console.log('Attempting with corrected Airtable URL:', correctedUrl);
         
-        // Si incluso la imagen de fallback falla, recién mostrar el error
-        imageRef.current.onerror = () => {
-          toast.error("Could not load the image. Try with another image.")
-          onError?.()
+        if (imageRef.current) {
+          imageRef.current.src = correctedUrl;
+          return;
         }
-        return;
       }
       
-      toast.error("Could not load the image. Try with another image.")
       onError?.()
       return
     }
     
     setRetryCount(prev => prev + 1)
     console.error(`Error loading image (attempt ${retryCount + 1}):`, formattedSrc)
+    
+    // Si es una URL relativa de Airtable, intentar corregirla
+    if (formattedSrc?.includes('api.airtable.com') && !formattedSrc.startsWith('https://')) {
+      const correctedUrl = `https://api.airtable.com/${formattedSrc.replace(/^\/+/, '')}`;
+      console.log('Attempting with corrected Airtable URL:', correctedUrl);
+      
+      if (imageRef.current) {
+        imageRef.current.src = correctedUrl;
+        return;
+      }
+    }
+    
+    // Si es una URL blob que falló, reportar el error
+    if (formattedSrc?.startsWith('blob:')) {
+      console.log('Blob URL failed, likely expired');
+      setIsLoading(false)
+      setError(true)
+      setErrorMessage("Image URL has expired. Please refresh the test.")
+      toast.error("Image URL has expired. Please refresh the test.")
+      onError?.()
+      return;
+    }
     
     setIsLoading(false)
     setError(true)

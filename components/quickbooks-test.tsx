@@ -71,6 +71,7 @@ interface LocalFileInfo {
 // Modificar la tipificación de Question para admitir _localFile
 interface ExtendedQuestion extends Question {
   _localFile?: File;
+  _placeholderApplied?: boolean;
 }
 
 export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true }: QuickbooksTestProps) {
@@ -247,64 +248,54 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   const progress = ((currentScreen + 1) / screens.length) * 100
   const isCompleted = answered.length === screens.length
 
+  // Añadir depuración para la imagen actual
+  useEffect(() => {
+    if (currentImage) {
+      console.log('Current image analysis:', {
+        image: currentImage.substring(0, 30) + '...',
+        isBase64: currentImage.startsWith('data:image/'),
+        isReference: currentImage.startsWith('image_reference_'),
+        length: currentImage.length
+      });
+    }
+  }, [currentImage]);
+
   const handleImageUpload = async (file: File): Promise<string> => {
     try {
       setIsLoading(true)
       console.log('Handling image upload for file:', file.name, 'size:', file.size)
       
-      // En lugar de enviar la imagen a Airtable, la convertimos a base64 y la guardamos localmente
+      // Convertir la imagen a base64 para mostrarla
       return new Promise((resolve, reject) => {
         const reader = new FileReader()
         
-        reader.onload = async (event) => {
-          try {
-            if (!event.target || !event.target.result) {
-              throw new Error('Error reading file')
-            }
-            
-            const base64 = event.target.result.toString()
-            console.log('File converted to base64, length:', base64.length)
-            
-            // Guardar localmente la imagen base64 y usarla como URL 
-            // Se guardará en Airtable sólo una referencia cuando se guarde el test completo
-            const imageId = `local_image_${Date.now()}`
-            
-            // Actualizar la pregunta actual para incluir el archivo local
-            setScreens(prevScreens => 
-              prevScreens.map((screen, idx) => 
-                idx === currentScreen
-                  ? { 
-                      ...screen, 
-                      image: base64,
-                      _localFile: file,  // Guardar el archivo para subirlo cuando se guarde el test
-                      isImageReference: false // Asegurarse de que no es una referencia
-                    }
-                  : screen
-              )
-            )
-            
-            setIsLoading(false)
-            resolve(base64)
-          } catch (error) {
-            console.error('Error:', error)
-            reject(error)
-            toast.error('Failed to process image')
-            setIsLoading(false)
-          }
+        reader.onloadend = () => {
+          // Resultado como base64 string
+          const base64String = reader.result as string
+          
+          console.log('Image uploaded and converted to base64', {
+            fileSize: file.size,
+            base64Length: base64String.length,
+            base64Preview: base64String.substring(0, 50) + '...'
+          })
+          
+          setIsLoading(false)
+          resolve(base64String)
         }
         
         reader.onerror = () => {
+          console.error('Error reading the file')
           setIsLoading(false)
-          reject(new Error('Error reading file'))
-          toast.error('Failed to read image file')
+          reject(new Error('Error reading the file'))
         }
         
         reader.readAsDataURL(file)
       })
     } catch (error) {
+      console.error('Error uploading image:', error)
       setIsLoading(false)
-      console.error('Error processing image:', error)
-      throw error
+      toast.error('Error uploading image. Please try again.')
+      return ''
     }
   }
 
@@ -448,14 +439,35 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
       console.log('handleSaveTest - Starting to process questions')
       console.log('Current screens:', screens.length, 'questions to process')
       
-      // Ya no necesitamos procesar las preguntas con archivos locales
-      // porque las imágenes se manejan en el backend
-      // Simplemente limpiamos posibles referencias temporales
-      const processedQuestions = screens.map(q => ({
-        ...q,
-        // Mantener la imagen tal como está (ya sea base64 o URL)
-        // La API la manejará adecuadamente
-      }));
+      // Procesar las preguntas para asegurarnos de que las imágenes sean persistentes
+      const processedQuestions = screens.map(q => {
+        // Nueva versión de la pregunta para guardar
+        const questionToSave = { ...q };
+        
+        // Manejar las imágenes según su tipo
+        if (q.image) {
+          // Si la imagen es una URL blob, necesitamos usar el _localFile
+          if (q.image.startsWith('blob:')) {
+            console.log('Blob URL detected, using localFile if available');
+            
+            if (q._localFile && typeof q._localFile === 'string' && q._localFile.startsWith('data:')) {
+              questionToSave.image = q._localFile;
+              console.log('Using localFile for blob URL');
+            } else {
+              console.warn('No localFile available for blob URL, image may not persist');
+            }
+          }
+          
+          // Si la imagen es base64, conservarla directamente
+          if (q.image.startsWith('data:')) {
+            console.log('Keeping base64 image');
+            // Asegurarnos de que _localFile tenga el mismo contenido
+            questionToSave._localFile = q.image;
+          }
+        }
+        
+        return questionToSave;
+      });
 
       const testData: Test = {
         id: test?.id || generateId(),
@@ -576,19 +588,104 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     const loadImagesForReferences = async () => {
       if (!screens || screens.length === 0) return;
 
-      // Verificar si hay alguna pregunta con referencia a imagen
-      const hasImageReferences = screens.some(q => q.isImageReference);
-      if (!hasImageReferences) return;
+      // Verificar si hay alguna pregunta con referencia a imagen que aún no tiene placeholder
+      const needsPlaceholder = screens.some(q => 
+        q.isImageReference && 
+        q.image && 
+        q.image.startsWith('image_reference_')
+      );
+      
+      if (!needsPlaceholder) return;
 
       console.log('Detected image references in questions, loading placeholders');
 
-      // Aquí podríamos implementar la carga de las imágenes reales desde Airtable
-      // Por ahora solo aseguramos que el placeholder esté disponible
-      // En el futuro podríamos usar fetch a un endpoint que recupere la imagen real
+      // Crear placeholders para imágenes de referencia
+      const updatedScreens = screens.map(q => {
+        if (q.isImageReference && q.image && q.image.startsWith('image_reference_')) {
+          // Crear un placeholder base64 para la imagen
+          const placeholderBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+          return {
+            ...q,
+            image: placeholderBase64, // Reemplazar la referencia con el placeholder
+            _placeholderApplied: true // Marcar que ya se aplicó el placeholder
+          };
+        }
+        return q;
+      });
+
+      // Actualizar las pantallas con los placeholders
+      setScreens(updatedScreens);
     };
 
     loadImagesForReferences();
-  }, [screens]);
+  }, []);  // Solo ejecutar una vez al montar el componente
+
+  // Función para añadir o actualizar la pregunta actual
+  const handleQuestionSave = () => {
+    if (!currentImage) {
+      toast.error("Please upload an image first")
+      return
+    }
+
+    if (!currentQuestion.trim()) {
+      toast.error("Question text is required")
+      return
+    }
+
+    if (!currentAreas.length) {
+      toast.error("At least one answer area is required")
+      return
+    }
+
+    // Verificar si estamos editando o creando una nueva pregunta
+    if (editingIndex !== null) {
+      // Actualizar pregunta existente
+      const updatedScreens = [...screens]
+      
+      updatedScreens[editingIndex] = {
+        ...updatedScreens[editingIndex],
+        title: currentTitle,
+        description: currentDescription,
+        question: currentQuestion,
+        image: currentImage,
+        // Si la imagen es blob, asegurarnos de guardar también la versión base64
+        _localFile: currentImage.startsWith('blob:') ? null : 
+                   currentImage.startsWith('data:') ? currentImage : null,
+        areas: currentAreas,
+        type: 'clickArea'
+      }
+      
+      setScreens(updatedScreens)
+      resetForm()
+      toast.success("Question updated successfully")
+    } else {
+      // Crear nueva pregunta
+      const newQuestion: ExtendedQuestion = {
+        id: generateId('question'),
+        title: currentTitle,
+        description: currentDescription,
+        question: currentQuestion,
+        image: currentImage,
+        // Si la imagen es una URL blob, no la podemos guardar directamente
+        // Si es base64, guardarla como _localFile para recuperarla después
+        _localFile: currentImage.startsWith('blob:') ? null : 
+                   currentImage.startsWith('data:') ? currentImage : null,
+        areas: currentAreas,
+        type: 'clickArea',
+        scoring: {
+          correct: 1,
+          incorrect: 0
+        }
+      }
+      
+      setScreens([...screens, newQuestion])
+      resetForm()
+      toast.success("Question added successfully")
+    }
+    
+    // Marcar cambios sin guardar
+    setHasUnsavedChanges(true)
+  }
 
   return (
     <>
@@ -1177,7 +1274,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                   {currentImage && (
                       <div className="relative">
                     <ImageMap
-                          key={`${currentScreen}-${isDrawingMode}`}
+                          key={`image-map-${currentScreen}-${currentImage.slice(0, 20)}`}
                           src={currentImage}
                       areas={currentAreas}
                         drawingArea={null}
@@ -1198,8 +1295,8 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                   {!currentImage && isEditMode && (
                     <div className="border rounded-md p-4 text-center text-muted-foreground">
                       Add an image URL to start
-              </div>
-            )}
+                    </div>
+                  )}
                 </MotionDiv>
               </MotionDiv>
             )}

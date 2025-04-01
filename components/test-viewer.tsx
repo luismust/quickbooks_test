@@ -10,10 +10,10 @@ import { MultipleChoice } from "@/components/questions/viewers/multiple-choice"
 import { PointAPoint } from "@/components/questions/viewers/point_a_point"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "sonner"
 import { ResultsDialog } from "./results-dialog"
 import type { Area, Test, Question } from "@/lib/test-storage"
-import { formatGoogleDriveUrl, getImageUrl } from "@/lib/utils"
+import { getImageUrl } from "@/lib/utils"
 
 interface Connection {
   start: string
@@ -37,11 +37,53 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
 
   // Procesar las imágenes
   const processedQuestions = useMemo(() => {
-    return test.questions.map(q => ({
-      ...q,
-      image: getImageUrl(q.image)
-    }))
-  }, [test.questions])
+    return test.questions.map(q => {
+      // Si no hay imagen o la imagen es una cadena vacía, no hay nada que procesar
+      if (!q.image) {
+        return { ...q, image: '' };
+      }
+
+      // Si la imagen ya es base64, usarla directamente
+      if (q.image.startsWith('data:image/')) {
+        console.log('TestViewer: Using base64 image directly');
+        return { ...q, image: q.image };
+      }
+      
+      // Si es una URL blob, conservarla (será manejada por ImageMap si expira)
+      if (q.image.startsWith('blob:')) {
+        console.log('TestViewer: Using blob URL directly:', q.image.substring(0, 40) + '...');
+        
+        // Si tenemos datos de imagen en _imageData, son preferibles a la URL blob
+        if ((q as any)._imageData) {
+          console.log('TestViewer: Using _imageData instead of blob URL');
+          return {
+            ...q,
+            image: (q as any)._imageData
+          };
+        }
+        
+        return {
+          ...q,
+          image: q.image,
+        };
+      }
+      
+      // Si tenemos _imageData, usarlo con prioridad sobre otras URLs
+      if ((q as any)._imageData) {
+        console.log('TestViewer: Using _imageData');
+        return {
+          ...q,
+          image: (q as any)._imageData
+        };
+      }
+      
+      // Para cualquier otra URL (HTTP, HTTPS, referencias, etc.)
+      return {
+        ...q,
+        image: q.image,
+      };
+    });
+  }, [test.questions]);
   
   const currentQuestionData = processedQuestions[currentQuestion]
   const progress = ((answered.length) / processedQuestions.length) * 100
@@ -269,13 +311,29 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
               {currentQuestionData.image && (
                 <div className="relative rounded-lg overflow-hidden">
                   <img
+                    key={`test-image-${currentQuestion}`}
                     src={currentQuestionData.image}
-                    alt={currentQuestionData.title}
+                    alt={currentQuestionData.title || "Test image"}
                     className="w-full h-auto"
                     onError={(e) => {
-                      console.error('Error loading image:', currentQuestionData.image)
-                      e.currentTarget.src = '/placeholder-image.png' // Imagen de fallback
-                      toast.error("Failed to load image")
+                      // Intentar convertir la URL mediante Airtable si es necesario
+                      const originalImage = currentQuestionData.image;
+                      console.log('Image failed to load:', originalImage);
+                      
+                      // Reintentar la carga reelaborando la URL solo si no es base64 o blob
+                      if (!originalImage.startsWith('data:image/') && !originalImage.startsWith('blob:')) {
+                        // Verificar si es una URL de Airtable y construir URL completa si es necesario
+                        if (originalImage.includes('api.airtable.com') && !originalImage.startsWith('http')) {
+                          const newSrc = `https://api.airtable.com/${originalImage.replace(/^\/+/, '')}`;
+                          console.log('Retrying with modified Airtable URL:', newSrc);
+                          e.currentTarget.src = newSrc;
+                          return;
+                        }
+                      }
+                      
+                      // Si la imagen sigue fallando, mostrar un mensaje discreto
+                      console.error('Failed to load test image after retrying');
+                      toast.error("Could not load test image");
                     }}
                   />
                 </div>

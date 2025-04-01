@@ -76,7 +76,28 @@ export const generateId = (prefix: string = '') => {
 }
 
 export function getImageUrl(url: string): string {
-  if (!url) return url;
+  if (!url) return '';
+  
+  // Si es una imagen base64, devolverla tal cual
+  if (url.startsWith('data:image/')) {
+    return url;
+  }
+  
+  // Manejar URLs de blob (que pueden expirar)
+  if (url.startsWith('blob:')) {
+    console.log('getImageUrl: Detected blob URL that might be unstable:', url.substring(0, 40) + '...');
+    // No podemos verificar aquí si es válida, el componente se encargará de manejar errores
+    return url;
+  }
+  
+  // Si es una referencia a una imagen, usar un placeholder
+  if (url.startsWith('image_reference_')) {
+    console.log('getImageUrl: Returning placeholder for image reference');
+    // Un placeholder base64 más pequeño y con mejor diseño (cuadrícula gris con icono)
+    return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
+  }
+  
+  // Otras URLs, devolverlas tal cual
   return url;
 }
 
