@@ -18,6 +18,7 @@ import {
 import { useRouter } from "next/navigation"
 import type { Test } from "@/lib/test-storage"
 import { toast } from "sonner"
+import { useLocalStorage } from "@/components/local-storage-provider"
 
 // Función auxiliar para formatear la fecha
 const formatDate = (dateString: string) => {
@@ -34,6 +35,7 @@ export default function TestsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
+  const { localTests, isStaticMode, deleteLocalTest } = useLocalStorage()
 
   // Filtrar tests basado en la búsqueda
   const filteredTests = tests.filter(test => 
@@ -41,16 +43,26 @@ export default function TestsPage() {
     test.description.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  // Cargar tests desde Airtable
+  // Cargar tests desde Airtable o localStorage
   useEffect(() => {
     const fetchTests = async () => {
       try {
-        const response = await fetch('/api/tests')
-        if (!response.ok) {
-          throw new Error('Failed to fetch tests')
+        setIsLoading(true)
+        
+        if (isStaticMode) {
+          // En modo estático, cargar desde localStorage
+          console.log('Static mode: Loading tests from localStorage')
+          setTests(localTests)
+        } else {
+          // En modo normal, cargar desde API
+          console.log('Normal mode: Loading tests from API')
+          const response = await fetch('/api/tests')
+          if (!response.ok) {
+            throw new Error('Failed to fetch tests')
+          }
+          const data = await response.json()
+          setTests(data.tests)
         }
-        const data = await response.json()
-        setTests(data.tests)
       } catch (error) {
         console.error('Error fetching tests:', error)
         toast.error("Failed to load tests")
@@ -60,22 +72,30 @@ export default function TestsPage() {
     }
 
     fetchTests()
-  }, [])
+  }, [isStaticMode, localTests])
 
   const handleDelete = async (e: React.MouseEvent, testId: string) => {
     e.stopPropagation()
     if (confirm("Are you sure you want to delete this test?")) {
       try {
-        const response = await fetch(`/api/tests/${testId}`, {
-          method: 'DELETE',
-        })
-        
-        if (!response.ok) {
-          throw new Error('Failed to delete test')
-        }
+        if (isStaticMode) {
+          // En modo estático, eliminar de localStorage
+          deleteLocalTest(testId)
+          setTests(tests.filter(test => test.id !== testId))
+          toast.success("Test deleted successfully")
+        } else {
+          // En modo normal, eliminar con API
+          const response = await fetch(`/api/tests/${testId}`, {
+            method: 'DELETE',
+          })
+          
+          if (!response.ok) {
+            throw new Error('Failed to delete test')
+          }
 
-        setTests(tests.filter(test => test.id !== testId))
-        toast.success("Test deleted successfully")
+          setTests(tests.filter(test => test.id !== testId))
+          toast.success("Test deleted successfully")
+        }
       } catch (error) {
         console.error('Error deleting test:', error)
         toast.error("Failed to delete test")
@@ -86,6 +106,23 @@ export default function TestsPage() {
   const handleEditTest = (e: React.MouseEvent, test: Test) => {
     e.stopPropagation()
     router.push(`/edit-test/${test.id}`)
+  }
+
+  const handleDownloadTest = (e: React.MouseEvent, test: Test) => {
+    e.stopPropagation()
+    
+    // Crear un blob y descargarlo
+    const blob = new Blob([JSON.stringify(test, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `test_${test.id}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    toast.success("Test downloaded successfully")
   }
 
   // Si hay un test seleccionado, mostrar el TestViewer

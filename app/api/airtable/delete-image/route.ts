@@ -3,6 +3,11 @@ import Airtable from 'airtable'
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(process.env.AIRTABLE_BASE_ID!)
 
+// Función para generar parámetros estáticos en build time
+export function generateStaticParams() {
+  return []
+}
+
 export async function DELETE(request: Request) {
   try {
     const { imageUrl } = await request.json()

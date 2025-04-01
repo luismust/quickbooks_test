@@ -30,101 +30,36 @@ const base = new Airtable({
   endpointUrl: 'https://api.airtable.com' 
 }).base(process.env.AIRTABLE_BASE_ID || '')
 
+// Función para generar parámetros estáticos en build time
+export function generateStaticParams() {
+  return []
+}
+
 export async function POST(request: Request) {
   try {
-    console.log('POST /api/airtable - Starting image upload')
-    console.log('Using table from env:', process.env.AIRTABLE_TABLE_IMAGES)
-    console.log('TABLE_NAME constant:', TABLE_NAME)
+    console.log('POST to /api/airtable')
+    const body = await request.json()
     
-    // Obtener datos de la solicitud
-    const { file, testId } = await request.json()
-    
-    console.log('Environment variables:', {
-      apiKey: !!process.env.AIRTABLE_API_KEY,
-      baseId: !!process.env.AIRTABLE_BASE_ID,
-      tableImages: process.env.AIRTABLE_TABLE_IMAGES,
-      usingTable: TABLE_NAME
-    })
-
-    // Validar que el archivo es base64
-    if (!file || typeof file !== 'string' || !file.startsWith('data:image/')) {
-      console.error('Invalid image format or missing image data')
+    if (!body.file || typeof body.file !== 'string') {
       return NextResponse.json(
-        { error: 'Invalid image format' },
+        { error: 'No file provided or invalid format' },
         { status: 400 }
       )
     }
-
-    try {
-      // Crear un nombre único para la imagen basado en un hash y el timestamp
-      const hash = createHash('md5').update(file.substring(0, 100) + Date.now()).digest('hex').substring(0, 8)
-      const imageName = `test_image_${testId || 'unknown'}_${hash}`
-      console.log('Creating image record with name:', imageName)
-      
-      // Extraer el tipo MIME y la extensión
-      const mimeMatch = file.match(/^data:([^;]+);/)
-      const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg'
-      const extension = mimeType.split('/')[1] || 'jpg'
-      
-      // En lugar de intentar subir directamente el base64, creamos un registro
-      // sin imagen y luego retornamos el base64 como URL temporal
-      
-      // Preparar los campos para Airtable - solo incluimos el nombre
-      const fields = {} as Record<string, any>
-      fields[FIELDS.NAME] = imageName
-      
-      console.log('Creating record in table:', TABLE_NAME)
-      
-      try {
-        // Crear el registro sin la imagen
-        const records = await base(TABLE_NAME).create([{ fields }])
-        
-        if (!records || records.length === 0) {
-          console.error('No record was created in Airtable')
-          return NextResponse.json(
-            { error: 'Failed to create image record' },
-            { status: 500 }
-          )
-        }
-        
-        const record = records[0]
-        console.log('Record created successfully with ID:', record.id)
-        
-        // Retornar la información con el base64 como URL temporal
-        return NextResponse.json({
-          id: record.id,
-          url: file, // Retornar el base64 como URL para uso temporal
-          isBase64: true,
-          name: imageName,
-          thumbnails: {
-            small: file,
-            large: file,
-            full: file
-          }
-        })
-        
-      } catch (airtableError: any) {
-        console.error('Airtable API error creating record:', airtableError)
-        return NextResponse.json(
-          { 
-            error: 'Airtable API error', 
-            message: airtableError.message || 'Unknown error',
-            details: airtableError
-          },
-          { status: 500 }
-        )
-      }
-    } catch (error) {
-      console.error('Error processing image upload:', error)
-      return NextResponse.json(
-        { error: 'Failed to process image', message: error instanceof Error ? error.message : 'Unknown error' },
-        { status: 500 }
-      )
-    }
+    
+    // En nuestra implementación actual, simplemente registramos que se recibió
+    // una solicitud de carga y devolvemos una URL ficticia
+    console.log('Received base64 image, length:', body.file.length)
+    
+    return NextResponse.json({
+      success: true,
+      url: `image_reference_${Date.now()}`, // URL ficticia que nuestro código entiende
+      message: 'Image data received but stored inline, not separately in Airtable'
+    })
   } catch (error) {
-    console.error('Error processing image upload request:', error)
+    console.error('Error in Airtable API:', error)
     return NextResponse.json(
-      { error: 'Failed to upload image', message: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to process image' },
       { status: 500 }
     )
   }
@@ -132,44 +67,25 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const { testId } = await request.json()
-
-    console.log(`Attempting to delete images for test ID: ${testId}`)
+    console.log('DELETE to /api/airtable')
     
-    // En la tabla de imágenes, buscamos por el nombre que contiene el testId
-    const nameFilter = `SEARCH("${testId}", {${FIELDS.NAME}})`
+    // Necesitamos leer el cuerpo de la solicitud como JSON
+    const body = await request.json()
     
-    try {
-      const records = await base(TABLE_NAME)
-        .select({
-          filterByFormula: nameFilter
-        })
-        .all()
-      
-      console.log(`Found ${records.length} image records to delete`)
-      
-      if (records.length > 0) {
-        const deleteResult = await Promise.all(
-          records.map(record => base(TABLE_NAME).destroy(record.id))
-        )
-        console.log(`Successfully deleted ${deleteResult.length} records`)
-      } else {
-        console.log('No image records found to delete')
-      }
-      
-      return NextResponse.json({ 
-        success: true,
-        deletedCount: records.length
-      })
-      
-    } catch (error: any) {
-      console.error('Error during delete operation:', error)
-      if (error.error === 'NOT_FOUND') {
-        console.error(`Table "${TABLE_NAME}" not found.`)
-      }
-      throw error
+    if (!body.testId) {
+      return NextResponse.json(
+        { error: 'No testId provided' },
+        { status: 400 }
+      )
     }
-
+    
+    // En nuestra implementación actual, no eliminamos imágenes separadamente
+    console.log('Request to delete images for test:', body.testId)
+    
+    return NextResponse.json({
+      success: true,
+      message: `No images to delete for test ${body.testId} as they are stored inline with test data`
+    })
   } catch (error) {
     console.error('Error deleting images:', error)
     return NextResponse.json(

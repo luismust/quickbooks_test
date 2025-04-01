@@ -172,12 +172,11 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
 
     switch (question.type) {
       case 'clickArea':
-        // Para preguntas de tipo clickArea, asegurarnos de mantener la funcionalidad sin revelar las respuestas
         return (
           <div className="relative">
             <ImageMap
               src={question.image || ''}
-              areas={question.areas || []} // Necesitamos mantener las áreas para la funcionalidad
+              areas={question.areas || []} 
               drawingArea={null}
               onAreaClick={(areaId) => {
                 if (isAnswered) return
@@ -186,10 +185,9 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
               }}
               alt={question.title}
               isDrawingMode={false}
-              isEditMode={false} // Esto es clave - el modo sin edición ocultará completamente las áreas
+              isEditMode={false}
               onError={() => {
                 console.error('Failed to load image in test view:', question.image);
-                // No mostrar notificación para evitar interrumpir el test
               }}
             />
             {/* Mensaje sutil para indicar que se debe hacer clic en la imagen */}
@@ -308,7 +306,8 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
               <h2 className="text-xl font-semibold mb-4">
                 {currentQuestionData.question}
               </h2>
-              {currentQuestionData.image && (
+              {/* Solo mostrar la imagen directamente para tipos que no sean clickArea */}
+              {currentQuestionData.image && currentQuestionData.type !== 'clickArea' && (
                 <div className="relative rounded-lg overflow-hidden">
                   <img
                     key={`test-image-${currentQuestion}`}

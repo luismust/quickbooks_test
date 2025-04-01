@@ -34,6 +34,7 @@ import { ImageComparisonEditor } from "@/components/questions/editors/image_comp
 import { ImageErrorEditor } from "@/components/questions/editors/image_error_editor"
 import { ImageHotspotsEditor } from "@/components/questions/editors/image_hotspots_editor"
 import { ImageSequenceEditor } from "@/components/questions/editors/image_sequence_editor"
+import { useLocalStorage } from "@/components/local-storage-provider"
 
 // Definir el tipo MotionDiv para TypeScript
 const MotionDiv = motion.div
@@ -121,6 +122,9 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   const [isSaving, setIsSaving] = useState(false)
   const [isExporting, setIsExporting] = useState(false);
   const [test, setTest] = useState<Test | null>(initialTest || null)
+
+  // Añadimos useLocalStorage al componente
+  const { isStaticMode, saveLocalTest } = useLocalStorage()
 
   const handleToggleMode = () => {
     setIsEditMode(!isEditMode)
@@ -362,22 +366,22 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
         name: testName,
         description: testDescription,
         questions: processedScreens,
-        maxScore: testMaxScore,
-        minScore: testMinScore,
-        passingMessage: testPassingMessage,
+                  maxScore: testMaxScore,
+                  minScore: testMinScore,
+                  passingMessage: testPassingMessage,
         failingMessage: testFailingMessage
       }
 
       // Descargar el archivo JSON
       const blob = new Blob([JSON.stringify(testData, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
       a.download = `test_${testData.id}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
 
       toast.success('Test exported successfully')
 
@@ -424,9 +428,9 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   // Actualizar la función handleSaveTest para usar el diálogo de éxito
   const handleSaveTest = async () => {
     if (!testName) {
-      toast.error("Test name is required")
-      return
-    }
+        toast.error("Test name is required")
+        return
+      }
 
     if (screens.length === 0) {
       toast.error("Test must have at least one question")
@@ -480,25 +484,41 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
         failingMessage: testFailingMessage
       }
 
-      // Guardar en Airtable mediante API
-      console.log('Saving test with data:', {
-        id: testData.id,
-        name: testData.name,
-        questionsCount: testData.questions.length,
-      })
-      
-      const savedTest = await saveTest(testData)
-      console.log('Test saved successfully with ID:', savedTest.id)
+      // En modo estático, guardar en localStorage en lugar de Airtable
+      if (isStaticMode) {
+        console.log('Static mode: Saving test to localStorage')
+        saveLocalTest(testData)
+        
+        // Actualizar el estado con los datos guardados
+        setTest(testData)
+        setScreens(testData.questions)
+        setHasUnsavedChanges(false)
+        
+        toast.success("Test saved to local storage")
+        
+        // Redirigir a la página principal
+        router.push('/')
+      } else {
+        // Guardar en Airtable mediante API
+        console.log('Saving test with data:', {
+          id: testData.id,
+          name: testData.name,
+          questionsCount: testData.questions.length,
+        })
 
-      // Actualizar el estado con los datos guardados
-      setTest(savedTest)
-      setScreens(savedTest.questions)
-      setHasUnsavedChanges(false)
+        const savedTest = await saveTest(testData)
+        console.log('Test saved successfully with ID:', savedTest.id)
 
-      toast.success("Test saved successfully")
+        // Actualizar el estado con los datos guardados
+        setTest(savedTest)
+        setScreens(savedTest.questions)
+        setHasUnsavedChanges(false)
 
-      // Redirigir a la página principal
-      router.push('/')
+        toast.success("Test saved successfully")
+        
+        // Redirigir a la página principal
+        router.push('/')
+      }
     } catch (error) {
       console.error("Error saving test:", error)
       toast.error("Error saving test. Please try again.")
@@ -731,11 +751,11 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                             Export JSON
                           </>
                         )}
-                      </Button>
+            </Button>
                     </MotionDiv>
                     <MotionDiv whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                      <Button
-                        onClick={handleSaveTest}
+            <Button 
+              onClick={handleSaveTest}
                         disabled={isSaving}
                         className="bg-black hover:bg-gray-800 text-white"
                       >
@@ -750,7 +770,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                             Save Test
                           </>
                         )}
-                      </Button>
+            </Button>
                     </MotionDiv>
                   </>
                 )}
@@ -774,23 +794,23 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                   </Button>
                 </MotionDiv>
               </div>
-            </div>
-          </CardHeader>
+          </div>
+      </CardHeader>
 
-          <CardContent className="p-6">
-            {isEditMode ? (
-              <MotionDiv
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                className="space-y-6"
+        <CardContent className="p-6">
+          {isEditMode ? (
+            <MotionDiv
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              {/* Sección de configuración */}
+              <MotionDiv 
+                className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
+                whileHover={{ y: -2 }}
               >
-                {/* Sección de configuración */}
-                <MotionDiv 
-                  className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
-                  whileHover={{ y: -2 }}
-                >
-                  <h3 className="text-lg font-medium mb-4">General configuration</h3>
+                <h3 className="text-lg font-medium mb-4">General configuration</h3>
                   
                   {/* Banner informativo sobre guardar el test */}
                   <div className="mb-4 p-3 bg-blue-50 rounded-md border border-blue-200 text-blue-700 text-sm">
@@ -804,581 +824,581 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                     </div>
                   </div>
 
-                  <div className="space-y-4">
+                <div className="space-y-4">
+                <div>
+                  <label htmlFor="testName" className="block text-sm font-medium mb-1">
+                      Test name *
+                  </label>
+                  <Input
+                    id="testName"
+                    value={testName}
+                      onChange={(e) => {
+                        console.log('Test name changed:', e.target.value)
+                        setTestName(e.target.value)
+                        setHasUnsavedChanges(true)
+                      }}
+                      placeholder="Enter test name"
+                      required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="testDescription" className="block text-sm font-medium mb-1">
+                    Description
+                  </label>
+                  <Textarea
+                    id="testDescription"
+                    value={testDescription}
+                      onChange={(e) => {
+                        console.log('Test description changed:', e.target.value)
+                        setTestDescription(e.target.value)
+                        setHasUnsavedChanges(true)
+                      }}
+                      placeholder="Enter test description"
+                      className="h-24"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="testName" className="block text-sm font-medium mb-1">
-                        Test name *
+                    <label htmlFor="maxScore" className="block text-sm font-medium mb-1">
+                      Maximum score
                     </label>
                     <Input
-                      id="testName"
-                      value={testName}
-                        onChange={(e) => {
-                          console.log('Test name changed:', e.target.value)
-                          setTestName(e.target.value)
-                          setHasUnsavedChanges(true)
-                        }}
-                        placeholder="Enter test name"
-                        required
+                      id="maxScore"
+                      type="number"
+                      min="0"
+                      value={testMaxScore}
+                      onChange={(e) => setTestMaxScore(Number(e.target.value))}
+                      placeholder="100"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Total score that can be obtained in the test
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="minScore" className="block text-sm font-medium mb-1">
+                      Minimum score to pass
+                    </label>
+                    <Input
+                      id="minScore"
+                      type="number"
+                      min="0"
+                      value={testMinScore}
+                      onChange={(e) => setTestMinScore(Number(e.target.value))}
+                      placeholder="60"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Score needed to consider the test as passed
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="passingMessage" className="block text-sm font-medium mb-1">
+                      Passing message
+                    </label>
+                    <Textarea
+                      id="passingMessage"
+                      value={testPassingMessage}
+                      onChange={(e) => setTestPassingMessage(e.target.value)}
+                      placeholder="Congratulations! You have passed the test."
+                      className="h-20"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="testDescription" className="block text-sm font-medium mb-1">
-                      Description
+                    <label htmlFor="failingMessage" className="block text-sm font-medium mb-1">
+                      Message when failing
                     </label>
                     <Textarea
-                      id="testDescription"
-                      value={testDescription}
-                        onChange={(e) => {
-                          console.log('Test description changed:', e.target.value)
-                          setTestDescription(e.target.value)
-                          setHasUnsavedChanges(true)
-                        }}
-                        placeholder="Enter test description"
+                      id="failingMessage"
+                      value={testFailingMessage}
+                      onChange={(e) => setTestFailingMessage(e.target.value)}
+                      placeholder="You need to improve to pass the test."
+                      className="h-20"
+                    />
+                  </div>
+                </div>
+              </MotionDiv>
+
+              {/* Sección de preguntas */}
+              <MotionDiv 
+                className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
+                whileHover={{ y: -2 }}
+              >
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-medium">Question {currentScreen + 1} of {screens.length}</h3>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                        onClick={() => handleAddQuestion()}
+                    >
+                      Add question
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                        onClick={() => handleDeleteScreen(currentScreen)}
+                      disabled={screens.length <= 1}
+                    >
+                      Delete question
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Campos básicos de la pregunta */}
+                  <div className="grid gap-4">
+                    <div>
+                      <label htmlFor="questionTitle" className="block text-sm font-medium mb-1">
+                        Question title
+                      </label>
+                      <Input
+                        id="questionTitle"
+                        value={currentTestScreen.title}
+                        onChange={(e) => handleScreenUpdate(currentScreen, { title: e.target.value })}
+                          placeholder="Ej: Create a new invoice"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="questionText" className="block text-sm font-medium mb-1">
+                        Question
+                      </label>
+                      <Input
+                        id="questionText"
+                        value={currentTestScreen.question}
+                        onChange={(e) => handleScreenUpdate(currentScreen, { question: e.target.value })}
+                          placeholder="Ej: Where would you click to create a new invoice?"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="questionDescription" className="block text-sm font-medium mb-1">
+                        Description or instructions
+                      </label>
+                      <Textarea
+                        id="questionDescription"
+                        value={currentTestScreen.description}
+                        onChange={(e) => handleScreenUpdate(currentScreen, { description: e.target.value })}
+                        placeholder="Provide instructions or additional context for the question"
                         className="h-24"
                       />
                     </div>
-                  </div>
+                    </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="maxScore" className="block text-sm font-medium mb-1">
-                        Maximum score
+                  {/* Selector de tipo de pregunta */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1">
+                      Question type
                       </label>
-                      <Input
-                        id="maxScore"
-                        type="number"
-                        min="0"
-                        value={testMaxScore}
-                        onChange={(e) => setTestMaxScore(Number(e.target.value))}
-                        placeholder="100"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Total score that can be obtained in the test
-                      </p>
-                    </div>
-
-                    <div>
-                      <label htmlFor="minScore" className="block text-sm font-medium mb-1">
-                        Minimum score to pass
-                      </label>
-                      <Input
-                        id="minScore"
-                        type="number"
-                        min="0"
-                        value={testMinScore}
-                        onChange={(e) => setTestMinScore(Number(e.target.value))}
-                        placeholder="60"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Score needed to consider the test as passed
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label htmlFor="passingMessage" className="block text-sm font-medium mb-1">
-                        Passing message
-                      </label>
-                      <Textarea
-                        id="passingMessage"
-                        value={testPassingMessage}
-                        onChange={(e) => setTestPassingMessage(e.target.value)}
-                        placeholder="Congratulations! You have passed the test."
-                        className="h-20"
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="failingMessage" className="block text-sm font-medium mb-1">
-                        Message when failing
-                      </label>
-                      <Textarea
-                        id="failingMessage"
-                        value={testFailingMessage}
-                        onChange={(e) => setTestFailingMessage(e.target.value)}
-                        placeholder="You need to improve to pass the test."
-                        className="h-20"
-                      />
-                    </div>
-                  </div>
-                </MotionDiv>
-
-                {/* Sección de preguntas */}
-                <MotionDiv 
-                  className="bg-card rounded-lg border p-6 shadow-sm hover:shadow-md transition-shadow"
-                  whileHover={{ y: -2 }}
-                >
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-medium">Question {currentScreen + 1} of {screens.length}</h3>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                          onClick={() => handleAddQuestion()}
-                      >
-                        Add question
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                          onClick={() => handleDeleteScreen(currentScreen)}
-                        disabled={screens.length <= 1}
-                      >
-                        Delete question
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    {/* Campos básicos de la pregunta */}
-                    <div className="grid gap-4">
-                      <div>
-                        <label htmlFor="questionTitle" className="block text-sm font-medium mb-1">
-                          Question title
-                        </label>
-                        <Input
-                          id="questionTitle"
-                          value={currentTestScreen.title}
-                          onChange={(e) => handleScreenUpdate(currentScreen, { title: e.target.value })}
-                          placeholder="Ej: Create a new invoice"
-                        />
+                    <Select
+                      value={currentTestScreen.type}
+                      onValueChange={(value) => handleScreenUpdate(currentScreen, { type: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select question type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* Preguntas básicas */}
+                        <SelectItem value="clickArea">Click Area</SelectItem>
+                        <SelectItem value="multipleChoice">Multiple Choice</SelectItem>
+                        <SelectItem value="dragAndDrop">Drag and Drop</SelectItem>
+                        <SelectItem value="sequence">Sequence</SelectItem>
+                        <SelectItem value="pointAPoint">Point to Point</SelectItem>
+                        <SelectItem value="openQuestion">Open Question</SelectItem>
+                        <SelectItem value="identifyErrors">Identify Errors</SelectItem>
+                        <SelectItem value="phraseComplete">Phrase Complete</SelectItem>
+                        <SelectItem value="trueOrFalse">True or False</SelectItem>
+                        
+                        {/* Preguntas basadas en imágenes */}
+                        <SelectItem value="imageDescription">Image Description</SelectItem>
+                        <SelectItem value="imageComparison">Image Comparison</SelectItem>
+                        <SelectItem value="imageError">Image Error</SelectItem>
+                        <SelectItem value="imageHotspots">Image Hotspots</SelectItem>
+                        <SelectItem value="imageSequence">Image Sequence</SelectItem>
+                      </SelectContent>
+                    </Select>
                       </div>
 
-                      <div>
-                        <label htmlFor="questionText" className="block text-sm font-medium mb-1">
-                          Question
-                        </label>
-                        <Input
-                          id="questionText"
-                          value={currentTestScreen.question}
-                          onChange={(e) => handleScreenUpdate(currentScreen, { question: e.target.value })}
-                          placeholder="Ej: Where would you click to create a new invoice?"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="questionDescription" className="block text-sm font-medium mb-1">
-                          Description or instructions
-                        </label>
-                        <Textarea
-                          id="questionDescription"
-                          value={currentTestScreen.description}
-                          onChange={(e) => handleScreenUpdate(currentScreen, { description: e.target.value })}
-                          placeholder="Provide instructions or additional context for the question"
-                          className="h-24"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Selector de tipo de pregunta */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">
-                        Question type
-                        </label>
-                      <Select
-                        value={currentTestScreen.type}
-                        onValueChange={(value) => handleScreenUpdate(currentScreen, { type: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select question type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {/* Preguntas básicas */}
-                          <SelectItem value="clickArea">Click Area</SelectItem>
-                          <SelectItem value="multipleChoice">Multiple Choice</SelectItem>
-                          <SelectItem value="dragAndDrop">Drag and Drop</SelectItem>
-                          <SelectItem value="sequence">Sequence</SelectItem>
-                          <SelectItem value="pointAPoint">Point to Point</SelectItem>
-                          <SelectItem value="openQuestion">Open Question</SelectItem>
-                          <SelectItem value="identifyErrors">Identify Errors</SelectItem>
-                          <SelectItem value="phraseComplete">Phrase Complete</SelectItem>
-                          <SelectItem value="trueOrFalse">True or False</SelectItem>
-                          
-                          {/* Preguntas basadas en imágenes */}
-                          <SelectItem value="imageDescription">Image Description</SelectItem>
-                          <SelectItem value="imageComparison">Image Comparison</SelectItem>
-                          <SelectItem value="imageError">Image Error</SelectItem>
-                          <SelectItem value="imageHotspots">Image Hotspots</SelectItem>
-                          <SelectItem value="imageSequence">Image Sequence</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Renderizar el editor específico según el tipo */}
-                    {currentTestScreen.type === 'clickArea' && (
-                      <div className="border-t pt-6">
-                        <ImageAreaSelector
-                          image={currentTestScreen.image || ''}
-                          areas={currentTestScreen.areas || []}
-                          onChange={(data) => {
-                            console.log('Image area change:', data);
-                            
-                            // Extraer el archivo local si está presente
-                            const { localFile, ...otherData } = data;
-                            
-                            // Guardar el archivo local en el estado de la pregunta
-                            if (localFile) {
-                              handleScreenUpdate(currentScreen, {
-                                ...otherData,
-                                _localFile: localFile 
-                              });
-                            } else {
-                              handleScreenUpdate(currentScreen, otherData);
-                            }
-                          }}
-                          isEditMode={isEditMode}
-                          onImageUpload={handleImageUpload}
-                        />
-                      </div>
-                    )}
-
-                    {currentTestScreen.type === 'multipleChoice' && (
-                      <div className="border-t pt-6">
-                        <MultipleChoiceEditor
-                          options={currentTestScreen.options || []}
-                          onChange={(options) => handleScreenUpdate(currentScreen, { options })}
-                        />
-                      </div>
-                    )}
-
-                    {currentTestScreen.type === 'dragAndDrop' && (
-                      <div className="border-t pt-6">
-                        <DragAndDropEditor
-                          items={currentTestScreen.items || []}
-                          onChange={(items) => handleScreenUpdate(currentScreen, { items })}
-                        />
-                    </div>
-                    )}
-
-                    {currentTestScreen.type === 'sequence' && (
-                      <div className="border-t pt-6">
-                        <SequenceEditor
-                          sequence={currentTestScreen.sequence || []}
-                          onChange={(sequence) => handleScreenUpdate(currentScreen, { sequence })}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'pointAPoint' && (
-                      <div className="border-t pt-6">
-                        <PointAPointEditor
-                          points={currentTestScreen.points || []}
-                          onChange={(points) => handleScreenUpdate(currentScreen, { points })}
-                        />
-                      </div>
-                    )}
-                      {currentTestScreen.type === 'openQuestion' && (
-                      <div className="border-t pt-6">
-                        <OpenQuestion
-                          question={currentTestScreen.question}
-                          answer={currentTestScreen.answer || ''}
-                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                          isEditMode={true}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'identifyErrors' && (
-                      <div className="border-t pt-6">
-                        <IdentifyErrors
-                          question={currentTestScreen.question}
-                          answer={currentTestScreen.answer || ''}
-                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                          isEditMode={true}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'phraseComplete' && (
-                      <div className="border-t pt-6">
-                        <PhraseComplete
-                          question={currentTestScreen.question}
-                          answer={currentTestScreen.answer || ''}
-                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                          isEditMode={true}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'trueOrFalse' && (
-                      <div className="border-t pt-6">
-                        <TrueOrFalseEditor
-                          question={currentTestScreen.question}
-                          answer={currentTestScreen.correctAnswer || false}
-                          onChange={(data) => handleScreenUpdate(currentScreen, { 
-                            question: data.question,
-                            correctAnswer: data.answer
-                          })}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'imageDescription' && (
-                      <div className="border-t pt-6">
-                        <ImageDescriptionEditor
-                          imageUrl={currentTestScreen.image || ''}
-                          question={currentTestScreen.question}
-                          correctDescription={currentTestScreen.correctDescription || ''}
-                          keywords={currentTestScreen.keywords || []}
-                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'imageComparison' && (
-                      <div className="border-t pt-6">
-                        <ImageComparisonEditor
-                          imageUrl1={currentTestScreen.image || ''}
-                          imageUrl2={currentTestScreen.secondImage || ''}
-                          question={currentTestScreen.question}
-                          differences={currentTestScreen.differences || []}
-                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'imageError' && (
-                      <div className="border-t pt-6">
-                        <ImageErrorEditor
-                          imageUrl={currentTestScreen.image || ''}
-                          question={currentTestScreen.question}
-                          errors={currentTestScreen.errors || []}
-                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'imageHotspots' && (
-                      <div className="border-t pt-6">
-                        <ImageHotspotsEditor
-                          imageUrl={currentTestScreen.image || ''}
-                          question={currentTestScreen.question}
-                          hotspots={currentTestScreen.hotspots || []}
-                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'imageSequence' && (
-                      <div className="border-t pt-6">
-                        <ImageSequenceEditor
-                          images={currentTestScreen.sequence || []}
-                          question={currentTestScreen.question}
-                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                        />
-                      </div>
-                    )}
-                    {/* Configuración de puntuación */}
+                  {/* Renderizar el editor específico según el tipo */}
+                  {currentTestScreen.type === 'clickArea' && (
                     <div className="border-t pt-6">
-                      <h4 className="text-sm font-medium mb-4">Question scoring</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label htmlFor="correctPoints" className="block text-sm font-medium mb-1">
-                            Points for correct answer
-                          </label>
-                          <Input
-                            id="correctPoints"
-                            type="number"
-                            min="0"
-                            value={currentTestScreen.scoring?.correct ?? defaultScoring.correct}
-                            onChange={(e) => handleScreenUpdate(currentScreen, {
-                              scoring: {
-                                ...currentTestScreen.scoring ?? defaultScoring,
-                                correct: Number(e.target.value)
-                              }
-                            })}
-                            placeholder="1"
-                          />
-                        </div>
-
-                        <div>
-                          <label htmlFor="incorrectPoints" className="block text-sm font-medium mb-1">
-                            Points for incorrect answer
-                          </label>
-                          <Input
-                            id="incorrectPoints"
-                            type="number"
-                            min="0"
-                            value={currentTestScreen.scoring?.incorrect ?? defaultScoring.incorrect}
-                            onChange={(e) => handleScreenUpdate(currentScreen, {
-                              scoring: {
-                                ...currentTestScreen.scoring ?? defaultScoring,
-                                incorrect: Number(e.target.value)
-                              }
-                            })}
-                            placeholder="1"
-                          />
-                        </div>
+                      <ImageAreaSelector
+                        image={currentTestScreen.image || ''}
+                        areas={currentTestScreen.areas || []}
+                        onChange={(data) => {
+                          console.log('Image area change:', data);
+                          
+                          // Extraer el archivo local si está presente
+                          const { localFile, ...otherData } = data;
+                          
+                          // Guardar el archivo local en el estado de la pregunta
+                          if (localFile) {
+                            handleScreenUpdate(currentScreen, {
+                              ...otherData,
+                              _localFile: localFile 
+                            });
+                          } else {
+                            handleScreenUpdate(currentScreen, otherData);
+                          }
+                        }}
+                        isEditMode={isEditMode}
+                        onImageUpload={handleImageUpload}
+                      />
                       </div>
-                      <p className="text-xs text-muted-foreground mt-2">
+                  )}
+
+                  {currentTestScreen.type === 'multipleChoice' && (
+                    <div className="border-t pt-6">
+                      <MultipleChoiceEditor
+                        options={currentTestScreen.options || []}
+                        onChange={(options) => handleScreenUpdate(currentScreen, { options })}
+                      />
+                    </div>
+                  )}
+
+                  {currentTestScreen.type === 'dragAndDrop' && (
+                    <div className="border-t pt-6">
+                      <DragAndDropEditor
+                        items={currentTestScreen.items || []}
+                        onChange={(items) => handleScreenUpdate(currentScreen, { items })}
+                      />
+                  </div>
+                  )}
+
+                  {currentTestScreen.type === 'sequence' && (
+                    <div className="border-t pt-6">
+                      <SequenceEditor
+                        sequence={currentTestScreen.sequence || []}
+                        onChange={(sequence) => handleScreenUpdate(currentScreen, { sequence })}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'pointAPoint' && (
+                    <div className="border-t pt-6">
+                      <PointAPointEditor
+                        points={currentTestScreen.points || []}
+                        onChange={(points) => handleScreenUpdate(currentScreen, { points })}
+                      />
+                    </div>
+                  )}
+                    {currentTestScreen.type === 'openQuestion' && (
+                    <div className="border-t pt-6">
+                      <OpenQuestion
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.answer || ''}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                        isEditMode={true}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'identifyErrors' && (
+                    <div className="border-t pt-6">
+                      <IdentifyErrors
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.answer || ''}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                        isEditMode={true}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'phraseComplete' && (
+                    <div className="border-t pt-6">
+                      <PhraseComplete
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.answer || ''}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                        isEditMode={true}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'trueOrFalse' && (
+                    <div className="border-t pt-6">
+                      <TrueOrFalseEditor
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.correctAnswer || false}
+                        onChange={(data) => handleScreenUpdate(currentScreen, { 
+                          question: data.question,
+                          correctAnswer: data.answer
+                        })}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'imageDescription' && (
+                    <div className="border-t pt-6">
+                      <ImageDescriptionEditor
+                        imageUrl={currentTestScreen.image || ''}
+                        question={currentTestScreen.question}
+                        correctDescription={currentTestScreen.correctDescription || ''}
+                        keywords={currentTestScreen.keywords || []}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'imageComparison' && (
+                    <div className="border-t pt-6">
+                      <ImageComparisonEditor
+                        imageUrl1={currentTestScreen.image || ''}
+                        imageUrl2={currentTestScreen.secondImage || ''}
+                        question={currentTestScreen.question}
+                        differences={currentTestScreen.differences || []}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'imageError' && (
+                    <div className="border-t pt-6">
+                      <ImageErrorEditor
+                        imageUrl={currentTestScreen.image || ''}
+                        question={currentTestScreen.question}
+                        errors={currentTestScreen.errors || []}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'imageHotspots' && (
+                    <div className="border-t pt-6">
+                      <ImageHotspotsEditor
+                        imageUrl={currentTestScreen.image || ''}
+                        question={currentTestScreen.question}
+                        hotspots={currentTestScreen.hotspots || []}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'imageSequence' && (
+                    <div className="border-t pt-6">
+                      <ImageSequenceEditor
+                        images={currentTestScreen.sequence || []}
+                        question={currentTestScreen.question}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                      />
+                    </div>
+                  )}
+                  {/* Configuración de puntuación */}
+                  <div className="border-t pt-6">
+                    <h4 className="text-sm font-medium mb-4">Question scoring</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label htmlFor="correctPoints" className="block text-sm font-medium mb-1">
+                          Points for correct answer
+                        </label>
+                        <Input
+                          id="correctPoints"
+                          type="number"
+                          min="0"
+                          value={currentTestScreen.scoring?.correct ?? defaultScoring.correct}
+                          onChange={(e) => handleScreenUpdate(currentScreen, {
+                            scoring: {
+                              ...currentTestScreen.scoring ?? defaultScoring,
+                              correct: Number(e.target.value)
+                            }
+                          })}
+                          placeholder="1"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="incorrectPoints" className="block text-sm font-medium mb-1">
+                          Points for incorrect answer
+                        </label>
+                        <Input
+                          id="incorrectPoints"
+                          type="number"
+                          min="0"
+                          value={currentTestScreen.scoring?.incorrect ?? defaultScoring.incorrect}
+                          onChange={(e) => handleScreenUpdate(currentScreen, {
+                            scoring: {
+                              ...currentTestScreen.scoring ?? defaultScoring,
+                              incorrect: Number(e.target.value)
+                            }
+                          })}
+                          placeholder="1"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
                         Example: If you configure "Points for correct answer" = 2 and "Points for incorrect answer" = 1
-                        then the user will gain 2 points for a correct answer and lose 1 point for an incorrect answer.
-                      </p>
-                    </div>
+                      then the user will gain 2 points for a correct answer and lose 1 point for an incorrect answer.
+                    </p>
+                  </div>
 
-                    {/* Botones de acción para la pregunta actual */}
-                    <div className="flex justify-end gap-2 mt-4">
+                  {/* Botones de acción para la pregunta actual */}
+                  <div className="flex justify-end gap-2 mt-4">
                       
-                    </div>
+                  </div>
 
-                    {/* Navegación entre preguntas */}
+                  {/* Navegación entre preguntas */}
                     <div className="flex justify-between items-center gap-2 pt-4">
                       <div className="flex gap-2">
-                        {screens.map((_, index) => (
-                          <MotionDiv
-                            key={index}
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                          >
-                            <Button
-                              variant={currentScreen === index ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setCurrentScreen(index)}
-                              className="w-8 h-8 p-0"
-                            >
-                              {index + 1}
-                            </Button>
-                          </MotionDiv>
-                        ))}
+                    {screens.map((_, index) => (
+                      <MotionDiv
+                        key={index}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <Button
+                          variant={currentScreen === index ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentScreen(index)}
+                          className="w-8 h-8 p-0"
+                        >
+                          {index + 1}
+                        </Button>
+                      </MotionDiv>
+                    ))}
                       </div>
-                    </div>
                   </div>
-                </MotionDiv>
-              </MotionDiv>
-            ) : (
-              <MotionDiv
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-6"
-              >
-                {/* Vista de prueba */}
-                <div className="text-center mb-8">
-                  <MotionDiv 
-                    className="text-2xl font-bold"
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                  >
-                    {currentTestScreen.question}
-                  </MotionDiv>
-                  <MotionDiv 
-                    className="text-muted-foreground mt-2"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    {currentTestScreen.description}
-                  </MotionDiv>
                 </div>
-
-                {/* Área de imagen */}
-                <MotionDiv
-                  className="rounded-lg overflow-hidden border shadow-lg"
-                  initial={{ scale: 0.95 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.4 }}
-                >
-                  {currentImage && (
-                      <div className="relative">
-                    <ImageMap
-                          key={`image-map-${currentScreen}-${currentImage.slice(0, 20)}`}
-                          src={currentImage}
-                      areas={currentAreas}
-                        drawingArea={null}
-                      onAreaClick={handleAreaClick}
-                      alt={`Screenshot of ${currentTestScreen.title}`}
-                      className="w-full h-auto border rounded-md"
-                      isDrawingMode={isDrawingMode}
-                      isEditMode={isEditMode}
-                          onError={() => {
-                          if (currentImage) {
-                            console.error('Failed to load image:', currentImage)
-                            toast.error("Failed to load image. Please try uploading again.")
-                          }
-                          }}
-                        />
-                      </div>
-                  )}
-                  {!currentImage && isEditMode && (
-                    <div className="border rounded-md p-4 text-center text-muted-foreground">
-                      Add an image URL to start
-                    </div>
-                  )}
-                </MotionDiv>
               </MotionDiv>
-            )}
-        </CardContent>
-
-            {/* Agregar indicador de progreso */}
-            <div className="px-6 pb-4">
-              <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
-                <span>Progress</span>
-                <span>{currentScreen + 1} of {screens.length}</span>
-              </div>
-              <Progress value={((currentScreen + 1) / screens.length) * 100} />
-            </div>
-
-          <CardFooter className="border-t p-6 bg-card">
-            <div className="flex justify-between w-full">
-              <MotionDiv whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Button variant="outline" onClick={handlePrevious} disabled={currentScreen === 0}>
-              <ChevronLeft className="mr-2 h-4 w-4" /> Previous
-            </Button>
-              </MotionDiv>
-
-              <MotionDiv whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                {isCompleted && !isEditMode ? (
-            <Button onClick={resetTest}>Restart test</Button>
+            </MotionDiv>
           ) : (
-                  <Button onClick={handleNext} disabled={currentScreen === screens.length - 1}>
-              Next <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
+            <MotionDiv
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              {/* Vista de prueba */}
+              <div className="text-center mb-8">
+                <MotionDiv 
+                  className="text-2xl font-bold"
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  {currentTestScreen.question}
+                </MotionDiv>
+                <MotionDiv 
+                  className="text-muted-foreground mt-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  {currentTestScreen.description}
+                </MotionDiv>
+              </div>
+
+              {/* Área de imagen */}
+              <MotionDiv
+                className="rounded-lg overflow-hidden border shadow-lg"
+                initial={{ scale: 0.95 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                {currentImage && (
+                    <div className="relative">
+                  <ImageMap
+                          key={`image-map-${currentScreen}-${currentImage.slice(0, 20)}`}
+                        src={currentImage}
+                    areas={currentAreas}
+                      drawingArea={null}
+                    onAreaClick={handleAreaClick}
+                    alt={`Screenshot of ${currentTestScreen.title}`}
+                    className="w-full h-auto border rounded-md"
+                    isDrawingMode={isDrawingMode}
+                    isEditMode={isEditMode}
+                        onError={() => {
+                        if (currentImage) {
+                          console.error('Failed to load image:', currentImage)
+                            toast.error("Failed to load image. Please try uploading again.")
+                        }
+                        }}
+                      />
+                    </div>
+                )}
+                {!currentImage && isEditMode && (
+                  <div className="border rounded-md p-4 text-center text-muted-foreground">
+                    Add an image URL to start
+            </div>
           )}
               </MotionDiv>
-            </div>
-        </CardFooter>
-      </Card>
-
-        {/* Feedback flotante */}
-        <AnimatePresence>
-          {showFeedback && (
-            <MotionDiv
-                initial={{ opacity: 0, y: -50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-                className="fixed top-4 right-4 z-50"
-            >
-              <div className={`
-                  px-6 py-3 rounded-lg shadow-lg
-                ${showFeedback.correct 
-                  ? "bg-green-500 text-white" 
-                  : "bg-red-500 text-white"}
-              `}>
-                {showFeedback.message}
-              </div>
             </MotionDiv>
           )}
-        </AnimatePresence>
-      </MotionDiv>
+      </CardContent>
 
-        {/* Diálogo de confirmación para cancelar */}
-        <ConfirmationDialog
-          open={showCancelDialog}
-          onOpenChange={setShowCancelDialog}
-          title={dialogConfig.title}
-          description={dialogConfig.description}
-          onConfirm={() => {
-            setShowCancelDialog(false)
-            router.push("/")
-          }}
-          type="warning"
-        />
+          {/* Agregar indicador de progreso */}
+          <div className="px-6 pb-4">
+            <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+              <span>Progress</span>
+              <span>{currentScreen + 1} of {screens.length}</span>
+            </div>
+            <Progress value={((currentScreen + 1) / screens.length) * 100} />
+          </div>
 
-        {/* Diálogo de éxito */}
-        <ConfirmationDialog
-          open={showSuccessDialog}
-          onOpenChange={setShowSuccessDialog}
-          title={dialogConfig.title}
-          description={dialogConfig.description}
-          onConfirm={() => {
-            setShowSuccessDialog(false)
-            router.push("/")
-          }}
-          type="success"
-        />
-      </>
-    )
+        <CardFooter className="border-t p-6 bg-card">
+          <div className="flex justify-between w-full">
+            <MotionDiv whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+        <Button variant="outline" onClick={handlePrevious} disabled={currentScreen === 0}>
+          <ChevronLeft className="mr-2 h-4 w-4" /> Previous
+        </Button>
+            </MotionDiv>
+
+            <MotionDiv whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              {isCompleted && !isEditMode ? (
+          <Button onClick={resetTest}>Restart test</Button>
+        ) : (
+                <Button onClick={handleNext} disabled={currentScreen === screens.length - 1}>
+            Next <ChevronRight className="ml-2 h-4 w-4" />
+          </Button>
+        )}
+            </MotionDiv>
+          </div>
+      </CardFooter>
+    </Card>
+
+      {/* Feedback flotante */}
+      <AnimatePresence>
+        {showFeedback && (
+          <MotionDiv
+              initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+              className="fixed top-4 right-4 z-50"
+          >
+            <div className={`
+                px-6 py-3 rounded-lg shadow-lg
+              ${showFeedback.correct 
+                ? "bg-green-500 text-white" 
+                : "bg-red-500 text-white"}
+            `}>
+              {showFeedback.message}
+            </div>
+          </MotionDiv>
+        )}
+      </AnimatePresence>
+    </MotionDiv>
+
+      {/* Diálogo de confirmación para cancelar */}
+      <ConfirmationDialog
+        open={showCancelDialog}
+        onOpenChange={setShowCancelDialog}
+        title={dialogConfig.title}
+        description={dialogConfig.description}
+        onConfirm={() => {
+          setShowCancelDialog(false)
+          router.push("/")
+        }}
+        type="warning"
+      />
+
+      {/* Diálogo de éxito */}
+      <ConfirmationDialog
+        open={showSuccessDialog}
+        onOpenChange={setShowSuccessDialog}
+        title={dialogConfig.title}
+        description={dialogConfig.description}
+        onConfirm={() => {
+          setShowSuccessDialog(false)
+          router.push("/")
+        }}
+        type="success"
+      />
+    </>
+  )
 }
