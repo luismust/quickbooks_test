@@ -51,24 +51,32 @@ export function ImageMap({
   const formattedSrc = useMemo(() => {
     // Si no hay imagen, devolver vacío
     if (!src) {
+      console.log('ImageMap: No source provided');
       return '';
     }
     
     // Si ya es una URL de imagen base64, devolverla directamente
     if (src.startsWith('data:image/')) {
+      console.log('ImageMap: Using base64 image directly');
       return src;
     }
     
     // Si es una referencia a imagen (formato especial usado en Airtable)
     if (src.startsWith('image_reference_')) {
-      console.log('Found image reference:', src);
-      // Usar un placeholder para referencias a imágenes
+      console.log('ImageMap: Found image reference:', src);
+      // NO intentar cargar la referencia, usar un placeholder
       return placeholderImage;
+    }
+    
+    // Manejar strings vacíos explícitamente (que podrían no ser capturados por !src)
+    if (src.trim() === '') {
+      console.log('ImageMap: Empty string source');
+      return '';
     }
     
     // Manejo de URLs blob (que pueden expirar)
     if (src.startsWith('blob:')) {
-      console.log('Detected blob URL in ImageMap:', src.substring(0, 40) + '...');
+      console.log('ImageMap: Detected blob URL:', src.substring(0, 40) + '...');
       return src;
     }
     
@@ -76,7 +84,9 @@ export function ImageMap({
     if (src.includes('api.airtable.com')) {
       if (!src.startsWith('http')) {
         // Convertir URLs relativas de Airtable a absolutas
-        return `https://api.airtable.com/${src.replace(/^\/+/, '')}`;
+        const correctedUrl = `https://api.airtable.com/${src.replace(/^\/+/, '')}`;
+        console.log('ImageMap: Converting Airtable URL:', correctedUrl);
+        return correctedUrl;
       }
       return src;
     }
@@ -86,8 +96,8 @@ export function ImageMap({
       return src;
     }
     
-    // Para otros casos desconocidos, intentar como una referencia o usar placeholder
-    console.log('Unknown image source format:', src);
+    // Para otros casos desconocidos, loguear y usar placeholder
+    console.log('ImageMap: Unknown image source format:', src);
     return placeholderImage;
   }, [src])
 
