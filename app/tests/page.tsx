@@ -55,12 +55,27 @@ export default function TestsPage() {
           setTests(localTests)
         } else {
           // En modo normal, cargar desde API
-          console.log('Normal mode: Loading tests from API')
-          const response = await fetch('/api/tests')
+          console.log('Normal mode: Loading tests from API directly')
+          
+          // Usar directamente la URL del backend en lugar del endpoint relativo
+          const apiUrl = 'https://quickbooks-backend.vercel.app/api/tests';
+          console.log('Fetching from absolute URL:', apiUrl);
+          
+          const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              // Evitar problemas de CORS
+              'Accept': 'application/json',
+            },
+          });
+          
           if (!response.ok) {
-            throw new Error('Failed to fetch tests')
+            throw new Error(`Failed to fetch tests: ${response.status} ${response.statusText}`)
           }
-          const data = await response.json()
+          
+          const data = await response.json();
+          console.log('Tests loaded successfully:', data.tests.length);
           setTests(data.tests)
         }
       } catch (error) {
@@ -85,12 +100,20 @@ export default function TestsPage() {
           toast.success("Test deleted successfully")
         } else {
           // En modo normal, eliminar con API
-          const response = await fetch(`/api/tests/${testId}`, {
+          const apiUrl = `https://quickbooks-backend.vercel.app/api/tests/${testId}`;
+          console.log('Deleting test with absolute URL:', apiUrl);
+          
+          const response = await fetch(apiUrl, {
             method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              // Evitar problemas de CORS
+              'Accept': 'application/json',
+            },
           })
           
           if (!response.ok) {
-            throw new Error('Failed to delete test')
+            throw new Error(`Failed to delete test: ${response.status} ${response.statusText}`)
           }
 
           setTests(tests.filter(test => test.id !== testId))
