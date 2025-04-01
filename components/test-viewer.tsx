@@ -38,15 +38,18 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
   // Procesar las imágenes
   const processedQuestions = useMemo(() => {
     return test.questions.map(q => {
+      // Crear un ID único para la imagen basado en su contenido
+      const imageKey = `img_${q.id}_${new Date().getTime()}`;
+      
       // Si no hay imagen o la imagen es una cadena vacía, no hay nada que procesar
       if (!q.image) {
-        return { ...q, image: '' };
+        return { ...q, image: '', _imageKey: imageKey };
       }
 
       // Si la imagen ya es base64, usarla directamente
       if (q.image.startsWith('data:image/')) {
         console.log('TestViewer: Using base64 image directly');
-        return { ...q, image: q.image };
+        return { ...q, image: q.image, _imageKey: imageKey };
       }
       
       // Si es una URL blob, conservarla (será manejada por ImageMap si expira)
@@ -58,13 +61,15 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
           console.log('TestViewer: Using _imageData instead of blob URL');
           return {
             ...q,
-            image: (q as any)._imageData
+            image: (q as any)._imageData,
+            _imageKey: imageKey
           };
         }
         
         return {
           ...q,
           image: q.image,
+          _imageKey: imageKey
         };
       }
       
@@ -73,17 +78,22 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         console.log('TestViewer: Using _imageData');
         return {
           ...q,
-          image: (q as any)._imageData
+          image: (q as any)._imageData,
+          _imageKey: imageKey
         };
       }
       
       // Si es una referencia a imagen (formato usado en Airtable)
       if (q.image.startsWith('image_reference_')) {
         console.log('TestViewer: Found image reference:', q.image);
-        // Usar un placeholder para referencias a imágenes
+        
+        // Crear un placeholder estático con un ID único para evitar problemas de carga
+        const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
+        
         return {
           ...q,
-          image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII='
+          image: placeholderImage,
+          _imageKey: imageKey
         };
       }
       
@@ -91,6 +101,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       return {
         ...q,
         image: q.image,
+        _imageKey: imageKey
       };
     });
   }, [test.questions]);
@@ -196,8 +207,10 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
               alt={question.title}
               isDrawingMode={false}
               isEditMode={false}
+              key={(question as any)._imageKey || `question-${question.id}`}
               onError={() => {
                 console.error('Failed to load image in test view:', question.image);
+                toast.error("Could not load test image. Using a placeholder image instead.");
               }}
             />
             {/* Mensaje sutil para indicar que se debe hacer clic en la imagen */}
@@ -320,7 +333,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
               {currentQuestionData.image && currentQuestionData.type !== 'clickArea' && (
                 <div className="relative rounded-lg overflow-hidden">
                   <img
-                    key={`test-image-${currentQuestion}`}
+                    key={`test-image-${(currentQuestionData as any)._imageKey || currentQuestion}`}
                     src={currentQuestionData.image}
                     alt={currentQuestionData.title || "Test image"}
                     className="w-full h-auto"
@@ -328,6 +341,14 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                       // Intentar convertir la URL mediante Airtable si es necesario
                       const originalImage = currentQuestionData.image;
                       console.log('Image failed to load:', originalImage);
+                      
+                      // Si es una referencia, usar un placeholder
+                      if (originalImage.startsWith('image_reference_')) {
+                        console.log('Using placeholder for reference image');
+                        const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
+                        e.currentTarget.src = placeholderImage;
+                        return;
+                      }
                       
                       // Reintentar la carga reelaborando la URL solo si no es base64 o blob
                       if (!originalImage.startsWith('data:image/') && !originalImage.startsWith('blob:')) {
@@ -342,7 +363,11 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                       
                       // Si la imagen sigue fallando, mostrar un mensaje discreto
                       console.error('Failed to load test image after retrying');
-                      toast.error("Could not load test image");
+                      toast.error("Could not load test image. Using placeholder instead.");
+                      
+                      // Usar placeholder como último recurso
+                      const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
+                      e.currentTarget.src = placeholderImage;
                     }}
                   />
                 </div>
