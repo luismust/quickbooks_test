@@ -70,8 +70,8 @@ interface LocalFileInfo {
 }
 
 // Modificar la tipificación de Question para admitir _localFile
-interface ExtendedQuestion extends Question {
-  _localFile?: File;
+interface ExtendedQuestion extends Omit<Question, '_localFile'> {
+  _localFile?: File | string;
   _placeholderApplied?: boolean;
 }
 
@@ -84,8 +84,9 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
         id: question.id || generateId(),
         image: question.image || '',
         type: question.type || 'clickArea',
-        scoring: question.scoring || defaultScoring
-      }))
+        scoring: question.scoring || defaultScoring,
+        _localFile: question._localFile
+      })) as ExtendedQuestion[]
     }
     return testScreens as ExtendedQuestion[]
   })
@@ -212,7 +213,15 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     const template = questionTemplates.find(t => t.id === templateId)
     if (template) {
       setSelectedTemplate(template)
-      setScreens(template.questions)
+      // Asegurarnos que las preguntas tengan los campos requeridos por ExtendedQuestion
+      const validQuestions = template.questions.map(q => ({
+        ...q,
+        id: typeof q.id === 'string' ? q.id : generateId(),
+        type: q.type || 'clickArea',
+        scoring: q.scoring || defaultScoring,
+      })) as ExtendedQuestion[]
+      
+      setScreens(validQuestions)
       setCurrentScreen(0)
       setScore(0)
       setAnswered([])
@@ -222,8 +231,8 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   }
 
   const handleScreenUpdate = (screenIndex: number, updates: Partial<Question>) => {
-    setScreens((prevScreens: Question[]) => 
-      prevScreens.map((screen: Question) => 
+    setScreens((prevScreens: ExtendedQuestion[]) => 
+      prevScreens.map((screen: ExtendedQuestion) => 
         screen.id === screens[screenIndex].id
           ? { ...screen, ...updates }
           : screen
@@ -233,15 +242,15 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   }
 
   const handleDeleteScreen = (screenIndex: number) => {
-    setScreens((prevScreens: Question[]) => 
-      prevScreens.filter((screen: Question) => screen.id !== screens[screenIndex].id)
+    setScreens((prevScreens: ExtendedQuestion[]) => 
+      prevScreens.filter((screen: ExtendedQuestion) => screen.id !== screens[screenIndex].id)
     )
     setHasUnsavedChanges(true)
   }
 
   const handleTestUpdate = (updates: Partial<Question>) => {
-    setScreens((prevScreens: Question[]) => 
-      prevScreens.map((screen: Question) => ({ ...screen, ...updates }))
+    setScreens((prevScreens: ExtendedQuestion[]) => 
+      prevScreens.map((screen: ExtendedQuestion) => ({ ...screen, ...updates }))
     )
     setHasUnsavedChanges(true)
   }

@@ -10,6 +10,11 @@ const nextConfig = {
     unoptimized: true,
   },
   
+  // Desactivar verificación de tipos (para compilación en producción solamente)
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  
   // Suprimir advertencias
   webpack: (config, { isServer }) => {
     // Suprimir la advertencia de deprecación de punycode

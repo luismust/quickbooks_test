@@ -17,13 +17,18 @@ export async function DELETE(
   request: Request,
   { params }: { params: { testId: string } }
 ) {
+  if (!params.testId) {
+    return NextResponse.json(
+      { error: 'TestId is required' },
+      { status: 400 }
+    )
+  }
+
   try {
-    const testId = params.testId;
-    console.log('Deleting test with ID:', testId);
-
-    const tableName = process.env.AIRTABLE_TABLE_NAME || '';
-    await base(tableName).destroy(testId)
-
+    // Intentar eliminar del registro de Airtable
+    await base(process.env.AIRTABLE_TABLE_NAME || 'Tests').destroy(params.testId)
+    
+    // Devolver respuesta exitosa
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error deleting test:', error)
