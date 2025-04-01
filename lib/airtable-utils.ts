@@ -18,7 +18,7 @@ export async function uploadImageToAirtable(file: File, testId?: string): Promis
     
     // URL del endpoint a usar
     const apiUrl = isVercel 
-      ? `${API_BASE_URL}/airtable`  // URL del API serverless
+      ? `${API_BASE_URL}/airtable`  // La URL ya incluye /api/ en API_BASE_URL
       : '/api/airtable';  // URL local en desarrollo
     
     // Subir a Airtable
@@ -76,7 +76,7 @@ export async function deleteTestImages(testId: string): Promise<boolean> {
     
     // URL del endpoint a usar
     const apiUrl = isVercel 
-      ? `${API_BASE_URL}/airtable`  // URL del API serverless
+      ? `${API_BASE_URL}/airtable`  // La URL ya incluye /api/ en API_BASE_URL
       : '/api/airtable';  // URL local en desarrollo
     
     const response = await fetch(apiUrl, {

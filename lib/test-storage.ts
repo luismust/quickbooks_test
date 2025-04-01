@@ -196,7 +196,7 @@ export async function saveTest(test: Test): Promise<Test> {
 
     // URL del endpoint a usar
     const apiUrl = isVercel 
-      ? `${API_BASE_URL}/tests`  // URL del API serverless (sin /api/ que se agrega en el backend)
+      ? `${API_BASE_URL}/tests`  // La URL ya incluye /api/ en API_BASE_URL
       : '/api/tests';  // URL local en desarrollo
     
     // Guardar en Airtable a través del endpoint correspondiente
@@ -257,7 +257,7 @@ export async function getTests(): Promise<Test[]> {
     
     // URL del endpoint a usar
     const apiUrl = isVercel 
-      ? `${API_BASE_URL}/tests`  // URL del API serverless (sin /api/ que se agrega en el backend)
+      ? `${API_BASE_URL}/tests`  // La URL ya incluye /api/ en API_BASE_URL
       : '/api/tests';  // URL local en desarrollo
       
     console.log('Fetching tests from API:', apiUrl)
@@ -391,7 +391,7 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
     
     // URL del endpoint a usar
     const apiUrl = isVercel 
-      ? `${API_BASE_URL}/tests/${testId}`  // URL de tu API serverless
+      ? `${API_BASE_URL}/tests/${testId}`  // La URL ya incluye /api/ en API_BASE_URL
       : `/api/tests/${testId}`;  // URL local en desarrollo
     
     const response = await fetch(apiUrl, {
