@@ -55,7 +55,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       
       // URL del backend en Vercel (ajustar a la URL real)
       // Esta URL debe apuntar a tu backend de Vercel
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://tu-backend.vercel.app';
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://quickbooks-backend.vercel.app';
       
       // Intentar obtener la imagen del backend
       console.log('Fetching image from backend:', `${backendUrl}/api/images/${imageId}`);
