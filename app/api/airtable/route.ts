@@ -25,11 +25,6 @@ if (!process.env.AIRTABLE_TABLE_IMAGES) {
   console.error('⚠️ Variable de entorno AIRTABLE_TABLE_IMAGES no está definida')
 }
 
-const base = new Airtable({ 
-  apiKey: process.env.AIRTABLE_API_KEY || '', 
-  endpointUrl: 'https://api.airtable.com' 
-}).base(process.env.AIRTABLE_BASE_ID || '')
-
 // Función para generar parámetros estáticos en build time
 export function generateStaticParams() {
   return []
@@ -37,6 +32,19 @@ export function generateStaticParams() {
 
 export async function POST(request: Request) {
   try {
+    // Inicializar Airtable solo cuando sea necesario
+    if (!process.env.AIRTABLE_API_KEY || !process.env.AIRTABLE_BASE_ID) {
+      return NextResponse.json(
+        { error: 'Airtable credentials not configured' },
+        { status: 500 }
+      )
+    }
+    
+    const base = new Airtable({ 
+      apiKey: process.env.AIRTABLE_API_KEY,
+      endpointUrl: 'https://api.airtable.com'
+    }).base(process.env.AIRTABLE_BASE_ID)
+    
     console.log('POST to /api/airtable')
     const body = await request.json()
     
@@ -65,8 +73,51 @@ export async function POST(request: Request) {
   }
 }
 
+export async function GET(request: Request) {
+  try {
+    // Inicializar Airtable solo cuando sea necesario
+    if (!process.env.AIRTABLE_API_KEY || !process.env.AIRTABLE_BASE_ID) {
+      return NextResponse.json(
+        { error: 'Airtable credentials not configured' },
+        { status: 500 }
+      )
+    }
+    
+    const base = new Airtable({ 
+      apiKey: process.env.AIRTABLE_API_KEY,
+      endpointUrl: 'https://api.airtable.com'
+    }).base(process.env.AIRTABLE_BASE_ID)
+    
+    // Resto del código...
+    
+    return NextResponse.json({
+      success: true,
+      message: 'GET operation not implemented'
+    })
+  } catch (error) {
+    console.error('Error in GET operation:', error)
+    return NextResponse.json(
+      { error: 'Failed to process GET operation' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
+    // Inicializar Airtable solo cuando sea necesario
+    if (!process.env.AIRTABLE_API_KEY || !process.env.AIRTABLE_BASE_ID) {
+      return NextResponse.json(
+        { error: 'Airtable credentials not configured' },
+        { status: 500 }
+      )
+    }
+    
+    const base = new Airtable({ 
+      apiKey: process.env.AIRTABLE_API_KEY,
+      endpointUrl: 'https://api.airtable.com'
+    }).base(process.env.AIRTABLE_BASE_ID)
+    
     console.log('DELETE to /api/airtable')
     
     // Necesitamos leer el cuerpo de la solicitud como JSON

@@ -2,19 +2,6 @@ import { NextResponse } from 'next/server'
 import Airtable from 'airtable'
 import type { Test, Question } from '@/lib/test-storage'
 
-// Validar variables de entorno
-if (!process.env.AIRTABLE_API_KEY) {
-  throw new Error('AIRTABLE_API_KEY is not defined')
-}
-
-if (!process.env.AIRTABLE_BASE_ID) {
-  throw new Error('AIRTABLE_BASE_ID is not defined')
-}
-
-if (!process.env.AIRTABLE_TABLE_NAME) {
-  throw new Error('AIRTABLE_TABLE_NAME is not defined')
-}
-
 // Campos exactos de la tabla de tests en Airtable
 const FIELDS = {
   ID: 'id',
@@ -29,20 +16,40 @@ const FIELDS = {
   FAILING_MESSAGE: 'failing_message'
 }
 
-const base = new Airtable({ 
-  apiKey: process.env.AIRTABLE_API_KEY,
-  endpointUrl: 'https://api.airtable.com'  // Agregar endpoint explícito
-}).base(process.env.AIRTABLE_BASE_ID || '')
+// Función para generar parámetros estáticos en build time
+export function generateStaticParams() {
+  return []
+}
 
 export async function POST(request: Request) {
   try {
     console.log('=== Starting POST request ===')
+    
+    // Validar variables de entorno
+    if (!process.env.AIRTABLE_API_KEY) {
+      throw new Error('AIRTABLE_API_KEY is not defined')
+    }
+
+    if (!process.env.AIRTABLE_BASE_ID) {
+      throw new Error('AIRTABLE_BASE_ID is not defined')
+    }
+
+    if (!process.env.AIRTABLE_TABLE_NAME) {
+      throw new Error('AIRTABLE_TABLE_NAME is not defined')
+    }
+    
     console.log('Environment variables:', {
       hasApiKey: Boolean(process.env.AIRTABLE_API_KEY),
       hasBaseId: Boolean(process.env.AIRTABLE_BASE_ID),
       hasTableName: Boolean(process.env.AIRTABLE_TABLE_NAME),
       tableName: process.env.AIRTABLE_TABLE_NAME
     })
+    
+    // Inicializar Airtable solo cuando se llama a esta función
+    const base = new Airtable({ 
+      apiKey: process.env.AIRTABLE_API_KEY,
+      endpointUrl: 'https://api.airtable.com'
+    }).base(process.env.AIRTABLE_BASE_ID)
     
     const test = await request.json() as Test
     console.log('Received test:', {
@@ -215,12 +222,29 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const tableName = process.env.AIRTABLE_TABLE_NAME || '';
-    console.log('GET: Fetching records from table:', tableName);
-    const records = await base(tableName)
-      .select()
-      .all()
+    // Validar variables de entorno
+    if (!process.env.AIRTABLE_API_KEY) {
+      throw new Error('AIRTABLE_API_KEY is not defined')
+    }
 
+    if (!process.env.AIRTABLE_BASE_ID) {
+      throw new Error('AIRTABLE_BASE_ID is not defined')
+    }
+
+    if (!process.env.AIRTABLE_TABLE_NAME) {
+      throw new Error('AIRTABLE_TABLE_NAME is not defined')
+    }
+    
+    // Inicializar Airtable solo cuando se llama a esta función
+    const base = new Airtable({ 
+      apiKey: process.env.AIRTABLE_API_KEY,
+      endpointUrl: 'https://api.airtable.com'
+    }).base(process.env.AIRTABLE_BASE_ID)
+    
+    // Obtener tests desde Airtable
+    console.log('Fetching records from Airtable table:', process.env.AIRTABLE_TABLE_NAME)
+    const records = await base(process.env.AIRTABLE_TABLE_NAME).select().all()
+    
     console.log('GET: Retrieved', records.length, 'records from Airtable');
     
     const tests = records.map(record => {
@@ -282,7 +306,7 @@ export async function GET() {
               imageReference: question.image,
               // Aquí podríamos buscar la imagen en otro lugar si fuera necesario
               // Por ahora, usamos un placeholder base64 simple
-              image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII='
+              image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII='
             };
           }
           
@@ -315,9 +339,4 @@ export async function GET() {
       { status: 500 }
     )
   }
-}
-
-// Función para generar parámetros estáticos en build time
-export function generateStaticParams() {
-  return []
 } 

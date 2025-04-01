@@ -1,21 +1,6 @@
 import { NextResponse } from 'next/server'
 import Airtable from 'airtable'
 
-// Validar las variables de entorno
-if (!process.env.AIRTABLE_API_KEY) {
-  throw new Error('AIRTABLE_API_KEY is not defined')
-}
-
-if (!process.env.AIRTABLE_BASE_ID) {
-  throw new Error('AIRTABLE_BASE_ID is not defined')
-}
-
-// Inicializar la conexión a Airtable
-const base = new Airtable({ 
-  apiKey: process.env.AIRTABLE_API_KEY,
-  endpointUrl: 'https://api.airtable.com' // Endpoint explícito
-}).base(process.env.AIRTABLE_BASE_ID || '')
-
 // Función para generar parámetros estáticos en build time
 export function generateStaticParams() {
   return []
@@ -29,6 +14,21 @@ export async function POST(request: Request) {
     // no es realmente necesario ahora.
     
     console.log('POST request to upload/route')
+    
+    // Validar las variables de entorno en tiempo de ejecución
+    if (!process.env.AIRTABLE_API_KEY) {
+      return NextResponse.json(
+        { error: 'AIRTABLE_API_KEY is not defined' },
+        { status: 500 }
+      )
+    }
+
+    if (!process.env.AIRTABLE_BASE_ID) {
+      return NextResponse.json(
+        { error: 'AIRTABLE_BASE_ID is not defined' },
+        { status: 500 }
+      )
+    }
     
     const formData = await request.formData()
     const file = formData.get('file') as File | null
