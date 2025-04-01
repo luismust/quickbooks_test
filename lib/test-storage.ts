@@ -132,6 +132,9 @@ export async function saveTest(test: Test): Promise<Test> {
       process.env.NODE_ENV === 'production'
     )
     
+    // URL base del API
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/';
+    
     // Procesamos las preguntas para asegurar la persistencia de las imágenes
     const processedQuestions = test.questions.map(question => {
       // Crear una versión limpia de la pregunta
@@ -193,7 +196,7 @@ export async function saveTest(test: Test): Promise<Test> {
 
     // URL del endpoint a usar
     const apiUrl = isVercel 
-      ? 'https://quickbook-backend.vercel.app/api/tests'  // URL de tu API serverless
+      ? `${API_BASE_URL}/api/tests`  // URL de tu API serverless
       : '/api/tests';  // URL local en desarrollo
     
     // Guardar en Airtable a través del endpoint correspondiente
@@ -249,9 +252,12 @@ export async function getTests(): Promise<Test[]> {
       process.env.NODE_ENV === 'production'
     )
     
+    // URL base del API
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tu-backend-desplegado.vercel.app';
+    
     // URL del endpoint a usar
     const apiUrl = isVercel 
-      ? 'https://quickbook-backend.vercel.app/api/tests'  // URL de tu API serverless
+      ? `${API_BASE_URL}/api/tests`  // URL de tu API serverless
       : '/api/tests';  // URL local en desarrollo
       
     console.log('Fetching tests from API:', apiUrl)
@@ -380,9 +386,12 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
       await deleteTestImages(testId)
     }
     
+    // URL base del API
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tu-backend-desplegado.vercel.app';
+    
     // URL del endpoint a usar
     const apiUrl = isVercel 
-      ? `https://quickbook-backend.vercel.app/api/tests/${testId}`  // URL de tu API serverless
+      ? `${API_BASE_URL}/api/tests/${testId}`  // URL de tu API serverless
       : `/api/tests/${testId}`;  // URL local en desarrollo
     
     const response = await fetch(apiUrl, {
