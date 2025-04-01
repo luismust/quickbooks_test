@@ -28,23 +28,27 @@ export function LocalStorageProvider({ children }: { children: ReactNode }) {
   const [localTests, setLocalTests] = useState<Test[]>([])
   const [isStaticMode, setIsStaticMode] = useState(false)
   
-  // Verificar si estamos en modo estático
+  // Inicializar el provider
   useEffect(() => {
-    const appEnv = process.env.NEXT_PUBLIC_APP_ENV
-    const useLocalStorage = process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true'
+    // Detectar si estamos en Vercel (para mostrar en la consola)
+    const isVercel = typeof window !== 'undefined' && (
+      window.location.hostname.includes('vercel.app') || 
+      process.env.NODE_ENV === 'production'
+    )
     
-    console.log('App environment:', appEnv)
-    console.log('Use local storage:', useLocalStorage)
+    console.log('Environment:', process.env.NODE_ENV)
+    console.log('Is Vercel deployment:', isVercel)
     
-    // Si estamos en modo estático o explícitamente se habilita localStorage
-    setIsStaticMode(appEnv === 'static' || useLocalStorage)
+    // Siempre configuramos isStaticMode como false porque ahora usamos
+    // la API remota en producción
+    setIsStaticMode(false)
     
-    // Cargar tests guardados en localStorage
+    // Cargar tests guardados en localStorage como caché local
     const saved = localStorage.getItem('quickbook_tests')
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
-        console.log('Loaded from localStorage:', parsed.length, 'tests')
+        console.log('Loaded from localStorage cache:', parsed.length, 'tests')
         setLocalTests(parsed)
       } catch (e) {
         console.error('Error parsing localStorage data:', e)

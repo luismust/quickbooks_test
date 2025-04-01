@@ -124,7 +124,13 @@ export const validateTest = (test: Test): boolean => {
 
 export async function saveTest(test: Test): Promise<Test> {
   try {
-    console.log('Saving test with ID:', test.id)
+    console.log('Starting saveTest function')
+    
+    // Detectar si estamos en Vercel (producción)
+    const isVercel = typeof window !== 'undefined' && (
+      window.location.hostname.includes('vercel.app') || 
+      process.env.NODE_ENV === 'production'
+    )
     
     // Procesamos las preguntas para asegurar la persistencia de las imágenes
     const processedQuestions = test.questions.map(question => {
@@ -185,8 +191,13 @@ export async function saveTest(test: Test): Promise<Test> {
       questionsCount: testData.questions.length
     })
 
-    // Guardar en Airtable
-    const response = await fetch('/api/tests', {
+    // URL del endpoint a usar
+    const apiUrl = isVercel 
+      ? 'https://quickbook-backend.vercel.app/api/tests'  // URL de tu API serverless
+      : '/api/tests';  // URL local en desarrollo
+    
+    // Guardar en Airtable a través del endpoint correspondiente
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -200,7 +211,28 @@ export async function saveTest(test: Test): Promise<Test> {
       throw new Error(`Failed to save test: ${errorData.error || response.statusText}`)
     }
 
-    return await response.json()
+    const savedTest = await response.json();
+    
+    // También guardamos en localStorage para tener una copia local
+    try {
+      const savedTests = localStorage.getItem('quickbook_tests') || '[]'
+      const localTests = JSON.parse(savedTests) as Test[]
+      
+      // Actualizar o añadir el test
+      const existingIndex = localTests.findIndex(t => t.id === savedTest.id)
+      if (existingIndex >= 0) {
+        localTests[existingIndex] = savedTest
+      } else {
+        localTests.push(savedTest)
+      }
+      
+      // Guardar de vuelta en localStorage
+      localStorage.setItem('quickbook_tests', JSON.stringify(localTests))
+    } catch (e) {
+      console.error('Error saving local copy:', e)
+    }
+
+    return savedTest;
   } catch (error) {
     console.error('Error saving test:', error)
     throw error
@@ -209,7 +241,22 @@ export async function saveTest(test: Test): Promise<Test> {
 
 export async function getTests(): Promise<Test[]> {
   try {
-    const response = await fetch('/api/tests')
+    console.log('Starting getTests function')
+    
+    // Detectar si estamos en Vercel (producción)
+    const isVercel = typeof window !== 'undefined' && (
+      window.location.hostname.includes('vercel.app') || 
+      process.env.NODE_ENV === 'production'
+    )
+    
+    // URL del endpoint a usar
+    const apiUrl = isVercel 
+      ? 'https://quickbook-backend.vercel.app/api/tests'  // URL de tu API serverless
+      : '/api/tests';  // URL local en desarrollo
+      
+    console.log('Fetching tests from API:', apiUrl)
+    const response = await fetch(apiUrl)
+    
     if (!response.ok) {
       throw new Error('Failed to fetch tests')
     }
@@ -254,11 +301,28 @@ export async function getTests(): Promise<Test[]> {
       };
     });
     
+    // También guardamos en localStorage para tener una copia local
+    try {
+      localStorage.setItem('quickbook_tests', JSON.stringify(processedTests))
+    } catch (e) {
+      console.error('Error saving local copy:', e)
+    }
+    
     return processedTests;
 
   } catch (error) {
     console.error('Error in getTests:', error)
-    return []
+    
+    // Si hay un error, intentar devolver los tests desde localStorage
+    try {
+      const savedTests = localStorage.getItem('quickbook_tests') || '[]'
+      const localTests = JSON.parse(savedTests) as Test[]
+      console.log('Returning tests from localStorage as fallback:', localTests.length)
+      return localTests
+    } catch (e) {
+      console.error('Error reading from localStorage:', e)
+      return []
+    }
   }
 }
 
@@ -305,15 +369,38 @@ export function generateId(prefix: string = ''): string {
 
 export const deleteTest = async (testId: string): Promise<boolean> => {
   try {
-    // Eliminar imágenes de Airtable
-    await deleteTestImages(testId)
+    // Detectar si estamos en Vercel (producción)
+    const isVercel = typeof window !== 'undefined' && (
+      window.location.hostname.includes('vercel.app') || 
+      process.env.NODE_ENV === 'production'
+    )
     
-    const response = await fetch(`/api/tests/${testId}`, {
+    // Eliminar imágenes de Airtable
+    if (!isVercel) {
+      await deleteTestImages(testId)
+    }
+    
+    // URL del endpoint a usar
+    const apiUrl = isVercel 
+      ? `https://quickbook-backend.vercel.app/api/tests/${testId}`  // URL de tu API serverless
+      : `/api/tests/${testId}`;  // URL local en desarrollo
+    
+    const response = await fetch(apiUrl, {
       method: 'DELETE',
     })
     
     if (!response.ok) {
       throw new Error('Failed to delete test')
+    }
+    
+    // También eliminamos de localStorage
+    try {
+      const savedTests = localStorage.getItem('quickbook_tests') || '[]'
+      const localTests = JSON.parse(savedTests) as Test[]
+      const filteredTests = localTests.filter(t => t.id !== testId)
+      localStorage.setItem('quickbook_tests', JSON.stringify(filteredTests))
+    } catch (e) {
+      console.error('Error removing from localStorage:', e)
     }
     
     return true
