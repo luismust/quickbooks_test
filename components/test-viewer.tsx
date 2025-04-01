@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -13,7 +13,6 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 import { ResultsDialog } from "./results-dialog"
 import type { Area, Test, Question } from "@/lib/test-storage"
-import { InfoIcon } from "@/components/icons/info-icon"
 
 interface Connection {
   start: string
@@ -34,9 +33,57 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
   const [userAnswers, setUserAnswers] = useState<{[key: string]: boolean}>({})
   const [testCompleted, setTestCompleted] = useState(false)
   const [connections, setConnections] = useState<{[key: string]: Connection[]}>({})
+  const [loadedImages, setLoadedImages] = useState<{ [key: string]: string }>({})
   
   // Placeholder constante para imágenes que fallan o referencias
-  const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
+  const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
+
+  // Función para cargar la imagen real a partir de la referencia
+  const loadImageFromReference = async (reference: string) => {
+    try {
+      console.log('Attempting to load image from reference:', reference);
+      
+      // Extraer el ID de la referencia (formato es "image_reference__ID")
+      const imageId = reference.replace('image_reference_', '');
+      
+      console.log('Extracted image ID:', imageId);
+      
+      if (!imageId) {
+        console.error('Could not extract image ID from reference:', reference);
+        return null;
+      }
+      
+      // URL del backend en Vercel (ajustar a la URL real)
+      // Esta URL debe apuntar a tu backend de Vercel
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://tu-backend.vercel.app';
+      
+      // Intentar obtener la imagen del backend
+      console.log('Fetching image from backend:', `${backendUrl}/api/images/${imageId}`);
+      
+      // Hacer la solicitud al endpoint del backend
+      const response = await fetch(`${backendUrl}/api/images/${imageId}`);
+      
+      if (!response.ok) {
+        throw new Error(`Error fetching image from backend: ${response.statusText}`);
+      }
+      
+      const imageData = await response.json();
+      console.log('Received image data from backend:', imageData);
+      
+      // El backend debería devolver la URL o los datos de la imagen
+      if (imageData.url) {
+        return imageData.url;
+      } else if (imageData.data) {
+        return imageData.data;
+      } else {
+        console.error('Backend response does not contain image URL or data:', imageData);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error loading image from reference:', error);
+      return null;
+    }
+  };
 
   // Procesar las imágenes
   const processedQuestions = useMemo(() => {
@@ -54,16 +101,15 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         if (typeof q.image === 'string' && q.image.startsWith('image_reference_')) {
           console.log('TestViewer: Found image reference:', q.image);
           
-          // IMPORTANTE: No intentar cargar o procesar la referencia como URL
-          // En lugar de eso, SOLO guardar la referencia para mostrar un mensaje 
-          // informativo al usuario
+          // Guardar la referencia pero no intentar cargarla inmediatamente
+          // La cargaremos cuando sea necesario
           return {
             ...q,
             _imageType: 'reference',
             _imageRef: q.image,
             _imageKey: imageKey,
-            // La imagen queda vacía para que NO se intente cargar
-            image: ''
+            // La imagen se cargará dinámicamente cuando se necesite
+            image: q.image 
           };
         }
         
@@ -128,6 +174,38 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
   
   const currentQuestionData = processedQuestions[currentQuestion]
   const progress = ((answered.length) / processedQuestions.length) * 100
+
+  // Efecto para cargar la imagen de referencia cuando cambia la pregunta actual
+  useEffect(() => {
+    const questionData = processedQuestions[currentQuestion];
+    if (
+      questionData && 
+      (questionData as any)._imageType === 'reference' && 
+      (questionData as any)._imageRef
+    ) {
+      const imageRef = (questionData as any)._imageRef;
+      
+      // Verificar si ya tenemos esta imagen cargada
+      if (!loadedImages[imageRef]) {
+        console.log('Loading image from reference:', imageRef);
+        
+        // Cargar la imagen
+        loadImageFromReference(imageRef).then(imageData => {
+          if (imageData) {
+            console.log('Successfully loaded image from reference');
+            setLoadedImages(prev => ({
+              ...prev,
+              [imageRef]: imageData
+            }));
+          } else {
+            console.error('Failed to load image from reference');
+          }
+        });
+      } else {
+        console.log('Image already loaded from reference:', imageRef);
+      }
+    }
+  }, [currentQuestion, processedQuestions, loadedImages, loadImageFromReference]);
 
   const handleAnswer = (isCorrect: boolean, questionId: string, connection?: Connection) => {
     if (answered.includes(questionId) || testCompleted) return
@@ -215,46 +293,76 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       case 'clickArea':
         return (
           <div className="relative">
-            {/* Si es una referencia de imagen, mostrar mensaje informativo */}
-            {(currentQuestionData as any)._imageType === 'reference' && (
+            {/* Si es una referencia de imagen y tenemos la imagen cargada */}
+            {(currentQuestionData as any)._imageType === 'reference' && loadedImages[(currentQuestionData as any)._imageRef] ? (
               <div className="relative border border-border rounded-md overflow-hidden">
-                <div className="flex flex-col items-center justify-center h-64 bg-gray-100 rounded-lg p-4">
-                  <div className="text-gray-500 text-center mb-2">
-                    <span className="block font-medium">Referencia de imagen: {(currentQuestionData as any)._imageRef}</span>
-                    <span className="block text-sm mt-1">Las imágenes de referencia no se pueden cargar directamente.</span>
-                  </div>
-                  <div className="flex items-center text-xs text-gray-400 mt-4">
-                    <InfoIcon className="w-4 h-4 mr-1" />
-                    <span>Esta imagen está almacenada como una referencia externa.</span>
-                  </div>
+                <div 
+                  style={{
+                    backgroundImage: `url(${loadedImages[(currentQuestionData as any)._imageRef]})`,
+                    backgroundSize: 'contain',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat',
+                    width: '100%',
+                    height: '350px'
+                  }}
+                  className="relative"
+                >
+                  {question.areas?.map((area) => (
+                    <div
+                      key={area.id}
+                      className="absolute cursor-pointer"
+                      style={{
+                        left: `${area.coords[0]}%`,
+                        top: `${area.coords[1]}%`,
+                        width: `${area.coords[2] - area.coords[0]}%`,
+                        height: `${area.coords[3] - area.coords[1]}%`
+                      }}
+                      onClick={() => {
+                        if (isAnswered) return;
+                        handleAnswer(area.isCorrect, question.id);
+                      }}
+                    />
+                  ))}
                 </div>
               </div>
-            )}
-            
-            {/* Para imágenes normales (no referencias) */}
-            {(currentQuestionData as any)._imageType !== 'reference' && (
-              <ImageMap
-                src={question.image || ''}
-                areas={question.areas || []} 
-                drawingArea={null}
-                onAreaClick={(areaId) => {
-                  if (isAnswered) return
-                  const area = question.areas?.find(a => a.id === areaId)
-                  handleAnswer(area?.isCorrect || false, question.id)
-                }}
-                alt={question.title}
-                isDrawingMode={false}
-                isEditMode={false}
-                key={(question as any)._imageKey || `question-${question.id}`}
-                onError={() => {
-                  console.error('Failed to load image in test view:', question.image);
-                  toast.error("Could not load test image. Using a placeholder image instead.");
-                }}
-              />
+            ) : (
+              <>
+                {/* Si es una referencia de imagen pero aún no está cargada */}
+                {(currentQuestionData as any)._imageType === 'reference' && !loadedImages[(currentQuestionData as any)._imageRef] ? (
+                  <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
+                    <div className="flex flex-col items-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+                      <span className="text-sm text-gray-500">Cargando imagen...</span>
+                    </div>
+                  </div>
+                ) : (
+                  /* Para imágenes normales (no referencias) */
+                  <ImageMap
+                    src={question.image || ''}
+                    areas={question.areas || []} 
+                    drawingArea={null}
+                    onAreaClick={(areaId) => {
+                      if (isAnswered) return
+                      const area = question.areas?.find(a => a.id === areaId)
+                      handleAnswer(area?.isCorrect || false, question.id)
+                    }}
+                    alt={question.title}
+                    isDrawingMode={false}
+                    isEditMode={false}
+                    key={(question as any)._imageKey || `question-${question.id}`}
+                    onError={() => {
+                      console.error('Failed to load image in test view:', question.image);
+                      toast.error("Could not load test image. Using a placeholder image instead.");
+                    }}
+                  />
+                )}
+              </>
             )}
             
             {/* Mensaje sutil para indicar que se debe hacer clic en la imagen */}
-            {!isAnswered && (currentQuestionData as any)._imageType !== 'reference' && (
+            {!isAnswered && ((currentQuestionData as any)._imageType !== 'reference' || 
+                            ((currentQuestionData as any)._imageType === 'reference' && 
+                             loadedImages[(currentQuestionData as any)._imageRef])) && (
               <div className="absolute bottom-2 left-0 right-0 flex justify-center pointer-events-none">
                 <div className="bg-black/40 text-white px-3 py-1 rounded-full text-xs">
                   Click on the correct answer
@@ -369,25 +477,39 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
               <h2 className="text-xl font-semibold mb-4">
                 {currentQuestionData.question}
               </h2>
-              {/* Solo mostrar la imagen directamente para tipos que no sean clickArea */}
-              {(currentQuestionData.image || (currentQuestionData as any)._imageType === 'reference') && currentQuestionData.type !== 'clickArea' && (
+              {/* Solo mostrar la imagen para tipos que no sean clickArea */}
+              {currentQuestionData.image && currentQuestionData.type !== 'clickArea' && (
                 <div className="relative rounded-lg overflow-hidden">
-                  {/* Para referencias de imagen, mostrar un mensaje informativo */}
+                  {/* Para referencias de imagen, intentar mostrar la imagen cargada */}
                   {(currentQuestionData as any)._imageType === 'reference' && (
-                    <div className="flex flex-col items-center justify-center h-64 bg-gray-100 rounded-lg p-4">
-                      <div className="text-gray-500 text-center mb-2">
-                        <span className="block font-medium">Referencia de imagen: {(currentQuestionData as any)._imageRef}</span>
-                        <span className="block text-sm mt-1">Las imágenes de referencia no se pueden cargar directamente.</span>
-                      </div>
-                      <div className="flex items-center text-xs text-gray-400 mt-4">
-                        <InfoIcon className="w-4 h-4 mr-1" />
-                        <span>Esta imagen está almacenada como una referencia externa.</span>
-                      </div>
-                    </div>
+                    <>
+                      {loadedImages[(currentQuestionData as any)._imageRef] ? (
+                        // Si tenemos la imagen cargada, mostrarla
+                        <div
+                          style={{
+                            backgroundImage: `url(${loadedImages[(currentQuestionData as any)._imageRef]})`,
+                            backgroundSize: 'contain',
+                            backgroundPosition: 'center',
+                            backgroundRepeat: 'no-repeat',
+                            width: '100%',
+                            height: '300px'
+                          }}
+                          className="w-full h-auto rounded-lg"
+                        ></div>
+                      ) : (
+                        // Si aún no tenemos la imagen, mostrar un loader
+                        <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
+                          <div className="flex flex-col items-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+                            <span className="text-sm text-gray-500">Cargando imagen...</span>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                   
                   {/* Para imágenes normales (no referencias) */}
-                  {currentQuestionData.image && (currentQuestionData as any)._imageType !== 'reference' && (
+                  {(currentQuestionData as any)._imageType !== 'reference' && (
                     <div
                       style={{
                         backgroundImage: `url(${currentQuestionData.image})`,
