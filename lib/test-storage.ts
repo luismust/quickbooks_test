@@ -201,8 +201,8 @@ export async function saveTest(test: Test): Promise<Test> {
       method: 'POST',
       credentials: 'include',
       headers: {
-        'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(testData),
     })
@@ -258,10 +258,10 @@ export async function getTests(): Promise<Test[]> {
       
     console.log('Fetching tests from API:', apiUrl)
     const response = await fetch(apiUrl, {
+      method: 'GET',
       credentials: 'include',
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'Accept': 'application/json'
       }
     })
     
@@ -397,8 +397,7 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
       method: 'DELETE',
       credentials: 'include',
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'Accept': 'application/json'
       }
     })
     
