@@ -199,8 +199,10 @@ export async function saveTest(test: Test): Promise<Test> {
     // Guardar en Airtable a través del endpoint correspondiente
     const response = await fetch(apiUrl, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify(testData),
     })
@@ -255,7 +257,13 @@ export async function getTests(): Promise<Test[]> {
       : '/api/tests';  // URL local en desarrollo
       
     console.log('Fetching tests from API:', apiUrl)
-    const response = await fetch(apiUrl)
+    const response = await fetch(apiUrl, {
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    })
     
     if (!response.ok) {
       throw new Error('Failed to fetch tests')
@@ -387,6 +395,11 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
     
     const response = await fetch(apiUrl, {
       method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
     })
     
     if (!response.ok) {
