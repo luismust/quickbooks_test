@@ -37,20 +37,20 @@ export interface Question {
   _imageData?: string          // Para almacenar datos base64 de la imagen
   isImageReference?: boolean   // Indica si la imagen es una referencia
   imageReference?: string      // Guarda la referencia original a la imagen
-  type: 'clickArea' | 
-        'multipleChoice' | 
-        'dragAndDrop' | 
-        'sequence' | 
-        'pointAPoint' | 
-        'openQuestion' | 
-        'identifyErrors' | 
-        'phraseComplete' | 
-        'trueOrFalse' |
-        'imageDescription' |
-        'imageComparison' |
-        'imageError' |
-        'imageHotspots' |
-        'imageSequence'
+  type: 'clickArea' |
+  'multipleChoice' |
+  'dragAndDrop' |
+  'sequence' |
+  'pointAPoint' |
+  'openQuestion' |
+  'identifyErrors' |
+  'phraseComplete' |
+  'trueOrFalse' |
+  'imageDescription' |
+  'imageComparison' |
+  'imageError' |
+  'imageHotspots' |
+  'imageSequence'
   areas?: Area[]
   options?: {
     id: string
@@ -125,31 +125,31 @@ export const validateTest = (test: Test): boolean => {
 export async function saveTest(test: Test): Promise<Test> {
   try {
     console.log('Starting saveTest function')
-    
+
     // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
     const isVercel = true; // Siempre usaremos la URL externa en la build de producción
-    
+
     // URL base del API
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
-    
+
     // Procesamos las preguntas para asegurar la persistencia de las imágenes
     const processedQuestions = test.questions.map(question => {
       // Crear una versión limpia de la pregunta
       const cleanQuestion = { ...question };
-      
+
       // Manejar las imágenes según su formato
       if (question.image) {
         // Si es una URL blob y tenemos un _localFile que es string (base64), usarlo
         if (
-          question.image.startsWith('blob:') && 
-          question._localFile && 
-          typeof question._localFile === 'string' && 
+          question.image.startsWith('blob:') &&
+          question._localFile &&
+          typeof question._localFile === 'string' &&
           question._localFile.startsWith('data:')
         ) {
           console.log('Found blob URL with string _localFile, using it');
           cleanQuestion.image = question._localFile;
         }
-        
+
         // Si la imagen ya es base64, mantenerla
         if (question.image.startsWith('data:')) {
           console.log('Image is already base64, keeping it');
@@ -157,7 +157,7 @@ export async function saveTest(test: Test): Promise<Test> {
           (cleanQuestion as any)._imageData = question.image;
         }
       }
-      
+
       // Guardar específicamente el campo _imageData para recuperarlo más tarde
       // solo si _localFile es un string (base64)
       if (question._localFile && typeof question._localFile === 'string') {
@@ -165,7 +165,7 @@ export async function saveTest(test: Test): Promise<Test> {
           (cleanQuestion as any)._imageData = question._localFile;
         }
       }
-      
+
       // Eliminar la referencia al archivo File que no podemos enviar a la API
       // o cualquier _localFile que no sea útil
       delete cleanQuestion._localFile;
@@ -202,10 +202,10 @@ export async function saveTest(test: Test): Promise<Test> {
     //  : '/api/tests-simple';  
 
     // URL endpoint de depuracion
-    const apiUrl = isVercel 
+    const apiUrl = isVercel
       ? `${API_BASE_URL}/debug-post`  // Usa el endpoint de depuración detallada
       : '/api/debug-post';
-    
+
     // Guardar en Airtable a través del endpoint correspondiente
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -223,13 +223,28 @@ export async function saveTest(test: Test): Promise<Test> {
       throw new Error(`Failed to save test: ${errorData.error || response.statusText}`)
     }
 
+    // En la función saveTest, justo después de recibir la respuesta
     const savedTest = await response.json();
-    
+
+    // Verificar y arreglar el ID si es necesario
+    if (!savedTest || typeof savedTest.id !== 'string' || !savedTest.id) {
+      console.warn('API response missing valid ID, generating temporary ID');
+      // Generar un ID temporal compatible con el formato esperado
+      const tempId = '_temp_' + Date.now();
+      savedTest.id = tempId;
+    }
+
+    // Asegúrate de que el ID tenga el formato correcto (empezando con _)
+    if (!savedTest.id.startsWith('_')) {
+      savedTest.id = '_' + savedTest.id;
+    }
+
+    console.log('Test saved successfully with ID:', savedTest.id);
     // También guardamos en localStorage para tener una copia local
     try {
       const savedTests = localStorage.getItem('quickbook_tests') || '[]'
       const localTests = JSON.parse(savedTests) as Test[]
-      
+
       // Actualizar o añadir el test
       const existingIndex = localTests.findIndex(t => t.id === savedTest.id)
       if (existingIndex >= 0) {
@@ -237,7 +252,7 @@ export async function saveTest(test: Test): Promise<Test> {
       } else {
         localTests.push(savedTest)
       }
-      
+
       // Guardar de vuelta en localStorage
       localStorage.setItem('quickbook_tests', JSON.stringify(localTests))
     } catch (e) {
@@ -254,18 +269,18 @@ export async function saveTest(test: Test): Promise<Test> {
 export async function getTests(): Promise<Test[]> {
   try {
     console.log('Starting getTests function')
-    
+
     // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
     const isVercel = true; // Siempre usaremos la URL externa en la build de producción
-    
+
     // URL base del API
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
-    
+
     // URL del endpoint a usar
-    const apiUrl = isVercel 
+    const apiUrl = isVercel
       ? `${API_BASE_URL}/tests`  // La URL ya incluye /api/ en API_BASE_URL
       : '/api/tests';  // URL local en desarrollo
-      
+
     console.log('Fetching tests from API:', apiUrl)
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -274,63 +289,63 @@ export async function getTests(): Promise<Test[]> {
         'Accept': 'application/json'
       }
     })
-    
+
     if (!response.ok) {
       throw new Error('Failed to fetch tests')
     }
 
     const { tests } = await response.json()
-    
+
     // Verificar la estructura de los datos recibidos
     console.log('Retrieved tests:', tests.length)
     if (tests.length > 0) {
       console.log('Sample test fields:', Object.keys(tests[0]))
     }
-    
+
     // Procesar las imágenes en cada test
     const processedTests = tests.map((test: Test) => {
       // Procesar cada pregunta para verificar las imágenes
       const processedQuestions = test.questions.map((question: Question) => {
         // Crear un objeto limpio
         const cleanQuestion = { ...question };
-        
+
         // Si tenemos _imageData, usarlo como imagen principal
-        if (question._imageData && typeof question._imageData === 'string' && 
-            question._imageData.startsWith('data:')) {
+        if (question._imageData && typeof question._imageData === 'string' &&
+          question._imageData.startsWith('data:')) {
           console.log('Found _imageData, using it as main image');
           cleanQuestion.image = question._imageData;
         }
-        
+
         // Si la imagen es una referencia y no tenemos _imageData, intentar con placeholder
-        if (question.isImageReference && 
-            (!question._imageData || 
-             typeof question._imageData !== 'string' || 
-             !question._imageData.startsWith('data:'))) {
+        if (question.isImageReference &&
+          (!question._imageData ||
+            typeof question._imageData !== 'string' ||
+            !question._imageData.startsWith('data:'))) {
           console.log('Reference image without _imageData, using placeholder');
           // Usar un placeholder o podríamos buscar la imagen en otro lugar
         }
-        
+
         return cleanQuestion;
       });
-      
+
       return {
         ...test,
         questions: processedQuestions
       };
     });
-    
+
     // También guardamos en localStorage para tener una copia local
     try {
       localStorage.setItem('quickbook_tests', JSON.stringify(processedTests))
     } catch (e) {
       console.error('Error saving local copy:', e)
     }
-    
+
     return processedTests;
 
   } catch (error) {
     console.error('Error in getTests:', error)
-    
+
     // Si hay un error, intentar devolver los tests desde localStorage
     try {
       const savedTests = localStorage.getItem('quickbook_tests') || '[]'
@@ -350,7 +365,7 @@ export const loadTest = (testId: string): Test | null => {
 
     const tests = JSON.parse(localStorage.getItem('saved-tests') || '[]')
     const test = tests.find((t: Test) => t.id === testId)
-    
+
     if (!test) {
       console.log('Test no encontrado:', testId)
       console.log('Tests disponibles:', tests)
@@ -366,7 +381,7 @@ export const loadTest = (testId: string): Test | null => {
 
 export const loadTests = (): Test[] => {
   if (typeof window === 'undefined') return []
-  
+
   return JSON.parse(localStorage.getItem('saved-tests') || '[]')
 }
 
@@ -389,20 +404,20 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
   try {
     // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
     const isVercel = true; // Siempre usaremos la URL externa en la build de producción
-    
+
     // URL base del API
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
-    
+
     // Eliminar imágenes de Airtable
     if (!isVercel) {
       await deleteTestImages(testId)
     }
-    
+
     // URL del endpoint a usar
-    const apiUrl = isVercel 
+    const apiUrl = isVercel
       ? `${API_BASE_URL}/tests/${testId}`  // La URL ya incluye /api/ en API_BASE_URL
       : `/api/tests/${testId}`;  // URL local en desarrollo
-    
+
     const response = await fetch(apiUrl, {
       method: 'DELETE',
       credentials: 'include',
@@ -410,11 +425,11 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
         'Accept': 'application/json'
       }
     })
-    
+
     if (!response.ok) {
       throw new Error('Failed to delete test')
     }
-    
+
     // También eliminamos de localStorage
     try {
       const savedTests = localStorage.getItem('quickbook_tests') || '[]'
@@ -424,7 +439,7 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
     } catch (e) {
       console.error('Error removing from localStorage:', e)
     }
-    
+
     return true
   } catch (error) {
     console.error('Error deleting test:', error)
