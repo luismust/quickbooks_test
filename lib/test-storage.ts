@@ -217,20 +217,29 @@ export async function saveTest(test: Test): Promise<Test> {
       body: JSON.stringify(testData),
     })
 
+    let responseData;
+    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-      console.error('API error response:', errorData)
-      throw new Error(`Failed to save test: ${errorData.error || response.statusText}`)
+      responseData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('API error response:', responseData);
+      throw new Error(`Failed to save test: ${responseData.error || response.statusText}`);
+    } else {
+      responseData = await response.json().catch(() => ({}));
     }
 
     // En la función saveTest, justo después de recibir la respuesta
-    const savedTest = await response.json();
+    const savedTest = responseData;
 
     // Verificar y arreglar el ID si es necesario
     if (!savedTest || typeof savedTest.id !== 'string' || !savedTest.id) {
       console.warn('API response missing valid ID, generating temporary ID');
       // Generar un ID temporal compatible con el formato esperado
       const tempId = '_temp_' + Date.now();
+      if (!savedTest) {
+        // Si no hay respuesta válida, crear un objeto con el ID temporal
+        const newTest = { ...testData, id: tempId };
+        return newTest;
+      }
       savedTest.id = tempId;
     }
 
