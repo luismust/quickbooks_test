@@ -192,9 +192,14 @@ export async function saveTest(test: Test): Promise<Test> {
     })
 
     // URL del endpoint a usar
+    //const apiUrl = isVercel 
+    //  ? `${API_BASE_URL}/tests`  // La URL ya incluye /api/ en API_BASE_URL
+    //  : '/api/tests';  // URL local en desarrollo
+
+    // URL endpoint simple de prueba
     const apiUrl = isVercel 
-      ? `${API_BASE_URL}/tests`  // La URL ya incluye /api/ en API_BASE_URL
-      : '/api/tests';  // URL local en desarrollo
+      ? `${API_BASE_URL}/tests-simple` 
+      : '/api/tests-simple';  
     
     // Guardar en Airtable a través del endpoint correspondiente
     const response = await fetch(apiUrl, {
