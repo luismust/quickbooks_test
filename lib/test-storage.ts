@@ -219,32 +219,32 @@ export async function saveTest(test: Test): Promise<Test> {
 
     let responseData;
     
-    if (!response.ok) {
-      responseData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      console.error('API error response:', responseData);
-      throw new Error(`Failed to save test: ${responseData.error || response.statusText}`);
-    } else {
-      responseData = await response.json().catch(() => ({}));
+    try {
+      if (!response.ok) {
+        responseData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('API error response:', responseData);
+        throw new Error(`Failed to save test: ${responseData.error || response.statusText}`);
+      } else {
+        responseData = await response.json().catch(() => ({}));
+      }
+    } catch (parseError) {
+      console.error('Error parsing response:', parseError);
+      responseData = {};
     }
 
-    // En la función saveTest, justo después de recibir la respuesta
-    const savedTest = responseData;
+    // Crear un objeto de test válido basado en los datos enviados y la respuesta
+    const savedTest = {
+      ...testData,  // Usar los datos originales como base
+      ...(responseData || {})  // Añadir datos de respuesta si existen
+    };
 
     // Verificar y arreglar el ID si es necesario
-    if (!savedTest || typeof savedTest.id !== 'string' || !savedTest.id) {
+    if (typeof savedTest.id !== 'string' || !savedTest.id) {
       console.warn('API response missing valid ID, generating temporary ID');
       // Generar un ID temporal compatible con el formato esperado
-      const tempId = '_temp_' + Date.now();
-      if (!savedTest) {
-        // Si no hay respuesta válida, crear un objeto con el ID temporal
-        const newTest = { ...testData, id: tempId };
-        return newTest;
-      }
-      savedTest.id = tempId;
-    }
-
-    // Asegúrate de que el ID tenga el formato correcto (empezando con _)
-    if (!savedTest.id.startsWith('_')) {
+      savedTest.id = '_temp_' + Date.now();
+    } else if (!savedTest.id.startsWith('_')) {
+      // Asegúrate de que el ID tenga el formato correcto (empezando con _)
       savedTest.id = '_' + savedTest.id;
     }
 
