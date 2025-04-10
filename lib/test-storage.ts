@@ -192,9 +192,9 @@ export async function saveTest(test: Test): Promise<Test> {
     })
 
     // URL del endpoint a usar
-    //const apiUrl = isVercel 
-    //  ? `${API_BASE_URL}/tests`  // La URL ya incluye /api/ en API_BASE_URL
-    //  : '/api/tests';  // URL local en desarrollo
+    const apiUrl = isVercel 
+      ? `${API_BASE_URL}/tests`  // La URL ya incluye /api/ en API_BASE_URL
+      : '/api/tests';  // URL local en desarrollo
 
     // URL endpoint simple de prueba
     //const apiUrl = isVercel 
@@ -202,9 +202,9 @@ export async function saveTest(test: Test): Promise<Test> {
     //  : '/api/tests-simple';  
 
     // URL endpoint de depuracion
-    const apiUrl = isVercel
-      ? `${API_BASE_URL}/debug-post`  // Usa el endpoint de depuración detallada
-      : '/api/debug-post';
+    //const apiUrl = isVercel
+    //  ? `${API_BASE_URL}/debug-post`  // Usa el endpoint de depuración detallada
+    //  : '/api/debug-post';
 
     // Guardar en Airtable a través del endpoint correspondiente
     const response = await fetch(apiUrl, {
