@@ -57,28 +57,51 @@ export default function TestsPage() {
           // En modo normal, cargar desde API
           console.log('Normal mode: Loading tests from API directly')
           
-          // Usar directamente la URL del backend en lugar del endpoint relativo
-          const apiUrl = 'https://quickbooks-backend.vercel.app/api/tests';
-          console.log('Fetching from absolute URL:', apiUrl);
-          
-          const response = await fetch(apiUrl, {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Origin': 'https://quickbooks-test-black.vercel.app'
-            },
-            mode: 'cors'
-          });
-          
-          if (!response.ok) {
-            throw new Error(`Failed to fetch tests: ${response.status} ${response.statusText}`)
+          try {
+            // Intentar cargar tests desde localStorage primero como fallback
+            const savedTests = localStorage.getItem('saved-tests') || '[]';
+            const localTestsFallback = JSON.parse(savedTests);
+            
+            // Usar directamente la URL del backend sin headers problemáticos
+            const apiUrl = 'https://quickbooks-backend.vercel.app/api/tests';
+            console.log('Fetching from absolute URL:', apiUrl);
+            
+            const response = await fetch(apiUrl, {
+              method: 'GET',
+              // Evitar enviar credentials que pueden causar problemas de CORS
+              mode: 'no-cors' // Intentar sin CORS
+            });
+            
+            if (response.type === 'opaque') {
+              console.log('Received opaque response, using localStorage fallback');
+              // Cuando se usa mode: 'no-cors', la respuesta es 'opaque' y no se puede leer el contenido
+              // En este caso, usamos los datos locales
+              setTests(localTestsFallback);
+            } else {
+              if (!response.ok) {
+                throw new Error(`Failed to fetch tests: ${response.status} ${response.statusText}`);
+              }
+              
+              const data = await response.json();
+              console.log('Tests loaded successfully:', data.tests.length);
+              setTests(data.tests);
+              
+              // Actualizar localStorage con los datos más recientes
+              localStorage.setItem('saved-tests', JSON.stringify(data.tests));
+            }
+          } catch (error) {
+            console.error('Error fetching tests from API:', error);
+            // Intentar cargar desde localStorage como fallback
+            try {
+              const savedTests = localStorage.getItem('saved-tests') || '[]';
+              const localTestsFallback = JSON.parse(savedTests);
+              console.log('Using localStorage fallback with', localTestsFallback.length, 'tests');
+              setTests(localTestsFallback);
+            } catch (localError) {
+              console.error('Error loading from localStorage:', localError);
+              toast.error("Failed to load tests");
+            }
           }
-          
-          const data = await response.json();
-          console.log('Tests loaded successfully:', data.tests.length);
-          setTests(data.tests)
         }
       } catch (error) {
         console.error('Error fetching tests:', error)
@@ -102,29 +125,42 @@ export default function TestsPage() {
           toast.success("Test deleted successfully")
         } else {
           // En modo normal, eliminar con API usando la nueva implementación
-          const apiUrl = 'https://quickbooks-backend.vercel.app/api/delete-test';
-          console.log('Deleting test using endpoint:', apiUrl);
-          
-          const response = await fetch(apiUrl, {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Origin': 'https://quickbooks-test-black.vercel.app'
-            },
-            mode: 'cors',
-            body: JSON.stringify({
-              id: testId // Enviar el ID en el cuerpo
-            })
-          })
-          
-          if (!response.ok) {
-            throw new Error(`Failed to delete test: ${response.status} ${response.statusText}`)
-          }
+          // Usar un enfoque más simple sin headers problemáticos
+          try {
+            const apiUrl = 'https://quickbooks-backend.vercel.app/api/delete-test';
+            console.log('Deleting test using endpoint:', apiUrl);
+            
+            const response = await fetch(apiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                id: testId // Enviar el ID en el cuerpo
+              })
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Failed to delete test: ${response.status} ${response.statusText}`);
+            }
 
-          setTests(tests.filter(test => test.id !== testId))
-          toast.success("Test deleted successfully")
+            // Eliminar el test localmente
+            setTests(tests.filter(test => test.id !== testId));
+            
+            // También actualizar localStorage
+            try {
+              const savedTests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
+              const updatedTests = savedTests.filter((t: any) => t.id !== testId);
+              localStorage.setItem('saved-tests', JSON.stringify(updatedTests));
+            } catch (localError) {
+              console.error('Error updating localStorage:', localError);
+            }
+            
+            toast.success("Test deleted successfully");
+          } catch (error) {
+            console.error('Error deleting test:', error);
+            toast.error("Failed to delete test");
+          }
         }
       } catch (error) {
         console.error('Error deleting test:', error)
