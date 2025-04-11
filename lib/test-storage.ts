@@ -542,8 +542,10 @@ export function generateId(prefix: string = ''): string {
  */
 export const deleteTest = async (testId: string): Promise<boolean> => {
   try {
-    // URL del endpoint - ahora soporta DELETE directamente
+    // URL del endpoint - ahora se construye en el formato exacto que espera el backend
     const apiUrl = `${API_BASE_URL}/tests/${testId}`;
+    
+    console.log(`Intentando eliminar test con ID: ${testId} usando URL: ${apiUrl}`);
 
     const response = await fetch(apiUrl, {
       method: 'DELETE',
@@ -554,21 +556,31 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to delete test');
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('Error al eliminar test:', errorData);
+      throw new Error(`Failed to delete test: ${errorData.error || response.statusText}`);
     }
 
-    // También eliminamos de localStorage
+    // También eliminamos de localStorage (tanto de 'saved-tests' como de 'quickbook_tests')
     try {
+      // Limpiar de 'saved-tests'
       const savedTests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
-      const filteredTests = savedTests.filter((t: Test) => t.id !== testId);
-      localStorage.setItem('saved-tests', JSON.stringify(filteredTests));
+      const filteredSavedTests = savedTests.filter((t: Test) => t.id !== testId);
+      localStorage.setItem('saved-tests', JSON.stringify(filteredSavedTests));
+      
+      // Limpiar de 'quickbook_tests' 
+      const quickbookTests = JSON.parse(localStorage.getItem('quickbook_tests') || '[]');
+      const filteredQuickbookTests = quickbookTests.filter((t: Test) => t.id !== testId);
+      localStorage.setItem('quickbook_tests', JSON.stringify(filteredQuickbookTests));
+      
+      console.log('Test eliminado correctamente de localStorage');
     } catch (e) {
-      console.error('Error removing from localStorage:', e);
+      console.error('Error al eliminar test de localStorage:', e);
     }
 
     return true;
   } catch (error) {
-    console.error('Error deleting test:', error);
+    console.error('Error al eliminar test:', error);
     return false;
   }
 };
