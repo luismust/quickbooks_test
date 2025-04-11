@@ -436,57 +436,20 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
   // Actualizar la función handleSaveTest para usar el diálogo de éxito
   const handleSaveTest = async () => {
-    if (!testName) {
-        toast.error("Test name is required")
-        return
-      }
-
-    if (screens.length === 0) {
-      toast.error("Test must have at least one question")
-      return
-    }
-
     setIsSaving(true)
 
     try {
       console.log('handleSaveTest - Starting to process questions')
       console.log('Current screens:', screens.length, 'questions to process')
       
-      // Procesar las preguntas para asegurarnos de que las imágenes sean persistentes
-      const processedQuestions = screens.map(q => {
-        // Nueva versión de la pregunta para guardar
-        const questionToSave = { ...q };
-        
-        // Manejar las imágenes según su tipo
-        if (q.image) {
-          // Si la imagen es una URL blob, necesitamos usar el _localFile
-          if (q.image.startsWith('blob:')) {
-            console.log('Blob URL detected, using localFile if available');
-            
-            if (q._localFile && typeof q._localFile === 'string' && q._localFile.startsWith('data:')) {
-              questionToSave.image = q._localFile;
-              console.log('Using localFile for blob URL');
-            } else {
-              console.warn('No localFile available for blob URL, image may not persist');
-            }
-          }
-          
-          // Si la imagen es base64, conservarla directamente
-          if (q.image.startsWith('data:')) {
-            console.log('Keeping base64 image');
-            // Asegurarnos de que _localFile tenga el mismo contenido
-            questionToSave._localFile = q.image;
-          }
-        }
-        
-        return questionToSave;
-      });
-
+      // Ya no necesitamos procesar las imágenes aquí, porque la función saveTest en lib/test-storage.ts
+      // ahora usa prepareQuestionWithImage para cada pregunta con las recomendaciones del backend
+      
       const testData: Test = {
         id: test?.id || generateId(),
         name: testName,
         description: testDescription,
-        questions: processedQuestions,
+        questions: screens, // Enviamos las preguntas sin procesar, saveTest se encargará de convertir las blob URLs
         maxScore: testMaxScore,
         minScore: testMinScore,
         passingMessage: testPassingMessage,
@@ -508,7 +471,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
         // Redirigir a la página principal
         router.push('/')
       } else {
-        // Guardar en Airtable mediante API
+        // Guardar mediante API utilizando la función saveTest que ya maneja correctamente las imágenes blob
         console.log('Saving test with data:', {
           id: testData.id,
           name: testData.name,
@@ -591,26 +554,6 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   useEffect(() => {
     loadInitialTest()
   }, [initialTest?.id])
-
-  // Agregar la función para eliminar imagen de Airtable
-  const deleteImageFromAirtable = async (imageUrl: string) => {
-    try {
-      const response = await fetch('/api/airtable/delete-image', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ imageUrl }),
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete image')
-      }
-    } catch (error) {
-      console.error('Error deleting image:', error)
-      throw error
-    }
-  }
 
   // Crear un nuevo useEffect para manejar imágenes de referencia cuando se cargan
   useEffect(() => {

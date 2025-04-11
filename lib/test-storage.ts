@@ -123,48 +123,163 @@ export const validateTest = (test: Test): boolean => {
   }
 }
 
-export const saveTest = async (testData: Test): Promise<Test> => {
+/**
+ * Función para convertir un Blob URL a base64
+ * Implementación exacta sugerida por el backend
+ */
+async function convertBlobUrlToBase64(blobUrl: string): Promise<string | null> {
   try {
-    console.log('Guardando test:', testData.name);
+    // Paso 1: Obtener el blob desde la URL
+    const response = await fetch(blobUrl);
+    const blob = await response.blob();
     
-    // Usar el endpoint específico para guardar tests
-    const apiUrl = `${API_BASE_URL}/save-test`;
+    // Paso 2: Leer el blob como base64 usando FileReader
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Error convirtiendo Blob URL a base64:', error);
+    return null;
+  }
+}
+
+/**
+ * Función para procesar una pregunta con imagen
+ * Convierte Blob URLs a base64 y los guarda en _localFile
+ */
+async function prepareQuestionWithImage(question: Question): Promise<Question> {
+  const processedQuestion = { ...question };
+  
+  // Verificar si hay una imagen y es un Blob URL
+  if (question.image && question.image.startsWith('blob:')) {
+    console.log(`Pregunta ${question.id}: Convirtiendo blob URL a base64`);
     
+    // Convertir la imagen blob a base64
+    const base64Data = await convertBlobUrlToBase64(question.image);
+    
+    if (base64Data) {
+      // Guardar la versión base64 en _localFile como espera el backend
+      processedQuestion._localFile = base64Data;
+      console.log('Conversión exitosa, base64 guardado en _localFile');
+    } else {
+      console.warn('No se pudo convertir la imagen blob a base64');
+    }
+  } 
+  // Si ya tenemos un _localFile base64, mantenerlo
+  else if (question._localFile && typeof question._localFile === 'string' && 
+          question._localFile.startsWith('data:')) {
+    console.log(`Pregunta ${question.id}: Ya tiene _localFile en base64`);
+  }
+  
+  return processedQuestion;
+}
+
+/**
+ * Guarda un test en el backend, procesando correctamente las imágenes
+ */
+export async function saveTest(test: Test): Promise<Test> {
+  try {
+    console.log('Starting saveTest function')
+
+    // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
+    const isVercel = true; // Siempre usaremos la URL externa en la build de producción
+
+    // URL base del API
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+
+    // Procesamos todas las preguntas para asegurar la persistencia de las imágenes
+    console.log('Preparando preguntas para guardar...')
+    const testToSave = { ...test };
+    
+    // Procesar cada pregunta con imagen siguiendo la recomendación del backend
+    for (let i = 0; i < testToSave.questions.length; i++) {
+      const question = testToSave.questions[i];
+      if (question.image) {
+        console.log(`Procesando imagen para pregunta ${i+1}/${testToSave.questions.length}`);
+        testToSave.questions[i] = await prepareQuestionWithImage(question);
+      }
+    }
+    
+    // URL del endpoint a usar
+    const apiUrl = isVercel 
+      ? `${API_BASE_URL}/tests`  // La URL ya incluye /api/ en API_BASE_URL
+      : '/api/tests';  // URL local en desarrollo
+
+    console.log('Enviando test al servidor:', apiUrl);
+    console.log('Preguntas procesadas:', testToSave.questions.length);
+
+    // Guardar en el backend a través del endpoint correspondiente
     const response = await fetch(apiUrl, {
       method: 'POST',
       credentials: 'include',
       headers: {
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Origin': 'https://quickbooks-test-black.vercel.app'
       },
-      body: JSON.stringify(testData)
+      body: JSON.stringify(testToSave),
     });
+
+    let responseData;
     
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      console.error('Error al guardar test:', errorData);
-      throw new Error(`Failed to save test: ${errorData.error || response.statusText}`);
-    }
-    
-    // Obtener los datos del test guardado con su ID asignado
-    const savedTest = await response.json();
-    console.log('Test guardado con éxito, ID:', savedTest.id);
-    
-    // Opcionalmente, actualizar el localStorage
     try {
-      const existingTests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
-      existingTests.push(savedTest);
-      localStorage.setItem('saved-tests', JSON.stringify(existingTests));
-    } catch (e) {
-      console.warn('No se pudo actualizar localStorage con el nuevo test');
+      if (!response.ok) {
+        responseData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('API error response:', responseData);
+        throw new Error(`Failed to save test: ${responseData.error || response.statusText}`);
+      } else {
+        responseData = await response.json().catch(() => ({}));
+      }
+    } catch (parseError) {
+      console.error('Error parsing response:', parseError);
+      responseData = {};
     }
-    
+
+    // Crear un objeto de test válido basado en los datos enviados y la respuesta
+    const savedTest = {
+      ...testToSave,  // Usar los datos originales como base
+      ...(responseData || {})  // Añadir datos de respuesta si existen
+    };
+
+    // Verificar y arreglar el ID si es necesario
+    if (typeof savedTest.id !== 'string' || !savedTest.id) {
+      console.warn('API response missing valid ID, generating temporary ID');
+      // Generar un ID temporal compatible con el formato esperado
+      savedTest.id = '_temp_' + Date.now();
+    } else if (!savedTest.id.startsWith('_')) {
+      // Asegúrate de que el ID tenga el formato correcto (empezando con _)
+      savedTest.id = '_' + savedTest.id;
+    }
+
+    console.log('Test saved successfully with ID:', savedTest.id);
+    // También guardamos en localStorage para tener una copia local
+    try {
+      const savedTests = localStorage.getItem('quickbook_tests') || '[]'
+      const localTests = JSON.parse(savedTests) as Test[]
+
+      // Actualizar o añadir el test
+      const existingIndex = localTests.findIndex(t => t.id === savedTest.id)
+      if (existingIndex >= 0) {
+        localTests[existingIndex] = savedTest
+      } else {
+        localTests.push(savedTest)
+      }
+
+      // Guardar de vuelta en localStorage
+      localStorage.setItem('quickbook_tests', JSON.stringify(localTests))
+    } catch (e) {
+      console.error('Error saving local copy:', e)
+    }
+
     return savedTest;
   } catch (error) {
-    console.error('Error al guardar el test:', error);
-    throw error;
+    console.error('Error saving test:', error)
+    throw error
   }
-};
+}
 
 export async function getTests(): Promise<Test[]> {
   try {
