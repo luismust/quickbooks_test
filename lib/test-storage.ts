@@ -203,10 +203,10 @@ export async function saveTest(test: Test): Promise<Test> {
       }
     }
     
-    // URL del endpoint a usar
+    // URL del endpoint a usar - CAMBIO: usar /api/save-test en lugar de /api/tests
     const apiUrl = isVercel 
-      ? `${API_BASE_URL}/tests`  // La URL ya incluye /api/ en API_BASE_URL
-      : '/api/tests';  // URL local en desarrollo
+      ? `${API_BASE_URL}/save-test`  // La URL ya incluye /api/ en API_BASE_URL
+      : '/api/save-test';  // URL local en desarrollo
 
     console.log('Enviando test al servidor:', apiUrl);
     console.log('Preguntas procesadas:', testToSave.questions.length);
@@ -214,6 +214,7 @@ export async function saveTest(test: Test): Promise<Test> {
     // Guardar en el backend a través del endpoint correspondiente
     const response = await fetch(apiUrl, {
       method: 'POST',
+      mode: 'cors',
       credentials: 'include',
       headers: {
         'Accept': 'application/json',
