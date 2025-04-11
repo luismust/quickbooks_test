@@ -298,14 +298,15 @@ export async function getTests(): Promise<Test[]> {
 
     console.log('Fetching tests from API:', apiUrl)
     
-    // Configurar los headers correctamente para evitar problemas de CORS
+    // Configurar los headers según lo que acepta Vercel en su configuración
     const response = await fetch(apiUrl, {
       method: 'GET',
-      mode: 'cors', // Usar modo cors explícitamente
+      mode: 'cors',
+      credentials: 'include', // Incluir cookies según la configuración del backend
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Referer': 'https://quickbooks-test-black.vercel.app/' // Añadir referer para CORS
+        'Origin': 'https://quickbooks-test-black.vercel.app' // Usar Origin como lo especifica el servidor
       }
     })
 
@@ -387,14 +388,15 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-back
  */
 export const loadTestFromAPI = async (testId: string): Promise<Test | null> => {
   try {
-    // Configurar los headers correctamente para evitar problemas de CORS
+    // Configurar los headers según lo que acepta Vercel en su configuración
     const response = await fetch(`${API_BASE_URL}/tests?id=${testId}`, {
       method: 'GET',
-      mode: 'cors', // Usar modo cors explícitamente
+      mode: 'cors',
+      credentials: 'include', // Incluir cookies según la configuración del backend
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Referer': 'https://quickbooks-test-black.vercel.app/' // Añadir referer para CORS
+        'Origin': 'https://quickbooks-test-black.vercel.app' // Usar Origin como lo especifica el servidor
       }
     });
 
@@ -469,14 +471,15 @@ export const loadTestFromLocalStorage = (testId: string): Test | null => {
  */
 export const loadTestsFromAPI = async (): Promise<Test[]> => {
   try {
-    // Configurar los headers correctamente para evitar problemas de CORS
+    // Configurar los headers según lo que acepta Vercel en su configuración
     const response = await fetch(`${API_BASE_URL}/tests`, {
       method: 'GET',
-      mode: 'cors', // Usar modo cors explícitamente
+      mode: 'cors',
+      credentials: 'include', // Incluir cookies según la configuración del backend
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Referer': 'https://quickbooks-test-black.vercel.app/' // Añadir referer para CORS
+        'Origin': 'https://quickbooks-test-black.vercel.app' // Usar Origin como lo especifica el servidor
       }
     });
 
@@ -559,14 +562,15 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
     
     console.log(`URL de eliminación: ${apiUrl}`);
 
-    // Hacer una solicitud POST con los headers correctos
+    // Hacer una solicitud POST con los headers aceptados por el servidor
     const response = await fetch(apiUrl, {
       method: 'POST',
-      mode: 'cors', // Usar modo cors explícitamente
+      mode: 'cors',
+      credentials: 'include', // Incluir cookies según la configuración del backend
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Referer': 'https://quickbooks-test-black.vercel.app/' // Añadir referer para CORS
+        'Origin': 'https://quickbooks-test-black.vercel.app' // Usar Origin como lo especifica el servidor
       },
       body: JSON.stringify({
         id: testId // Enviar el ID en el cuerpo
