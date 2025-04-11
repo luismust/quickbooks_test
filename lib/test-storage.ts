@@ -297,16 +297,20 @@ export async function getTests(): Promise<Test[]> {
       : '/api/tests';  // URL local en desarrollo
 
     console.log('Fetching tests from API:', apiUrl)
+    
+    // Configurar los headers correctamente para evitar problemas de CORS
     const response = await fetch(apiUrl, {
       method: 'GET',
-      credentials: 'include',
+      mode: 'cors', // Usar modo cors explícitamente
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Referer': 'https://quickbooks-test-black.vercel.app/' // Añadir referer para CORS
       }
     })
 
     if (!response.ok) {
-      throw new Error('Failed to fetch tests')
+      throw new Error(`Failed to fetch tests: ${response.status} ${response.statusText}`)
     }
 
     const { tests } = await response.json()
@@ -383,11 +387,14 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-back
  */
 export const loadTestFromAPI = async (testId: string): Promise<Test | null> => {
   try {
+    // Configurar los headers correctamente para evitar problemas de CORS
     const response = await fetch(`${API_BASE_URL}/tests?id=${testId}`, {
       method: 'GET',
-      credentials: 'include',
+      mode: 'cors', // Usar modo cors explícitamente
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Referer': 'https://quickbooks-test-black.vercel.app/' // Añadir referer para CORS
       }
     });
 
@@ -462,11 +469,14 @@ export const loadTestFromLocalStorage = (testId: string): Test | null => {
  */
 export const loadTestsFromAPI = async (): Promise<Test[]> => {
   try {
+    // Configurar los headers correctamente para evitar problemas de CORS
     const response = await fetch(`${API_BASE_URL}/tests`, {
       method: 'GET',
-      credentials: 'include',
+      mode: 'cors', // Usar modo cors explícitamente
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Referer': 'https://quickbooks-test-black.vercel.app/' // Añadir referer para CORS
       }
     });
 
@@ -549,13 +559,14 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
     
     console.log(`URL de eliminación: ${apiUrl}`);
 
-    // Hacer una solicitud POST en lugar de DELETE
+    // Hacer una solicitud POST con los headers correctos
     const response = await fetch(apiUrl, {
       method: 'POST',
-      credentials: 'include',
+      mode: 'cors', // Usar modo cors explícitamente
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Referer': 'https://quickbooks-test-black.vercel.app/' // Añadir referer para CORS
       },
       body: JSON.stringify({
         id: testId // Enviar el ID en el cuerpo
