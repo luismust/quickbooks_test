@@ -2,6 +2,19 @@
 
 import { uploadImageToAirtable, deleteTestImages } from './airtable-utils'
 
+// Extender el tipo Window para incluir el objeto BlobImageProcessor
+declare global {
+  interface Window {
+    BlobImageProcessor?: {
+      processAllBlobImagesInTest: (test: any) => Promise<any>;
+      processBlobUrl: (blobUrl: string, imageElement?: HTMLImageElement | null) => Promise<string>;
+      getImageDataFromElement: (imageElement: HTMLImageElement) => Promise<string>;
+      getImageDataFromBlobUrl: (blobUrl: string) => Promise<string>;
+      uploadImageData: (blobUrl: string, imageData: string) => Promise<{url: string, imageId: string}>;
+    }
+  }
+}
+
 export interface Area {
   id: string
   shape: "rect" | "circle" | "poly"
@@ -190,26 +203,44 @@ export async function saveTest(test: Test): Promise<Test> {
     // URL base del API
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
 
-    // Procesamos todas las preguntas para asegurar la persistencia de las imágenes
-    console.log('Preparando preguntas para guardar...')
-    const testToSave = { ...test };
+    // Procesar todas las imágenes blob en el test usando el procesador de imágenes
+    console.log('Procesando imágenes blob en el test...');
+    let processedTest = test;
     
-    // Procesar cada pregunta con imagen siguiendo la recomendación del backend
-    for (let i = 0; i < testToSave.questions.length; i++) {
-      const question = testToSave.questions[i];
-      if (question.image) {
-        console.log(`Procesando imagen para pregunta ${i+1}/${testToSave.questions.length}`);
-        testToSave.questions[i] = await prepareQuestionWithImage(question);
+    // Verificar si el procesador de imágenes está disponible
+    if (typeof window !== 'undefined' && window.BlobImageProcessor) {
+      try {
+        // Utilizar el procesador de imágenes recomendado por el backend
+        console.log('Usando BlobImageProcessor para procesar las imágenes');
+        processedTest = await window.BlobImageProcessor.processAllBlobImagesInTest(test);
+        console.log('Procesamiento de imágenes completado');
+      } catch (imageError) {
+        console.error('Error al procesar imágenes con BlobImageProcessor:', imageError);
+        // Si falla, seguimos con el test original
+        processedTest = test;
+      }
+    } else {
+      console.warn('BlobImageProcessor no está disponible, se usará el método anterior');
+      // Usar el método anterior como fallback
+      processedTest = { ...test };
+      
+      // Procesar cada pregunta con imagen siguiendo el método anterior
+      for (let i = 0; i < processedTest.questions.length; i++) {
+        const question = processedTest.questions[i];
+        if (question.image) {
+          console.log(`Procesando imagen para pregunta ${i+1}/${processedTest.questions.length}`);
+          processedTest.questions[i] = await prepareQuestionWithImage(question);
+        }
       }
     }
     
-    // URL del endpoint a usar - CAMBIO: usar /api/save-test en lugar de /api/tests
+    // URL del endpoint a usar - usar /api/save-test
     const apiUrl = isVercel 
       ? `${API_BASE_URL}/save-test`  // La URL ya incluye /api/ en API_BASE_URL
       : '/api/save-test';  // URL local en desarrollo
 
     console.log('Enviando test al servidor:', apiUrl);
-    console.log('Preguntas procesadas:', testToSave.questions.length);
+    console.log('Preguntas procesadas:', processedTest.questions.length);
 
     // Guardar en el backend a través del endpoint correspondiente
     const response = await fetch(apiUrl, {
@@ -221,7 +252,7 @@ export async function saveTest(test: Test): Promise<Test> {
         'Content-Type': 'application/json',
         'Origin': 'https://quickbooks-test-black.vercel.app'
       },
-      body: JSON.stringify(testToSave),
+      body: JSON.stringify(processedTest),
     });
 
     let responseData;
@@ -241,7 +272,7 @@ export async function saveTest(test: Test): Promise<Test> {
 
     // Crear un objeto de test válido basado en los datos enviados y la respuesta
     const savedTest = {
-      ...testToSave,  // Usar los datos originales como base
+      ...processedTest,  // Usar los datos originales como base
       ...(responseData || {})  // Añadir datos de respuesta si existen
     };
 
