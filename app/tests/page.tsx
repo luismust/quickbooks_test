@@ -105,9 +105,11 @@ export default function TestsPage() {
           
           const response = await fetch(apiUrl, {
             method: 'POST',
+            credentials: 'include',
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
+              'Origin': 'https://quickbooks-test-black.vercel.app'
             },
             body: JSON.stringify({
               id: testId // Enviar el ID en el cuerpo
