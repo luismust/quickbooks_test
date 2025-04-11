@@ -542,23 +542,24 @@ export function generateId(prefix: string = ''): string {
  */
 export const deleteTest = async (testId: string): Promise<boolean> => {
   try {
-    // Verificar que API_BASE_URL no termine con /tests para evitar duplicar la ruta
-    const baseUrl = API_BASE_URL.endsWith('/tests') 
-      ? API_BASE_URL.substring(0, API_BASE_URL.length - 6) 
-      : API_BASE_URL;
-    
-    // URL del endpoint - ahora se construye en el formato exacto que espera el backend
-    const apiUrl = `${baseUrl}/tests/${testId}`;
-    
     console.log(`Intentando eliminar test con ID: ${testId}`);
+    
+    // Usar el endpoint específico para eliminar tests
+    const apiUrl = `${API_BASE_URL.replace('/tests', '')}/delete-test`;
+    
     console.log(`URL de eliminación: ${apiUrl}`);
 
+    // Hacer una solicitud POST en lugar de DELETE
     const response = await fetch(apiUrl, {
-      method: 'DELETE',
+      method: 'POST',
       credentials: 'include',
       headers: {
+        'Content-Type': 'application/json',
         'Accept': 'application/json'
-      }
+      },
+      body: JSON.stringify({
+        id: testId // Enviar el ID en el cuerpo
+      })
     });
 
     if (!response.ok) {
