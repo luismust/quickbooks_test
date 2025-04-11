@@ -469,17 +469,17 @@ export const loadTestFromLocalStorage = (testId: string): Test | null => {
 /**
  * Carga todos los tests desde la API
  */
-export const loadTestsFromAPI = async (): Promise<Test[]> => {
+export const loadTestsFromAPI = async () => {
   try {
-    // Configurar los headers según lo que acepta Vercel en su configuración
-    const response = await fetch(`${API_BASE_URL}/tests`, {
+    // Usar el nuevo endpoint específico para cargar tests
+    const apiUrl = 'https://quickbooks-backend.vercel.app/api/load-tests';
+    
+    const response = await fetch(apiUrl, {
       method: 'GET',
-      mode: 'cors',
-      credentials: 'include', // Incluir cookies según la configuración del backend
+      credentials: 'include',
       headers: {
         'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Origin': 'https://quickbooks-test-black.vercel.app' // Usar Origin como lo especifica el servidor
+        'Content-Type': 'application/json'
       }
     });
 
@@ -507,14 +507,19 @@ export const loadTestsFromAPI = async (): Promise<Test[]> => {
   }
 };
 
-/**
- * Carga todos los tests desde localStorage (fallback)
- */
-export const loadTestsFromLocalStorage = (): Test[] => {
-  if (typeof window === 'undefined') return [];
-
-  return JSON.parse(localStorage.getItem('saved-tests') || '[]');
-};
+// Función de fallback para cargar tests desde localStorage
+const loadTestsFromLocalStorage = () => {
+  try {
+    const savedTests = localStorage.getItem('saved-tests');
+    if (savedTests) {
+      return JSON.parse(savedTests);
+    }
+    return [];
+  } catch (error) {
+    console.error('Error cargando tests desde localStorage:', error);
+    return [];
+  }
+}; 
 
 /**
  * Función principal para cargar un test - intenta API y cae en localStorage
