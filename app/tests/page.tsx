@@ -99,17 +99,19 @@ export default function TestsPage() {
           setTests(tests.filter(test => test.id !== testId))
           toast.success("Test deleted successfully")
         } else {
-          // En modo normal, eliminar con API
-          const apiUrl = `https://quickbooks-backend.vercel.app/api/tests/${testId}`;
-          console.log('Deleting test with absolute URL:', apiUrl);
+          // En modo normal, eliminar con API usando la nueva implementación
+          const apiUrl = 'https://quickbooks-backend.vercel.app/api/delete-test';
+          console.log('Deleting test using endpoint:', apiUrl);
           
           const response = await fetch(apiUrl, {
-            method: 'DELETE',
+            method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              // Evitar problemas de CORS
               'Accept': 'application/json',
             },
+            body: JSON.stringify({
+              id: testId // Enviar el ID en el cuerpo
+            })
           })
           
           if (!response.ok) {
