@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import type { Test } from "@/lib/test-storage"
+import { loadTests, deleteTest } from "@/lib/test-storage"
 import { toast } from "sonner"
 import { useLocalStorage } from "@/components/local-storage-provider"
 
@@ -54,53 +55,17 @@ export default function TestsPage() {
           console.log('Static mode: Loading tests from localStorage')
           setTests(localTests)
         } else {
-          // En modo normal, cargar desde API
-          console.log('Normal mode: Loading tests from API directly')
+          // En modo normal, cargar tests usando la función de test-storage
+          console.log('Normal mode: Loading tests from API using test-storage')
           
           try {
-            // Intentar cargar tests desde localStorage primero como fallback
-            const savedTests = localStorage.getItem('saved-tests') || '[]';
-            const localTestsFallback = JSON.parse(savedTests);
-            
-            // Usar directamente la URL del backend sin headers problemáticos
-            const apiUrl = 'https://quickbooks-backend.vercel.app/api/tests';
-            console.log('Fetching from absolute URL:', apiUrl);
-            
-            const response = await fetch(apiUrl, {
-              method: 'GET',
-              // Evitar enviar credentials que pueden causar problemas de CORS
-              mode: 'no-cors' // Intentar sin CORS
-            });
-            
-            if (response.type === 'opaque') {
-              console.log('Received opaque response, using localStorage fallback');
-              // Cuando se usa mode: 'no-cors', la respuesta es 'opaque' y no se puede leer el contenido
-              // En este caso, usamos los datos locales
-              setTests(localTestsFallback);
-            } else {
-              if (!response.ok) {
-                throw new Error(`Failed to fetch tests: ${response.status} ${response.statusText}`);
-              }
-              
-              const data = await response.json();
-              console.log('Tests loaded successfully:', data.tests.length);
-              setTests(data.tests);
-              
-              // Actualizar localStorage con los datos más recientes
-              localStorage.setItem('saved-tests', JSON.stringify(data.tests));
-            }
+            // Utilizar la función loadTests de test-storage que ya maneja correctamente la API
+            const testsData = await loadTests();
+            console.log('Tests loaded successfully:', testsData.length);
+            setTests(testsData);
           } catch (error) {
             console.error('Error fetching tests from API:', error);
-            // Intentar cargar desde localStorage como fallback
-            try {
-              const savedTests = localStorage.getItem('saved-tests') || '[]';
-              const localTestsFallback = JSON.parse(savedTests);
-              console.log('Using localStorage fallback with', localTestsFallback.length, 'tests');
-              setTests(localTestsFallback);
-            } catch (localError) {
-              console.error('Error loading from localStorage:', localError);
-              toast.error("Failed to load tests");
-            }
+            toast.error("Failed to load tests");
           }
         }
       } catch (error) {
@@ -124,43 +89,18 @@ export default function TestsPage() {
           setTests(tests.filter(test => test.id !== testId))
           toast.success("Test deleted successfully")
         } else {
-          // En modo normal, eliminar con API usando la nueva implementación
-          // Usar un enfoque más simple sin headers problemáticos
-          try {
-            const apiUrl = 'https://quickbooks-backend.vercel.app/api/delete-test';
-            console.log('Deleting test using endpoint:', apiUrl);
-            
-            const response = await fetch(apiUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                id: testId // Enviar el ID en el cuerpo
-              })
-            });
-            
-            if (!response.ok) {
-              throw new Error(`Failed to delete test: ${response.status} ${response.statusText}`);
-            }
-
-            // Eliminar el test localmente
-            setTests(tests.filter(test => test.id !== testId));
-            
-            // También actualizar localStorage
-            try {
-              const savedTests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
-              const updatedTests = savedTests.filter((t: any) => t.id !== testId);
-              localStorage.setItem('saved-tests', JSON.stringify(updatedTests));
-            } catch (localError) {
-              console.error('Error updating localStorage:', localError);
-            }
-            
-            toast.success("Test deleted successfully");
-          } catch (error) {
-            console.error('Error deleting test:', error);
-            toast.error("Failed to delete test");
+          // En modo normal, eliminar el test usando la función de test-storage
+          console.log('Deleting test with ID:', testId);
+          
+          const success = await deleteTest(testId);
+          
+          if (!success) {
+            throw new Error('Failed to delete test');
           }
+
+          // Actualizar la UI eliminando el test
+          setTests(tests.filter(test => test.id !== testId));
+          toast.success("Test deleted successfully");
         }
       } catch (error) {
         console.error('Error deleting test:', error)
