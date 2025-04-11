@@ -32,6 +32,7 @@ export interface Question {
   description: string
   question: string
   image?: string
+  imageId?: string        // ID de la imagen en Vercel Blob
   originalImage?: string
   _localFile?: File | string   // Puede ser un objeto File o una string base64
   _imageData?: string          // Para almacenar datos base64 de la imagen
@@ -155,6 +156,11 @@ export async function saveTest(test: Test): Promise<Test> {
           console.log('Image is already base64, keeping it');
           // Asegurar que tenemos una copia en _imageData
           (cleanQuestion as any)._imageData = question.image;
+        }
+
+        // Conservar el imageId si existe
+        if (question.imageId) {
+          cleanQuestion.imageId = question.imageId;
         }
       }
 
@@ -318,20 +324,21 @@ export async function getTests(): Promise<Test[]> {
         // Crear un objeto limpio
         const cleanQuestion = { ...question };
 
-        // Si tenemos _imageData, usarlo como imagen principal
-        if (question._imageData && typeof question._imageData === 'string' &&
-          question._imageData.startsWith('data:')) {
-          console.log('Found _imageData, using it as main image');
-          cleanQuestion.image = question._imageData;
+        // Las imágenes ahora son URLs directas desde el backend o imageId
+        // Si la imagen ya es una URL completa, la mantenemos
+        if (question.image && question.image.startsWith('http')) {
+          console.log('Using direct image URL from API');
+          cleanQuestion.image = question.image;
         }
 
-        // Si la imagen es una referencia y no tenemos _imageData, intentar con placeholder
-        if (question.isImageReference &&
-          (!question._imageData ||
-            typeof question._imageData !== 'string' ||
-            !question._imageData.startsWith('data:'))) {
-          console.log('Reference image without _imageData, using placeholder');
-          // Usar un placeholder o podríamos buscar la imagen en otro lugar
+        // Si tenemos _imageData, podemos usarlo como copia local
+        if (question._imageData && typeof question._imageData === 'string' &&
+          question._imageData.startsWith('data:')) {
+          console.log('Found _imageData, using it as local backup');
+          // Solo usar _imageData como fallback si no hay una URL válida
+          if (!cleanQuestion.image || !cleanQuestion.image.startsWith('http')) {
+            cleanQuestion.image = question._imageData;
+          }
         }
 
         return cleanQuestion;
@@ -368,40 +375,161 @@ export async function getTests(): Promise<Test[]> {
   }
 }
 
-export const loadTest = (testId: string): Test | null => {
+// URL base de la API
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+
+/**
+ * Carga un test específico desde la API
+ */
+export const loadTestFromAPI = async (testId: string): Promise<Test | null> => {
   try {
-    if (typeof window === "undefined") return null
+    const response = await fetch(`${API_BASE_URL}/tests?id=${testId}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
 
-    const tests = JSON.parse(localStorage.getItem('saved-tests') || '[]')
-    const test = tests.find((t: Test) => t.id === testId)
-
-    if (!test) {
-      console.log('Test no encontrado:', testId)
-      console.log('Tests disponibles:', tests)
-      return null
+    if (!response.ok) {
+      console.error('Error cargando test desde API:', response.statusText);
+      return null;
     }
 
-    return test
+    const test = await response.json();
+    
+    // Procesar las imágenes para asegurar compatibilidad
+    if (test && test.questions) {
+      test.questions = test.questions.map((question: Question) => {
+        // Si la imagen es una URL HTTP, está lista para usar
+        if (question.image && question.image.startsWith('http')) {
+          console.log(`Question ${question.id}: Using direct image URL`);
+        }
+        return question;
+      });
+    }
+    
+    // Opcionalmente cachear en localStorage
+    try {
+      // Guardar en localStorage para acceso offline
+      const savedTests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
+      const existingIndex = savedTests.findIndex((t: Test) => t.id === test.id);
+      
+      if (existingIndex >= 0) {
+        savedTests[existingIndex] = test;
+      } else {
+        savedTests.push(test);
+      }
+      
+      localStorage.setItem('saved-tests', JSON.stringify(savedTests));
+    } catch (localStorageError) {
+      console.warn('No se pudo guardar en localStorage:', localStorageError);
+    }
+    
+    return test;
   } catch (error) {
-    console.error('Error cargando test:', error)
-    return null
+    console.error('Error cargando test desde API:', error);
+    
+    // Intentar cargar desde localStorage como fallback
+    return loadTestFromLocalStorage(testId);
   }
-}
+};
 
-export const loadTests = (): Test[] => {
-  if (typeof window === 'undefined') return []
+/**
+ * Carga un test desde localStorage (fallback)
+ */
+export const loadTestFromLocalStorage = (testId: string): Test | null => {
+  try {
+    if (typeof window === "undefined") return null;
 
-  return JSON.parse(localStorage.getItem('saved-tests') || '[]')
-}
+    const tests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
+    const test = tests.find((t: Test) => t.id === testId);
 
+    if (!test) {
+      console.log('Test no encontrado en localStorage:', testId);
+      return null;
+    }
+
+    return test;
+  } catch (error) {
+    console.error('Error cargando test desde localStorage:', error);
+    return null;
+  }
+};
+
+/**
+ * Carga todos los tests desde la API
+ */
+export const loadTestsFromAPI = async (): Promise<Test[]> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/tests`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.error('Error cargando tests desde API:', response.statusText);
+      return loadTestsFromLocalStorage();
+    }
+
+    const data = await response.json();
+    const tests = data.tests || [];
+    
+    // Opcionalmente cachear en localStorage
+    try {
+      localStorage.setItem('saved-tests', JSON.stringify(tests));
+    } catch (localStorageError) {
+      console.warn('No se pudo guardar en localStorage:', localStorageError);
+    }
+    
+    return tests;
+  } catch (error) {
+    console.error('Error cargando tests desde API:', error);
+    
+    // Intentar cargar desde localStorage como fallback
+    return loadTestsFromLocalStorage();
+  }
+};
+
+/**
+ * Carga todos los tests desde localStorage (fallback)
+ */
+export const loadTestsFromLocalStorage = (): Test[] => {
+  if (typeof window === 'undefined') return [];
+
+  return JSON.parse(localStorage.getItem('saved-tests') || '[]');
+};
+
+/**
+ * Función principal para cargar un test - intenta API y cae en localStorage
+ */
+export const loadTest = async (testId: string): Promise<Test | null> => {
+  // Intentar primero desde la API, si falla usa localStorage
+  const test = await loadTestFromAPI(testId);
+  return test;
+};
+
+/**
+ * Función principal para cargar todos los tests
+ */
+export const loadTests = async (): Promise<Test[]> => {
+  // Intentar primero desde la API, si falla usa localStorage
+  return await loadTestsFromAPI();
+};
+
+/**
+ * Exporta un test como JSON
+ */
 export const exportTest = (test: Test): string => {
-  return JSON.stringify(test, null, 2)
-}
+  return JSON.stringify(test, null, 2);
+};
 
-export const downloadExampleTemplate = () => {
-  // ... implementación
-}
-
+/**
+ * Genera un ID único
+ */
 export function generateId(prefix: string = ''): string {
   if (prefix) {
     return `${prefix}_${Math.random().toString(36).substring(2)}${Date.now().toString(36)}`;
@@ -409,23 +537,13 @@ export function generateId(prefix: string = ''): string {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
 
+/**
+ * Elimina un test por ID
+ */
 export const deleteTest = async (testId: string): Promise<boolean> => {
   try {
-    // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
-    const isVercel = true; // Siempre usaremos la URL externa en la build de producción
-
-    // URL base del API
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
-
-    // Eliminar imágenes de Airtable
-    if (!isVercel) {
-      await deleteTestImages(testId)
-    }
-
-    // URL del endpoint a usar
-    const apiUrl = isVercel
-      ? `${API_BASE_URL}/tests/${testId}`  // La URL ya incluye /api/ en API_BASE_URL
-      : `/api/tests/${testId}`;  // URL local en desarrollo
+    // URL del endpoint - ahora soporta DELETE directamente
+    const apiUrl = `${API_BASE_URL}/tests/${testId}`;
 
     const response = await fetch(apiUrl, {
       method: 'DELETE',
@@ -433,25 +551,24 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
       headers: {
         'Accept': 'application/json'
       }
-    })
+    });
 
     if (!response.ok) {
-      throw new Error('Failed to delete test')
+      throw new Error('Failed to delete test');
     }
 
     // También eliminamos de localStorage
     try {
-      const savedTests = localStorage.getItem('quickbook_tests') || '[]'
-      const localTests = JSON.parse(savedTests) as Test[]
-      const filteredTests = localTests.filter(t => t.id !== testId)
-      localStorage.setItem('quickbook_tests', JSON.stringify(filteredTests))
+      const savedTests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
+      const filteredTests = savedTests.filter((t: Test) => t.id !== testId);
+      localStorage.setItem('saved-tests', JSON.stringify(filteredTests));
     } catch (e) {
-      console.error('Error removing from localStorage:', e)
+      console.error('Error removing from localStorage:', e);
     }
 
-    return true
+    return true;
   } catch (error) {
-    console.error('Error deleting test:', error)
-    return false
+    console.error('Error deleting test:', error);
+    return false;
   }
-} 
+};
