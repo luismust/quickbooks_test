@@ -544,8 +544,8 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
   try {
     console.log(`Intentando eliminar test con ID: ${testId}`);
     
-    // Usar el endpoint específico para eliminar tests
-    const apiUrl = `${API_BASE_URL.replace('/tests', '')}/delete-test`;
+    // Usar el endpoint específico para eliminar tests con URL exacta
+    const apiUrl = 'https://quickbooks-backend.vercel.app/api/delete-test';
     
     console.log(`URL de eliminación: ${apiUrl}`);
 
