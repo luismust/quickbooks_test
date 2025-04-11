@@ -558,27 +558,23 @@ export function generateId(prefix: string = ''): string {
 /**
  * Elimina un test por ID
  */
+// 2. ELIMINAR UN TEST
 export const deleteTest = async (testId: string): Promise<boolean> => {
   try {
     console.log(`Intentando eliminar test con ID: ${testId}`);
     
-    // Usar el endpoint específico para eliminar tests con URL exacta
+    // Usar el endpoint específico para eliminar tests
     const apiUrl = 'https://quickbooks-backend.vercel.app/api/delete-test';
     
-    console.log(`URL de eliminación: ${apiUrl}`);
-
-    // Hacer una solicitud POST con los headers aceptados por el servidor
     const response = await fetch(apiUrl, {
       method: 'POST',
-      mode: 'cors',
-      credentials: 'include', // Incluir cookies según la configuración del backend
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Origin': 'https://quickbooks-test-black.vercel.app' // Usar Origin como lo especifica el servidor
+        'Accept': 'application/json'
       },
       body: JSON.stringify({
-        id: testId // Enviar el ID en el cuerpo
+        id: testId
       })
     });
 
@@ -588,16 +584,22 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
       throw new Error(`Failed to delete test: ${errorData.error || response.statusText}`);
     }
 
-    // También eliminamos de localStorage (tanto de 'saved-tests' como de 'quickbook_tests')
+    // Leer la respuesta para confirmar que la operación fue exitosa
+    const result = await response.json();
+    console.log('Respuesta del servidor:', result);
+
+    // Al eliminar con éxito, limpiar localStorage
     try {
-      // Limpiar de 'saved-tests'
+      // Cargar arrays actuales
       const savedTests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
-      const filteredSavedTests = savedTests.filter((t: Test) => t.id !== testId);
-      localStorage.setItem('saved-tests', JSON.stringify(filteredSavedTests));
-      
-      // Limpiar de 'quickbook_tests' 
       const quickbookTests = JSON.parse(localStorage.getItem('quickbook_tests') || '[]');
-      const filteredQuickbookTests = quickbookTests.filter((t: Test) => t.id !== testId);
+      
+      // Filtrar el test eliminado
+      const filteredSavedTests = savedTests.filter((t: { id: string }) => t.id !== testId);
+      const filteredQuickbookTests = quickbookTests.filter((t: { id: string }) => t.id !== testId);
+      
+      // Guardar arrays actualizados
+      localStorage.setItem('saved-tests', JSON.stringify(filteredSavedTests));
       localStorage.setItem('quickbook_tests', JSON.stringify(filteredQuickbookTests));
       
       console.log('Test eliminado correctamente de localStorage');
