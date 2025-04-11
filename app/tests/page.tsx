@@ -63,11 +63,13 @@ export default function TestsPage() {
           
           const response = await fetch(apiUrl, {
             method: 'GET',
+            credentials: 'include',
             headers: {
               'Content-Type': 'application/json',
-              // Evitar problemas de CORS
               'Accept': 'application/json',
+              'Origin': 'https://quickbooks-test-black.vercel.app'
             },
+            mode: 'cors'
           });
           
           if (!response.ok) {
@@ -111,6 +113,7 @@ export default function TestsPage() {
               'Accept': 'application/json',
               'Origin': 'https://quickbooks-test-black.vercel.app'
             },
+            mode: 'cors',
             body: JSON.stringify({
               id: testId // Enviar el ID en el cuerpo
             })
