@@ -123,163 +123,48 @@ export const validateTest = (test: Test): boolean => {
   }
 }
 
-export async function saveTest(test: Test): Promise<Test> {
+export const saveTest = async (testData: Test): Promise<Test> => {
   try {
-    console.log('Starting saveTest function')
-
-    // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
-    const isVercel = true; // Siempre usaremos la URL externa en la build de producción
-
-    // URL base del API
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
-
-    // Procesamos las preguntas para asegurar la persistencia de las imágenes
-    const processedQuestions = test.questions.map(question => {
-      // Crear una versión limpia de la pregunta
-      const cleanQuestion = { ...question };
-
-      // Manejar las imágenes según su formato
-      if (question.image) {
-        // Si es una URL blob y tenemos un _localFile que es string (base64), usarlo
-        if (
-          question.image.startsWith('blob:') &&
-          question._localFile &&
-          typeof question._localFile === 'string' &&
-          question._localFile.startsWith('data:')
-        ) {
-          console.log('Found blob URL with string _localFile, using it');
-          cleanQuestion.image = question._localFile;
-        }
-
-        // Si la imagen ya es base64, mantenerla
-        if (question.image.startsWith('data:')) {
-          console.log('Image is already base64, keeping it');
-          // Asegurar que tenemos una copia en _imageData
-          (cleanQuestion as any)._imageData = question.image;
-        }
-
-        // Conservar el imageId si existe
-        if (question.imageId) {
-          cleanQuestion.imageId = question.imageId;
-        }
-      }
-
-      // Guardar específicamente el campo _imageData para recuperarlo más tarde
-      // solo si _localFile es un string (base64)
-      if (question._localFile && typeof question._localFile === 'string') {
-        if (question._localFile.startsWith('data:')) {
-          (cleanQuestion as any)._imageData = question._localFile;
-        }
-      }
-
-      // Eliminar la referencia al archivo File que no podemos enviar a la API
-      // o cualquier _localFile que no sea útil
-      delete cleanQuestion._localFile;
-
-      return cleanQuestion;
-    });
-
-    // Preparar datos para Airtable
-    const testData = {
-      id: test.id, // Incluir el ID si existe
-      name: test.name,
-      description: test.description,
-      questions: processedQuestions, // Enviamos el objeto con las imágenes procesadas
-      maxScore: test.maxScore,
-      minScore: test.minScore,
-      passingMessage: test.passingMessage,
-      failingMessage: test.failingMessage
-    }
-
-    console.log('Sending test data to API:', {
-      id: testData.id,
-      name: testData.name,
-      questionsCount: testData.questions.length
-    })
-
-    // URL del endpoint a usar
-    const apiUrl = isVercel 
-      ? `${API_BASE_URL}/tests`  // La URL ya incluye /api/ en API_BASE_URL
-      : '/api/tests';  // URL local en desarrollo
-
-    // URL endpoint simple de prueba
-    //const apiUrl = isVercel 
-    //  ? `${API_BASE_URL}/tests-simple` 
-    //  : '/api/tests-simple';  
-
-    // URL endpoint de depuracion
-    //const apiUrl = isVercel
-    //  ? `${API_BASE_URL}/debug-post`  // Usa el endpoint de depuración detallada
-    //  : '/api/debug-post';
-
-    // Guardar en Airtable a través del endpoint correspondiente
+    console.log('Guardando test:', testData.name);
+    
+    // Usar el endpoint específico para guardar tests
+    const apiUrl = `${API_BASE_URL}/save-test`;
+    
     const response = await fetch(apiUrl, {
       method: 'POST',
       credentials: 'include',
       headers: {
-        'Accept': 'application/json',
         'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
-      body: JSON.stringify(testData),
-    })
-
-    let responseData;
+      body: JSON.stringify(testData)
+    });
     
-    try {
-      if (!response.ok) {
-        responseData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('API error response:', responseData);
-        throw new Error(`Failed to save test: ${responseData.error || response.statusText}`);
-      } else {
-        responseData = await response.json().catch(() => ({}));
-      }
-    } catch (parseError) {
-      console.error('Error parsing response:', parseError);
-      responseData = {};
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('Error al guardar test:', errorData);
+      throw new Error(`Failed to save test: ${errorData.error || response.statusText}`);
     }
-
-    // Crear un objeto de test válido basado en los datos enviados y la respuesta
-    const savedTest = {
-      ...testData,  // Usar los datos originales como base
-      ...(responseData || {})  // Añadir datos de respuesta si existen
-    };
-
-    // Verificar y arreglar el ID si es necesario
-    if (typeof savedTest.id !== 'string' || !savedTest.id) {
-      console.warn('API response missing valid ID, generating temporary ID');
-      // Generar un ID temporal compatible con el formato esperado
-      savedTest.id = '_temp_' + Date.now();
-    } else if (!savedTest.id.startsWith('_')) {
-      // Asegúrate de que el ID tenga el formato correcto (empezando con _)
-      savedTest.id = '_' + savedTest.id;
-    }
-
-    console.log('Test saved successfully with ID:', savedTest.id);
-    // También guardamos en localStorage para tener una copia local
+    
+    // Obtener los datos del test guardado con su ID asignado
+    const savedTest = await response.json();
+    console.log('Test guardado con éxito, ID:', savedTest.id);
+    
+    // Opcionalmente, actualizar el localStorage
     try {
-      const savedTests = localStorage.getItem('quickbook_tests') || '[]'
-      const localTests = JSON.parse(savedTests) as Test[]
-
-      // Actualizar o añadir el test
-      const existingIndex = localTests.findIndex(t => t.id === savedTest.id)
-      if (existingIndex >= 0) {
-        localTests[existingIndex] = savedTest
-      } else {
-        localTests.push(savedTest)
-      }
-
-      // Guardar de vuelta en localStorage
-      localStorage.setItem('quickbook_tests', JSON.stringify(localTests))
+      const existingTests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
+      existingTests.push(savedTest);
+      localStorage.setItem('saved-tests', JSON.stringify(existingTests));
     } catch (e) {
-      console.error('Error saving local copy:', e)
+      console.warn('No se pudo actualizar localStorage con el nuevo test');
     }
-
+    
     return savedTest;
   } catch (error) {
-    console.error('Error saving test:', error)
-    throw error
+    console.error('Error al guardar el test:', error);
+    throw error;
   }
-}
+};
 
 export async function getTests(): Promise<Test[]> {
   try {
