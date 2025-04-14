@@ -51,7 +51,7 @@ const defaultScoring = {
 const defaultQuestion: Question = {
   id: generateId(),
     title: "New Question",
-    description: "Add a description for the question",
+    description: "",
     question: "What action should the user perform?",
   image: "",
   type: "clickArea",
@@ -195,7 +195,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
       id: generateId(),
       type: 'clickArea',
       title: "New Question",
-      description: "Add a description for the question",
+      description: "",
       question: "What action should the user perform?",
       image: "",
       areas: [],
@@ -789,6 +789,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       }}
                       placeholder="Enter test name"
                       required
+                      onFocus={(e) => e.target.select()}
                   />
                 </div>
 
@@ -806,6 +807,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       }}
                       placeholder="Enter test description"
                       className="h-24"
+                      onFocus={(e) => e.target.select()}
                     />
                   </div>
                 </div>
@@ -857,6 +859,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       onChange={(e) => setTestPassingMessage(e.target.value)}
                       placeholder="Congratulations! You have passed the test."
                       className="h-20"
+                      onFocus={(e) => e.target.select()}
                     />
                   </div>
 
@@ -870,6 +873,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       onChange={(e) => setTestFailingMessage(e.target.value)}
                       placeholder="You need to improve to pass the test."
                       className="h-20"
+                      onFocus={(e) => e.target.select()}
                     />
                   </div>
                 </div>
@@ -912,7 +916,8 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         id="questionText"
                         value={currentTestScreen.question}
                         onChange={(e) => handleScreenUpdate(currentScreen, { question: e.target.value })}
-                          placeholder="Ej: Where would you click to create a new invoice?"
+                        placeholder="Ej: Where would you click to create a new invoice?"
+                        onFocus={(e) => e.target.select()}
                       />
                     </div>
 
@@ -924,8 +929,9 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         id="questionDescription"
                         value={currentTestScreen.description}
                         onChange={(e) => handleScreenUpdate(currentScreen, { description: e.target.value })}
-                        placeholder="Provide instructions or additional context for the question"
+                        placeholder="(Optional) Add additional instructions or context for the question"
                         className="h-24"
+                        onFocus={(e) => e.target.select()}
                       />
                     </div>
                     </div>
@@ -1211,14 +1217,18 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 >
                   {currentTestScreen.question}
                 </MotionDiv>
-                <MotionDiv 
-                  className="text-muted-foreground mt-2"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  {currentTestScreen.description}
-                </MotionDiv>
+                {currentTestScreen.description && 
+                 currentTestScreen.description !== currentTestScreen.question && 
+                 currentTestScreen.description !== currentTestScreen.title && (
+                  <MotionDiv 
+                    className="text-muted-foreground mt-2"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    {currentTestScreen.description}
+                  </MotionDiv>
+                )}
               </div>
 
               {/* Área de imagen */}
