@@ -26,18 +26,20 @@ export function createProxyImage(url: string | Question, element?: HTMLImageElem
     // Priorizar la URL directa al blob si existe
     const blobUrl = url.blobUrl;
     if (blobUrl && typeof blobUrl === 'string') {
-      // Verificar si la URL blob es válida intentando hacer una solicitud HEAD
+      // Verificar si la URL blob es válida intentando cargarla directamente
       try {
-        const checkBlobPromise = fetch(blobUrl, { method: 'HEAD' })
-          .then(response => {
-            if (response.ok) {
-              img.src = `${blobUrl}${blobUrl.includes('?') ? '&' : '?'}t=${timestamp}`;
-              console.log('Using blobUrl for image:', blobUrl);
-              return true;
-            }
-            throw new Error('Blob URL not valid');
-          })
-          .catch(() => {
+        const checkBlobPromise = new Promise<boolean>((resolve) => {
+          const testImg = new Image();
+          testImg.onload = () => {
+            console.log('Blob URL is valid, using it:', blobUrl.substring(0, 40) + '...');
+            img.src = `${blobUrl}${blobUrl.includes('?') ? '&' : '?'}t=${timestamp}`;
+            resolve(true);
+          };
+          
+          testImg.onerror = () => {
+            console.log('Blob URL is invalid (failed to load), using alternatives');
+            resolve(false);
+            
             // Si la blob URL falla, intenta la siguiente fuente
             if (url.imageApiUrl) {
               img.src = `${url.imageApiUrl}${url.imageApiUrl.includes('?') ? '&' : '?'}t=${timestamp}`;
@@ -51,18 +53,23 @@ export function createProxyImage(url: string | Question, element?: HTMLImageElem
               img.src = imageUrl;
               console.log('Blob URL failed, using imageId URL instead:', imageUrl);
             }
-            return false;
-          });
-        
-        // Establecer un tiempo de espera para la verificación de blob
-        setTimeout(() => {
-          checkBlobPromise.catch(() => {
-            console.log('Blob URL check timed out');
-            if (!img.src && url.imageApiUrl) {
-              img.src = `${url.imageApiUrl}${url.imageApiUrl.includes('?') ? '&' : '?'}t=${timestamp}`;
+          };
+          
+          testImg.src = blobUrl;
+          
+          // Establecer un timeout para evitar esperas indefinidas
+          setTimeout(() => {
+            if (!testImg.complete) {
+              console.log('Blob URL validation timed out');
+              resolve(false);
+              
+              // Si hay un timeout, probar con alternativas
+              if (url.imageApiUrl) {
+                img.src = `${url.imageApiUrl}${url.imageApiUrl.includes('?') ? '&' : '?'}t=${timestamp}`;
+              }
             }
-          });
-        }, 3000); // 3 segundos de tiempo de espera
+          }, 3000);
+        });
       } catch (error) {
         console.error('Error checking blob URL:', error);
         // Si hay un error al verificar el blob, usar la siguiente fuente disponible
@@ -95,30 +102,42 @@ export function createProxyImage(url: string | Question, element?: HTMLImageElem
   } else if (typeof url === 'string') {
     // Verificar si es una URL de blob
     if (url.startsWith('blob:')) {
-      // Verificar si la URL blob es válida intentando hacer una solicitud HEAD
+      // Verificar si la URL blob es válida intentando cargarla directamente en una imagen
+      // Evitamos fetch HEAD que está causando ERR_METHOD_NOT_SUPPORTED
       try {
-        fetch(url, { method: 'HEAD' })
-          .then(response => {
-            if (response.ok) {
-              img.src = url;
-              console.log('Verified blob URL is valid:', url);
-            } else {
-              console.error('Blob URL returned error status:', response.status);
-              img.onerror?.(new ErrorEvent('error'));
-            }
-          })
-          .catch(error => {
-            console.error('Error checking blob URL:', error);
-            img.onerror?.(new ErrorEvent('error'));
-          });
+        // Cargar directamente la URL y manejar los eventos de carga/error
+        const blobValidationPromise = new Promise<boolean>((resolve) => {
+          const testImg = new Image();
+          testImg.onload = () => {
+            console.log('Blob URL is valid, loading directly:', url.substring(0, 40) + '...');
+            img.src = url;
+            resolve(true);
+          };
           
-        // Establecer un tiempo de espera para la verificación
-        setTimeout(() => {
-          if (!img.src) {
-            console.log('Blob URL check timed out');
+          testImg.onerror = () => {
+            console.error('Blob URL is invalid (failed to load)');
+            resolve(false);
             img.onerror?.(new ErrorEvent('error'));
+          };
+          
+          testImg.src = url;
+          
+          // Establecer un timeout para evitar esperas indefinidas
+          setTimeout(() => {
+            if (!testImg.complete) {
+              console.log('Blob URL validation timed out');
+              resolve(false);
+              img.onerror?.(new ErrorEvent('timeout'));
+            }
+          }, 3000);
+        });
+        
+        // Si la validación falla, manejar el error
+        blobValidationPromise.then(isValid => {
+          if (!isValid) {
+            console.log('Intentando cargar alternativas para URL blob inválida');
           }
-        }, 3000); // 3 segundos de tiempo de espera
+        });
       } catch (error) {
         console.error('Exception checking blob URL:', error);
         img.onerror?.(new ErrorEvent('error'));

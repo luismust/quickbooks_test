@@ -55,11 +55,30 @@ export function ImageMap({
     if (!blobUrl || !blobUrl.startsWith('blob:')) return false;
     
     try {
-      console.log('Checking blob URL validity:', blobUrl.substring(0, 40) + '...');
-      const response = await fetch(blobUrl, { method: 'HEAD' });
-      return response.ok;
+      // En lugar de usar fetch HEAD (que está fallando con ERR_METHOD_NOT_SUPPORTED),
+      // probamos a crear una imagen y cargar la URL directamente
+      return new Promise((resolve) => {
+        const testImg = new Image();
+        testImg.onload = () => {
+          console.log('Blob URL is valid (loaded successfully):', blobUrl.substring(0, 40) + '...');
+          resolve(true);
+        };
+        testImg.onerror = () => {
+          console.error('Blob URL is invalid (failed to load)');
+          resolve(false);
+        };
+        testImg.src = blobUrl;
+        
+        // Añadir un timeout para evitar esperas indefinidas
+        setTimeout(() => {
+          if (!testImg.complete) {
+            console.log('Blob URL validation timed out');
+            resolve(false);
+          }
+        }, 3000);
+      });
     } catch (error) {
-      console.error('Blob URL is invalid:', error);
+      console.error('Error checking blob URL:', error);
       return false;
     }
   }, []);
@@ -164,28 +183,65 @@ export function ImageMap({
     }
     
     // Si es una URL de vercel blob que probablemente expiró, intentar reconstruir
-    // basado en el patrón común de las URLs de vercel blob
-    if (formattedSrc.includes('vercel.app') && formattedSrc.includes('/9')) {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+    if (formattedSrc?.startsWith('blob:')) {
+      // Primer intento: extraer UUID de la URL si está presente
+      const matches = src.match(/\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
       
-      // Extraer el ID de la imagen de la URL
-      const matches = formattedSrc.match(/\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
       if (matches && matches[1]) {
+        // Encontramos un UUID, intentar usarlo directamente
         const imageId = matches[1];
-        const alternativeUrl = `${API_URL}/images?id=${imageId}&redirect=1`;
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+        const alternativeUrl = `${API_URL}/images?id=${imageId}&redirect=1&t=${Date.now()}`;
         
-        console.log('Reconstructed API URL from blob URL:', alternativeUrl);
+        console.log('Reconstructed API URL from UUID in blob URL:', alternativeUrl);
         
-        const proxyImg = createProxyImage(alternativeUrl);
-        if (imageRef.current) {
-          imageRef.current.src = proxyImg.src;
-          return true;
+        try {
+          const proxyImg = createProxyImage(alternativeUrl);
+          if (imageRef.current) {
+            imageRef.current.src = proxyImg.src;
+            return true;
+          }
+        } catch (e) {
+          console.error('Error loading reconstructed URL:', e);
+        }
+      } 
+      
+      // Segundo intento: buscar el identificador de testId en la URL
+      // Ejemplo: si la URL es blob:https://quickbooks-test-black.vercel.app/f1033d4-77b9-4f97-af53-6cce663518d0
+      const testIdMatches = src.match(/test-([^\/]+)\.vercel/i);
+      if (testIdMatches && testIdMatches[1]) {
+        const testId = testIdMatches[1];
+        console.log('Extracted test ID from blob URL:', testId);
+        
+        // Intentar reconstruir una URL basada en el servicio
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+        
+        // Intentar usar una URL genérica para este test
+        const fallbackUrl = `${API_URL}/assets/${testId}/images/question_${Date.now()}.jpg`;
+        console.log('Trying fallback generic URL based on test ID:', fallbackUrl);
+        
+        try {
+          const proxyImg = createProxyImage(fallbackUrl);
+          if (imageRef.current) {
+            imageRef.current.src = proxyImg.src;
+            return true;
+          }
+        } catch (e) {
+          console.error('Error loading fallback URL:', e);
         }
       }
     }
     
+    // Último recurso: simplemente mostrar un placeholder en vez de nada
+    if (imageRef.current && formattedSrc?.startsWith('blob:')) {
+      console.log('All alternatives failed, showing placeholder image');
+      imageRef.current.src = placeholderImage;
+      handleImageLoad();
+      return true;
+    }
+    
     return false;
-  }, [formattedSrc, src, usedFallback]);
+  }, [formattedSrc, src, usedFallback, handleImageLoad]);
 
   const handleError = async () => {
     // Si la URL es un blob, verificar si sigue siendo válido
@@ -470,7 +526,16 @@ export function ImageMap({
             )}
             onLoad={handleImageLoad}
             onError={handleError}
-          ></div>
+          >
+            {/* Imagen invisible para detectar eventos de carga/error */}
+            <img 
+              src={formattedSrc} 
+              alt={alt}
+              className="opacity-0 absolute w-0 h-0 pointer-events-none"
+              onLoad={handleImageLoad}
+              onError={handleError}
+            />
+          </div>
       
           {!isLoading && areas.map((area) => (
             <div
