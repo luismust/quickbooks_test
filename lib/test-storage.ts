@@ -183,7 +183,7 @@ async function uploadImageToServer(imageData: string, fileName: string = 'questi
       // No usamos credentials para evitar problemas CORS
     });
     
-    if (!response.ok) {
+      if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.error || `Error al subir la imagen: ${response.status} ${response.statusText}`);
     }

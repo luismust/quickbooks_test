@@ -1,6 +1,5 @@
 "use client"
 
-import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 
@@ -13,16 +12,6 @@ interface TrueOrFalseEditorProps {
 export function TrueOrFalseEditor({ question, answer, onChange }: TrueOrFalseEditorProps) {
   return (
     <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium mb-2">
-          Question
-        </label>
-        <Input
-          placeholder="Write the question..."
-          value={question}
-          onChange={(e) => onChange({ question: e.target.value, answer })}
-        />
-      </div>
       <div>
         <label className="block text-sm font-medium mb-2">
           Correct answer

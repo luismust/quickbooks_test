@@ -12,7 +12,6 @@ import {
   Trash2, 
   Loader2, 
   Edit, 
-  Download, 
   Search 
 } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -112,23 +111,6 @@ export default function TestsPage() {
   const handleEditTest = (e: React.MouseEvent, test: Test) => {
     e.stopPropagation()
     router.push(`/edit-test/${test.id}`)
-  }
-
-  const handleDownloadTest = (e: React.MouseEvent, test: Test) => {
-    e.stopPropagation()
-    
-    // Crear un blob y descargarlo
-    const blob = new Blob([JSON.stringify(test, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `test_${test.id}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    
-    toast.success("Test downloaded successfully")
   }
 
   // Si hay un test seleccionado, mostrar el TestViewer
@@ -248,14 +230,6 @@ export default function TestsPage() {
                     onClick={(e) => handleEditTest(e, test)}
                   >
                     <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={(e) => handleDownloadTest(e, test)}
-                  >
-                    <Download className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="ghost"

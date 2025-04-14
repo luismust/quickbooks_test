@@ -3,14 +3,12 @@
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
 import { ChevronLeft, ChevronRight, Info, Edit, Play, Link, Download, Save, Loader2 } from "lucide-react"
 import { ImageMap } from "@/components/image-map"
-import { QuestionForm } from "./question-form"
 import { questionTemplates } from "@/lib/templates"
-import { saveTest, exportTest, getTests } from "@/lib/test-storage"
+import { saveTest } from "@/lib/test-storage"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { generateId } from "@/lib/utils"
@@ -907,18 +905,6 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                   {/* Campos básicos de la pregunta */}
                   <div className="grid gap-4">
                     <div>
-                      <label htmlFor="questionTitle" className="block text-sm font-medium mb-1">
-                        Question title
-                      </label>
-                      <Input
-                        id="questionTitle"
-                        value={currentTestScreen.title}
-                        onChange={(e) => handleScreenUpdate(currentScreen, { title: e.target.value })}
-                          placeholder="Ej: Create a new invoice"
-                      />
-                    </div>
-
-                    <div>
                       <label htmlFor="questionText" className="block text-sm font-medium mb-1">
                         Question
                       </label>
@@ -1076,7 +1062,6 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         question={currentTestScreen.question}
                         answer={currentTestScreen.correctAnswer || false}
                         onChange={(data) => handleScreenUpdate(currentScreen, { 
-                          question: data.question,
                           correctAnswer: data.answer
                         })}
                       />

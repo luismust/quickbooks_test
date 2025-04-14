@@ -343,17 +343,17 @@ export function ImageMap({
           setIsLoading(false);
           setError(true);
           setErrorMessage(`Could not load the image after multiple attempts.`);
-          
-          // Depurar la causa del error
-          console.log('Source format analysis:', {
-            isBase64: formattedSrc?.startsWith('data:image/'),
-            isHttp: formattedSrc?.startsWith('http'),
-            isBlob: formattedSrc?.startsWith('blob:'),
-            isAirtable: formattedSrc?.includes('api.airtable.com'),
-            sourceLength: formattedSrc?.length || 0,
-            sourceStart: formattedSrc?.substring(0, 50) || 'empty'
-          });
-          
+      
+      // Depurar la causa del error
+      console.log('Source format analysis:', {
+        isBase64: formattedSrc?.startsWith('data:image/'),
+        isHttp: formattedSrc?.startsWith('http'),
+        isBlob: formattedSrc?.startsWith('blob:'),
+        isAirtable: formattedSrc?.includes('api.airtable.com'),
+        sourceLength: formattedSrc?.length || 0,
+        sourceStart: formattedSrc?.substring(0, 50) || 'empty'
+      });
+      
           onError?.();
         }
         return;
@@ -400,7 +400,7 @@ export function ImageMap({
         checkBlobValidity(formattedSrc).then(isValid => {
           if (!isValid) {
             console.log('Blob URL is invalid, trying alternatives');
-            handleError();
+        handleError();
             return;
           }
           
@@ -416,17 +416,17 @@ export function ImageMap({
         // Utilizar createProxyImage para cargar la imagen con manejo de CORS
         try {
           // Si ya estamos usando una imagen base64, cargarla directamente
-          if (formattedSrc.startsWith('data:')) {
-            // Para imágenes data:, confiar en que son correctas
+      if (formattedSrc.startsWith('data:')) {
+        // Para imágenes data:, confiar en que son correctas
             if (imageRef.current) {
               imageRef.current.src = formattedSrc;
             }
             
-            setTimeout(() => {
-              handleImageLoad();
-              setIsLoading(false);
-              setError(false);
-            }, 100);
+        setTimeout(() => {
+          handleImageLoad();
+          setIsLoading(false);
+          setError(false);
+        }, 100);
             return;
           }
           
@@ -465,7 +465,7 @@ export function ImageMap({
     const rect = containerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    
+
     // Importante: normalizar las coordenadas inmediatamente al comenzar a dibujar
     const normalizedX = x / scale
     const normalizedY = y / scale
@@ -732,12 +732,12 @@ export function ImageMap({
           {!isLoading && areas.map((area) => {
             const dimensions = getAreaDimensions(area);
             return (
-              <div
-                key={area.id}
+            <div
+              key={area.id}
                 data-area-id={area.id}
-                className={`absolute transition-colors ${
-                  getAreaStyle(area)
-                } ${isDrawingMode ? 'pointer-events-none' : ''} ${
+              className={`absolute transition-colors ${
+                getAreaStyle(area)
+              } ${isDrawingMode ? 'pointer-events-none' : ''} ${
                   !isEditMode ? '' : 'cursor-pointer hover:bg-primary/10'
                 }`}
                 style={{

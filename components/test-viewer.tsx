@@ -241,7 +241,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
             image: q.image 
           };
         }
-
+        
         // 4. Si la imagen ya es base64, usarla directamente
         if (typeof q.image === 'string' && q.image.startsWith('data:image/')) {
           console.log('TestViewer: Using base64 image directly');
@@ -495,21 +495,21 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
           <div className="relative">
             {/* Si la pregunta tiene imageId o image, utilizar ImageMap */}
             {question.imageId || question.image ? (
-              <ImageMap
+                  <ImageMap
                 src={getBestImageUrl(question) || ''}
-                areas={question.areas || []}
-                drawingArea={null}
-                onAreaClick={(areaId) => {
-                  if (isAnswered) return
-                  const area = question.areas?.find(a => a.id === areaId)
-                  handleAnswer(area?.isCorrect || false, question.id)
-                }}
-                alt={question.title}
-                isDrawingMode={false}
-                isEditMode={false}
+                    areas={question.areas || []} 
+                    drawingArea={null}
+                    onAreaClick={(areaId) => {
+                      if (isAnswered) return
+                      const area = question.areas?.find(a => a.id === areaId)
+                      handleAnswer(area?.isCorrect || false, question.id)
+                    }}
+                    alt={question.title}
+                    isDrawingMode={false}
+                    isEditMode={false}
                 key={`question-${question.id}-${Date.now()}`} // Force reload on re-render
                 onError={async () => {
-                  console.error('Failed to load image in test view:', question.image);
+                      console.error('Failed to load image in test view:', question.image);
                   
                   // Intentar cargar usando createProxyImage como último recurso
                   try {
@@ -554,7 +554,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
             {/* Mensaje sutil para indicar que se debe hacer clic en la imagen */}
             <div className="absolute bottom-2 left-2 right-2 bg-white bg-opacity-70 p-2 rounded text-sm text-center">
               <p>Haz clic en la imagen según la pregunta</p>
-            </div>
+                </div>
             
             {/* Retroalimentación para las respuestas */}
             <AnimatePresence>
