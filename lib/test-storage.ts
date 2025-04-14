@@ -174,7 +174,7 @@ async function uploadImageToServer(imageData: string, fileName: string = 'questi
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
+        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://tests-system.vercel.app'
       },
       body: JSON.stringify({
         imageData: imageData,
@@ -347,7 +347,7 @@ export const loadTestFromAPI = async (testId: string): Promise<Test | null> => {
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
+        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://tests-system.vercel.app'
       }
     });
 
@@ -454,7 +454,7 @@ export const loadTestsFromAPI = async () => {
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
+        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://tests-system.vercel.app'
       }
     });
 
@@ -586,7 +586,7 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
+        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://tests-system.vercel.app'
       },
       body: JSON.stringify({
         id: testId
@@ -705,7 +705,7 @@ export async function saveTest(test: Test): Promise<Test> {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
+        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://tests-system.vercel.app'
       },
       body: JSON.stringify(processedTest)
     });

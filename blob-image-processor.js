@@ -4,6 +4,12 @@
  * y cargarlas a Vercel Blob Storage.
  */
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL 
+    ? process.env.NEXT_PUBLIC_API_URL 
+    : window.location.hostname.includes('localhost') 
+      ? 'http://localhost:3000/api' 
+      : 'https://quickbooks-backend.vercel.app';
+
 // Función para procesar un blob URL y convertirlo a una URL de Vercel Blob Storage
 async function processBlobUrl(blobUrl, imageElement = null) {
   try {
@@ -118,13 +124,8 @@ async function uploadImageData(blobUrl, imageData) {
       imageData
     };
     
-    // Obtener la URL base del API
-    let apiUrl = window.location.hostname.includes('localhost') 
-      ? 'http://localhost:3000'
-      : 'https://quickbooks-backend.vercel.app';
-    
     // Realizar la petición al endpoint de procesamiento de blob
-    const response = await fetch(`${apiUrl}/api/process-blob-url`, {
+    const response = await fetch(`${API_BASE_URL}/process-blob-url`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

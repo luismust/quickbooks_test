@@ -33,6 +33,7 @@ export function LocalStorageProvider({ children }: { children: ReactNode }) {
     // Detectar si estamos en Vercel (para mostrar en la consola)
     const isVercel = typeof window !== 'undefined' && (
       window.location.hostname.includes('vercel.app') || 
+      window.location.hostname.includes('tests-system.vercel.app') ||
       process.env.NODE_ENV === 'production'
     )
     

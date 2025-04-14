@@ -213,7 +213,7 @@ export function ImageMap({
       } 
       
       // Segundo intento: buscar el identificador de testId en la URL
-      // Ejemplo: si la URL es blob:https://quickbooks-test-black.vercel.app/f1033d4-77b9-4f97-af53-6cce663518d0
+      // Ejemplo: si la URL es blob:https://tests-system.vercel.app/f1033d4-77b9-4f97-af53-6cce663518d0
       const testIdMatches = src.match(/test-([^\/]+)\.vercel/i);
       if (testIdMatches && testIdMatches[1]) {
         const testId = testIdMatches[1];
