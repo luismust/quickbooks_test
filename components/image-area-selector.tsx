@@ -131,6 +131,8 @@ export function ImageAreaSelector({
     setDrawingArea((prev: any) => {
       if (!prev) return null
       
+      // Asegurarnos que las coordenadas están en el formato [x1, y1, x2, y2]
+      // donde x1,y1 es el punto inicial y x2,y2 es el punto actual
       return {
         ...prev,
         coords: [prev.x, prev.y, x, y], // Usar el punto guardado para el inicio
@@ -143,7 +145,7 @@ export function ImageAreaSelector({
   const handleDrawEnd = () => {
     if (!drawingArea) return
 
-    console.log('Draw end')
+    console.log('Draw end with final coords:', drawingArea.coords)
     
     const width = Math.abs(drawingArea.coords[2] - drawingArea.coords[0])
     const height = Math.abs(drawingArea.coords[3] - drawingArea.coords[1])
@@ -161,10 +163,15 @@ export function ImageAreaSelector({
     const y1 = Math.min(drawingArea.coords[1], drawingArea.coords[3])
     const x2 = Math.max(drawingArea.coords[0], drawingArea.coords[2])
     const y2 = Math.max(drawingArea.coords[1], drawingArea.coords[3])
+    
+    // Valores finales redondeados para mejor precisión
+    const normalizedCoords = [x1, y1, x2, y2].map((coord) => Math.round(coord))
+    
+    console.log('Normalized coords:', normalizedCoords)
 
     const newArea = {
       ...drawingArea,
-      coords: [x1, y1, x2, y2].map((coord: number) => Math.round(coord))
+      coords: normalizedCoords
     }
 
     const updatedAreas = [...areas, newArea]

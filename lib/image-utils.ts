@@ -12,6 +12,7 @@ declare global {
  * Esta función es útil para cargar imágenes desde un origen diferente
  */
 export function createProxyImage(imageUrl: string | null | undefined): HTMLImageElement {
+  // Si no hay URL, devolver una imagen vacía con fallback
   if (!imageUrl) {
     console.warn('createProxyImage called with empty URL');
     const fallbackImg = new Image();
@@ -19,40 +20,44 @@ export function createProxyImage(imageUrl: string | null | undefined): HTMLImage
     return fallbackImg;
   }
   
+  // A partir de aquí, sabemos que imageUrl es una cadena no nula
+  const url: string = imageUrl;
+  
   // Si es una URL de blob, usarla directamente para evitar duplicación innecesaria
-  if (imageUrl.startsWith('blob:')) {
+  if (url.startsWith('blob:')) {
     // Para URLs blob, primero verificar validez
-    checkBlobValidity(imageUrl).then(isValid => {
+    checkBlobValidity(url).then(isValid => {
       if (!isValid) {
-        console.warn('Detected invalid blob URL:', imageUrl.substring(0, 40) + '...');
+        console.warn('Detected invalid blob URL:', url.substring(0, 40) + '...');
       }
     });
     
     const img = new Image();
-    img.src = imageUrl;
+    img.src = url;
     return img;
   }
   
   // Si es una URL API pero sin redirect=1, añadirla para evitar problemas CORS
-  if (imageUrl.includes('/api/images') && imageUrl.includes('id=') && !imageUrl.includes('redirect=1')) {
-    imageUrl = `${imageUrl}${imageUrl.includes('?') ? '&' : '?'}redirect=1`;
+  let finalUrl = url;
+  if (finalUrl.includes('/api/images') && finalUrl.includes('id=') && !finalUrl.includes('redirect=1')) {
+    finalUrl = `${finalUrl}${finalUrl.includes('?') ? '&' : '?'}redirect=1`;
   }
   
   // Añadir timestamp para evitar caché en imágenes de API
-  if (imageUrl.includes('/api/')) {
-    imageUrl = `${imageUrl}${imageUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
+  if (finalUrl.includes('/api/')) {
+    finalUrl = `${finalUrl}${finalUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
   }
   
   // Para imágenes base64, usarlas directamente
-  if (imageUrl.startsWith('data:')) {
+  if (finalUrl.startsWith('data:')) {
     const img = new Image();
-    img.src = imageUrl;
+    img.src = finalUrl;
     return img;
   }
   
   const img = new Image();
   img.crossOrigin = 'anonymous';
-  img.src = imageUrl;
+  img.src = finalUrl;
   
   return img;
 }
@@ -63,8 +68,8 @@ export function createProxyImage(imageUrl: string | null | undefined): HTMLImage
  * @param timeout Tiempo máximo de espera en ms (por defecto 3000)
  * @returns Promesa que resuelve a true si el blob es válido, false si no
  */
-export async function checkBlobValidity(blobUrl: string, timeout = 3000): Promise<boolean> {
-  if (!blobUrl || !blobUrl.startsWith('blob:')) return false;
+export async function checkBlobValidity(blobUrl: string | null | undefined, timeout = 3000): Promise<boolean> {
+  if (!blobUrl || typeof blobUrl !== 'string' || !blobUrl.startsWith('blob:')) return false;
   
   try {
     // En lugar de usar fetch HEAD (que puede fallar con ERR_METHOD_NOT_SUPPORTED),

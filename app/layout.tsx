@@ -5,7 +5,7 @@ import { Toaster as SonnerToaster } from "sonner"
 import { LocalStorageProvider } from '@/components/local-storage-provider';
 
 export const metadata: Metadata = {
-  title: 'QuickBook Test System',
+  title: 'Tests System',
   description: 'Create tests for new employee candidates',
 }
 

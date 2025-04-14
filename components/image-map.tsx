@@ -140,16 +140,22 @@ export function ImageMap({
   const handleImageLoad = () => {
     if (imageRef.current && containerRef.current) {
       const containerWidth = containerRef.current.clientWidth
-      const imageScale = containerWidth / (imageRef.current as any).naturalWidth || 1
+      
+      // Para imágenes cargadas a través de un div con background-image, 
+      // obtenemos el ancho desde la imagen oculta que se usa para los eventos
+      const hiddenImg = document.querySelector(`img[src="${formattedSrc}"]`)
+      const imageNaturalWidth = hiddenImg ? 
+        (hiddenImg as HTMLImageElement).naturalWidth || 300 :
+        300 // valor por defecto
+      
+      const imageScale = containerWidth / imageNaturalWidth || 1
       
       console.log('Image loaded successfully:', {
-        src: formattedSrc,
-        naturalWidth: (imageRef.current as any).naturalWidth || 300,
-        naturalHeight: (imageRef.current as any).naturalHeight || 200,
+        src: formattedSrc.substring(0, 50) + '...',
+        naturalWidth: imageNaturalWidth,
         containerWidth,
         scale: imageScale,
-        wasLoading: isLoading,
-        hadError: error
+        wasLoading: isLoading
       })
       
       setScale(imageScale)
@@ -465,7 +471,13 @@ export function ImageMap({
     console.log('MouseDown event:', { 
       raw: { x, y }, 
       normalized: { x: normalizedX, y: normalizedY },
-      scale
+      scale,
+      containerRect: {
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height
+      }
     })
     
     setIsDragging(true)
@@ -492,7 +504,11 @@ export function ImageMap({
         raw: { x, y }, 
         normalized: { x: normalizedX, y: normalizedY },
         scale, 
-        isDragging 
+        isDragging,
+        containerRect: {
+          top: rect.top,
+          left: rect.left
+        }
       })
     }
 
@@ -555,45 +571,31 @@ export function ImageMap({
       return { left: 0, top: 0, width: 20, height: 20 };
     }
     
-    // Aplicar escala a las coordenadas originales
-    const left = area.coords[0] * scale;
-    const top = area.coords[1] * scale;
-    const width = (area.coords[2] - area.coords[0]) * scale;
-    const height = (area.coords[3] - area.coords[1]) * scale;
+    // Primero normalizar las coordenadas para asegurar que x1,y1 sea la esquina superior izquierda
+    // y x2,y2 sea la esquina inferior derecha
+    const x1 = Math.min(area.coords[0], area.coords[2]);
+    const y1 = Math.min(area.coords[1], area.coords[3]);
+    const x2 = Math.max(area.coords[0], area.coords[2]);
+    const y2 = Math.max(area.coords[1], area.coords[3]);
+    
+    // Aplicar escala a las coordenadas normalizadas
+    const left = x1 * scale;
+    const top = y1 * scale;
+    const width = (x2 - x1) * scale;
+    const height = (y2 - y1) * scale;
     
     // Asegurar dimensiones mínimas en píxeles para interacción
     const minDimension = 15; // Reducido de 20 a 15 para permitir áreas un poco más pequeñas
     
     // Si el área es muy pequeña en ambas dimensiones, aumentarla para facilitar el clic
-    let finalWidth = width;
-    let finalHeight = height;
-    
-    if (Math.abs(width) < minDimension && Math.abs(height) < minDimension) {
-      // Si ambas dimensiones son muy pequeñas, aumentarlas
-      finalWidth = width < 0 ? -minDimension : minDimension;
-      finalHeight = height < 0 ? -minDimension : minDimension;
-    } else {
-      // Si solo una dimensión es pequeña, mantener la proporción
-      if (Math.abs(width) < minDimension) {
-        finalWidth = width < 0 ? -minDimension : minDimension;
-      }
-      
-      if (Math.abs(height) < minDimension) {
-        finalHeight = height < 0 ? -minDimension : minDimension;
-      }
-    }
-    
-    // Asegurar que left y top sean los valores mínimos, independientemente de la dirección del arrastre
-    const normalizedLeft = width < 0 ? left + width : left;
-    const normalizedTop = height < 0 ? top + height : top;
-    const normalizedWidth = Math.abs(finalWidth);
-    const normalizedHeight = Math.abs(finalHeight);
+    let finalWidth = Math.max(width, minDimension);
+    let finalHeight = Math.max(height, minDimension);
     
     return {
-      left: normalizedLeft,
-      top: normalizedTop,
-      width: normalizedWidth,
-      height: normalizedHeight
+      left,
+      top,
+      width: finalWidth,
+      height: finalHeight
     };
   };
   
