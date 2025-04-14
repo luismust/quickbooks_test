@@ -106,12 +106,13 @@ export function ImageAreaSelector({
     
     console.log('Draw start at:', x, y)
     
+    // Las coordenadas recibidas ya están normalizadas por ImageMap
     setDrawingArea({
       id: generateId(),
       shape: selectedTool,
       isCorrect: true,
-      coords: [x, y, x, y],
-      x,
+      coords: [x, y, x, y], // Coordenadas iniciales (x1, y1, x1, y1)
+      x, // Guardar el punto de inicio para referencia
       y,
       width: 0,
       height: 0
@@ -121,14 +122,18 @@ export function ImageAreaSelector({
   const handleDrawMove = (x: number, y: number) => {
     if (!drawingArea) return
 
-    console.log('Draw move to:', x, y)
+    // Solo registrar algunos movimientos para no saturar la consola
+    if (Math.random() < 0.05) {
+      console.log('Draw move to:', x, y);
+    }
     
+    // Usar el punto de inicio guardado para coordenadas consistentes
     setDrawingArea((prev: any) => {
       if (!prev) return null
       
       return {
         ...prev,
-        coords: [prev.x || 0, prev.y || 0, x, y],
+        coords: [prev.x, prev.y, x, y], // Usar el punto guardado para el inicio
         width: Math.abs(x - prev.x),
         height: Math.abs(y - prev.y)
       }
@@ -143,15 +148,23 @@ export function ImageAreaSelector({
     const width = Math.abs(drawingArea.coords[2] - drawingArea.coords[0])
     const height = Math.abs(drawingArea.coords[3] - drawingArea.coords[1])
     
-    if (width < 10 || height < 10) {
-      toast.error('The area must be larger to be clickable.')
+    // Reducir el umbral mínimo a 5 píxeles para permitir áreas más pequeñas
+    if (width < 5 || height < 5) {
+      toast.error('The selected area is too small. Please draw a larger area.')
       setDrawingArea(null)
       return
     }
 
+    // Asegurarnos de ordenar las coordenadas para que x1,y1 sea la esquina superior izquierda
+    // y x2,y2 sea la esquina inferior derecha (necesario para correcta detección de clics)
+    const x1 = Math.min(drawingArea.coords[0], drawingArea.coords[2])
+    const y1 = Math.min(drawingArea.coords[1], drawingArea.coords[3])
+    const x2 = Math.max(drawingArea.coords[0], drawingArea.coords[2])
+    const y2 = Math.max(drawingArea.coords[1], drawingArea.coords[3])
+
     const newArea = {
       ...drawingArea,
-      coords: drawingArea.coords.map((coord: number) => Math.round(coord))
+      coords: [x1, y1, x2, y2].map((coord: number) => Math.round(coord))
     }
 
     const updatedAreas = [...areas, newArea]
@@ -160,9 +173,12 @@ export function ImageAreaSelector({
       localFile: localFile || undefined
     })
     
+    // Importante: limpiar el área de dibujo después de agregar
     setDrawingArea(null)
     
-    toast.success('A new clickable area has been added')
+    // Cuando termine un área, mantener el modo de dibujo activo para facilitar
+    // dibujar múltiples áreas consecutivas
+    toast.success('A new clickable area has been added. You can continue drawing more areas.')
   }
 
   const handleAreaClick = (areaId: string) => {

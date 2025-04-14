@@ -391,11 +391,22 @@ export function ImageMap({
     const rect = containerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
+    
+    // Importante: normalizar las coordenadas inmediatamente al comenzar a dibujar
+    const normalizedX = x / scale
+    const normalizedY = y / scale
 
-    console.log('MouseDown event:', { x, y, scaled: { x: x / scale, y: y / scale } })
+    console.log('MouseDown event:', { 
+      raw: { x, y }, 
+      normalized: { x: normalizedX, y: normalizedY },
+      scale
+    })
     
     setIsDragging(true)
-    onDrawStart?.(x / scale, y / scale)
+    onDrawStart?.(normalizedX, normalizedY)
+    
+    // Evitar comportamientos del navegador como arrastrar la imagen
+    e.preventDefault()
   }, [isDrawingMode, onDrawStart, scale])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -405,21 +416,36 @@ export function ImageMap({
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     
+    // Normalizar las coordenadas según la escala para mantener consistencia
+    const normalizedX = x / scale
+    const normalizedY = y / scale
+    
     // Solo registramos cada 5 movimientos para no saturar la consola
     if (Math.random() < 0.05) {
-      console.log('MouseMove event:', { x, y, scaled: { x: x / scale, y: y / scale }, isDragging })
+      console.log('MouseMove event:', { 
+        raw: { x, y }, 
+        normalized: { x: normalizedX, y: normalizedY },
+        scale, 
+        isDragging 
+      })
     }
 
-    onDrawMove?.(x / scale, y / scale)
+    onDrawMove?.(normalizedX, normalizedY)
+    
+    // Evitar comportamientos del navegador
+    e.preventDefault()
   }, [isDrawingMode, onDrawMove, scale, isDragging])
   
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
     if (!isDrawingMode || !isDragging) return
     
     console.log('MouseUp event, ending drag operation')
     
     setIsDragging(false)
     onDrawEnd?.()
+    
+    // Evitar comportamientos del navegador
+    e.preventDefault()
   }, [isDrawingMode, onDrawEnd, isDragging])
   
   // Añadimos un manejador global para capturar cuando se suelta el botón del ratón fuera del componente
@@ -458,23 +484,103 @@ export function ImageMap({
 
   // Asegurar que las áreas sean lo suficientemente grandes para que se puedan clickear
   const getAreaDimensions = (area: Area) => {
+    if (!area.coords || area.coords.length < 4) {
+      console.error('Invalid area coordinates:', area);
+      return { left: 0, top: 0, width: 20, height: 20 };
+    }
+    
+    // Aplicar escala a las coordenadas originales
     const left = area.coords[0] * scale;
     const top = area.coords[1] * scale;
     const width = (area.coords[2] - area.coords[0]) * scale;
     const height = (area.coords[3] - area.coords[1]) * scale;
     
     // Asegurar dimensiones mínimas en píxeles para interacción
-    const minDimension = 20;
-    const finalWidth = Math.max(width, minDimension);
-    const finalHeight = Math.max(height, minDimension);
+    const minDimension = 15; // Reducido de 20 a 15 para permitir áreas un poco más pequeñas
+    
+    // Si el área es muy pequeña en ambas dimensiones, aumentarla para facilitar el clic
+    let finalWidth = width;
+    let finalHeight = height;
+    
+    if (Math.abs(width) < minDimension && Math.abs(height) < minDimension) {
+      // Si ambas dimensiones son muy pequeñas, aumentarlas
+      finalWidth = width < 0 ? -minDimension : minDimension;
+      finalHeight = height < 0 ? -minDimension : minDimension;
+    } else {
+      // Si solo una dimensión es pequeña, mantener la proporción
+      if (Math.abs(width) < minDimension) {
+        finalWidth = width < 0 ? -minDimension : minDimension;
+      }
+      
+      if (Math.abs(height) < minDimension) {
+        finalHeight = height < 0 ? -minDimension : minDimension;
+      }
+    }
+    
+    // Asegurar que left y top sean los valores mínimos, independientemente de la dirección del arrastre
+    const normalizedLeft = width < 0 ? left + width : left;
+    const normalizedTop = height < 0 ? top + height : top;
+    const normalizedWidth = Math.abs(finalWidth);
+    const normalizedHeight = Math.abs(finalHeight);
     
     return {
-      left,
-      top,
-      width: finalWidth,
-      height: finalHeight
+      left: normalizedLeft,
+      top: normalizedTop,
+      width: normalizedWidth,
+      height: normalizedHeight
     };
-  }
+  };
+  
+  // Función para verificar si un punto está dentro de un área
+  const isPointInArea = (x: number, y: number, area: Area): boolean => {
+    if (!area.coords || area.coords.length < 4) return false;
+    
+    // Coordenadas originales sin escalar
+    const left = Math.min(area.coords[0], area.coords[2]);
+    const right = Math.max(area.coords[0], area.coords[2]);
+    const top = Math.min(area.coords[1], area.coords[3]);
+    const bottom = Math.max(area.coords[1], area.coords[3]);
+    
+    // Coordenadas del clic sin escalar
+    const clickX = x / scale;
+    const clickY = y / scale;
+    
+    return clickX >= left && clickX <= right && clickY >= top && clickY <= bottom;
+  };
+  
+  // Función para manejar el clic en un área específica
+  const handleAreaClick = useCallback((e: React.MouseEvent) => {
+    if (isDrawingMode || !containerRef.current) return;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+    
+    // Verificar qué área fue clickeada
+    let clickedAreaId: string | null = null;
+    
+    // Revisar áreas en orden inverso (las últimas dibujadas están encima)
+    for (let i = areas.length - 1; i >= 0; i--) {
+      if (isPointInArea(clickX, clickY, areas[i])) {
+        clickedAreaId = areas[i].id;
+        break;
+      }
+    }
+    
+    if (clickedAreaId) {
+      console.log('Area clicked:', clickedAreaId);
+      onAreaClick(clickedAreaId);
+      
+      // Agregar feedback visual temporal
+      const clickedElement = document.querySelector(`[data-area-id="${clickedAreaId}"]`);
+      if (clickedElement) {
+        clickedElement.classList.add('bg-primary/20');
+        setTimeout(() => {
+          clickedElement.classList.remove('bg-primary/20');
+        }, 200);
+      }
+    }
+  }, [areas, isDrawingMode, onAreaClick, scale]);
 
   return (
     <div className="relative">
@@ -501,6 +607,7 @@ export function ImageMap({
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
+          onClick={!isDrawingMode ? handleAreaClick : undefined}
         >
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
@@ -537,27 +644,35 @@ export function ImageMap({
             />
           </div>
       
-          {!isLoading && areas.map((area) => (
-            <div
-              key={area.id}
-              className={`absolute transition-colors ${
-                getAreaStyle(area)
-              } ${isDrawingMode ? 'pointer-events-none' : ''} ${
-                !isEditMode ? 'cursor-default' : 'cursor-pointer'
-              }`}
-              style={getAreaDimensions(area)}
-              onClick={() => onAreaClick(area.id)}
-            />
-          ))}
+          {!isLoading && areas.map((area) => {
+            const dimensions = getAreaDimensions(area);
+            return (
+              <div
+                key={area.id}
+                data-area-id={area.id}
+                className={`absolute transition-colors ${
+                  getAreaStyle(area)
+                } ${isDrawingMode ? 'pointer-events-none' : ''} ${
+                  !isEditMode ? 'hover:bg-primary/10' : 'cursor-pointer'
+                }`}
+                style={{
+                  left: dimensions.left,
+                  top: dimensions.top,
+                  width: dimensions.width,
+                  height: dimensions.height,
+                }}
+              />
+            );
+          })}
 
           {!isLoading && drawingArea && (
             <div
               className="absolute border-2 border-blue-500 bg-blue-500/20"
               style={{
-                left: drawingArea.coords[0] * scale,
-                top: drawingArea.coords[1] * scale,
-                width: (drawingArea.coords[2] - drawingArea.coords[0]) * scale,
-                height: (drawingArea.coords[3] - drawingArea.coords[1]) * scale
+                left: Math.min(drawingArea.coords[0], drawingArea.coords[2]) * scale,
+                top: Math.min(drawingArea.coords[1], drawingArea.coords[3]) * scale,
+                width: Math.abs(drawingArea.coords[2] - drawingArea.coords[0]) * scale,
+                height: Math.abs(drawingArea.coords[3] - drawingArea.coords[1]) * scale
               }}
             />
           )}
