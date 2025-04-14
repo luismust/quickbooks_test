@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import type { Area } from "@/lib/test-storage"
-import { createProxyImage } from "@/lib/image-utils"
+import { createProxyImage, getBestImageUrl } from "@/lib/image-utils"
 
 interface ImageMapProps {
   src: string
@@ -45,9 +45,24 @@ export function ImageMap({
   const [errorMessage, setErrorMessage] = useState("")
   const [retryCount, setRetryCount] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
+  const [usedFallback, setUsedFallback] = useState(false)
   
   // Placeholder constante para imágenes que fallan
   const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
+  
+  // Función para verificar si una blob URL sigue siendo válida
+  const checkBlobValidity = useCallback(async (blobUrl: string): Promise<boolean> => {
+    if (!blobUrl || !blobUrl.startsWith('blob:')) return false;
+    
+    try {
+      console.log('Checking blob URL validity:', blobUrl.substring(0, 40) + '...');
+      const response = await fetch(blobUrl, { method: 'HEAD' });
+      return response.ok;
+    } catch (error) {
+      console.error('Blob URL is invalid:', error);
+      return false;
+    }
+  }, []);
   
   const formattedSrc = useMemo(() => {
     // Si no hay imagen, devolver vacío
@@ -124,112 +139,195 @@ export function ImageMap({
     setError(false)
   }
 
-  const handleError = () => {
-    // Aumentar el máximo de reintentos
-    if (retryCount >= 4) {
-      console.error('Error loading image after multiple attempts:', formattedSrc)
-      setIsLoading(false)
-      setError(true)
-      setErrorMessage(`Could not load the image after multiple attempts.`)
-      
-      // Depurar la causa del error
-      console.log('Source format analysis:', {
-        isBase64: formattedSrc?.startsWith('data:image/'),
-        isHttp: formattedSrc?.startsWith('http'),
-        isBlob: formattedSrc?.startsWith('blob:'),
-        isAirtable: formattedSrc?.includes('api.airtable.com'),
-        sourceLength: formattedSrc?.length || 0,
-        sourceStart: formattedSrc?.substring(0, 50) || 'empty'
-      });
-      
-      // Intentar corregir URLs de Airtable como último intento
-      if (formattedSrc?.includes('api.airtable.com') && !formattedSrc.startsWith('https://')) {
-        const correctedUrl = `https://api.airtable.com/${formattedSrc.replace(/^\/+/, '')}`;
-        console.log('Attempting with corrected Airtable URL:', correctedUrl);
-      }
-      
-      onError?.()
-      return
+  // Intentar alternativas cuando la carga de imagen falla
+  const tryAlternativeImage = useCallback(async () => {
+    if (usedFallback || !src || typeof src !== 'string') {
+      return false;
     }
     
-    setRetryCount(prev => prev + 1)
-    console.error(`Error loading image (attempt ${retryCount + 1}):`, formattedSrc)
+    console.log('Trying alternative image sources for:', src.substring(0, 40) + '...');
+    setUsedFallback(true);
+    
+    // Intentar encontrar una imagen alternativa si el componente está en un contexto de Question
+    if (typeof src === 'object') {
+      const alternativeUrl = getBestImageUrl(src);
+      if (alternativeUrl && alternativeUrl !== formattedSrc) {
+        console.log('Found alternative URL:', alternativeUrl);
+        
+        // Usar createProxyImage para cargar esta alternativa
+        const proxyImg = createProxyImage(alternativeUrl);
+        if (imageRef.current) {
+          imageRef.current.src = proxyImg.src;
+          return true;
+        }
+      }
+    }
+    
+    // Si es una URL de vercel blob que probablemente expiró, intentar reconstruir
+    // basado en el patrón común de las URLs de vercel blob
+    if (formattedSrc.includes('vercel.app') && formattedSrc.includes('/9')) {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+      
+      // Extraer el ID de la imagen de la URL
+      const matches = formattedSrc.match(/\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      if (matches && matches[1]) {
+        const imageId = matches[1];
+        const alternativeUrl = `${API_URL}/images?id=${imageId}&redirect=1`;
+        
+        console.log('Reconstructed API URL from blob URL:', alternativeUrl);
+        
+        const proxyImg = createProxyImage(alternativeUrl);
+        if (imageRef.current) {
+          imageRef.current.src = proxyImg.src;
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }, [formattedSrc, src, usedFallback]);
+
+  const handleError = async () => {
+    // Si la URL es un blob, verificar si sigue siendo válido
+    if (formattedSrc?.startsWith('blob:')) {
+      const isValid = await checkBlobValidity(formattedSrc);
+      if (!isValid) {
+        console.log('Blob URL failed, likely expired:', formattedSrc);
+        setErrorMessage("Blob URL has expired. Trying alternatives...");
+        
+        // Intentar alternativas inmediatamente para URLs blob inválidas
+        const foundAlternative = await tryAlternativeImage();
+        if (foundAlternative) {
+          console.log('Found and using alternative for expired blob URL');
+          return; // Si encontramos alternativa, salir de la función
+        }
+      }
+    }
+    
+    // Aumentar el máximo de reintentos
+    if (retryCount >= 2) {
+      console.error('Error loading image after multiple attempts:', formattedSrc);
+      
+      // Intentar alternativas antes de rendirnos
+      const foundAlternative = await tryAlternativeImage();
+      if (!foundAlternative) {
+        setIsLoading(false);
+        setError(true);
+        setErrorMessage(`Could not load the image after multiple attempts.`);
+        
+        // Depurar la causa del error
+        console.log('Source format analysis:', {
+          isBase64: formattedSrc?.startsWith('data:image/'),
+          isHttp: formattedSrc?.startsWith('http'),
+          isBlob: formattedSrc?.startsWith('blob:'),
+          isAirtable: formattedSrc?.includes('api.airtable.com'),
+          sourceLength: formattedSrc?.length || 0,
+          sourceStart: formattedSrc?.substring(0, 50) || 'empty'
+        });
+        
+        onError?.();
+      }
+      return;
+    }
+    
+    setRetryCount(prev => prev + 1);
+    console.error(`Error loading image (attempt ${retryCount + 1}):`, formattedSrc);
     
     // Si es una URL relativa de Airtable, intentar corregirla
     if (formattedSrc?.includes('api.airtable.com') && !formattedSrc.startsWith('https://')) {
       const correctedUrl = `https://api.airtable.com/${formattedSrc.replace(/^\/+/, '')}`;
       console.log('Attempting with corrected Airtable URL:', correctedUrl);
+      
+      if (imageRef.current) {
+        imageRef.current.src = correctedUrl;
+        return;
+      }
     }
     
-    // Si es una URL blob que falló, reportar el error
-    if (formattedSrc?.startsWith('blob:')) {
-      console.log('Blob URL failed, likely expired');
-      setIsLoading(false)
-      setError(true)
-      setErrorMessage("Image URL has expired. Please refresh the test.")
-      toast.error("Image URL has expired. Please refresh the test.")
-      onError?.()
-      return;
-    }
+    setIsLoading(false);
+    setError(true);
+    setErrorMessage("Could not load the image. Trying alternatives...");
     
-    setIsLoading(false)
-    setError(true)
-    setErrorMessage("Could not load the image.")
-    toast.error("Could not load the image. Check the URL.")
-    onError?.()
+    // Intentar alternativas
+    const foundAlternative = await tryAlternativeImage();
+    if (!foundAlternative) {
+      toast.error("Could not load the image. Check the URL.");
+      onError?.();
+    }
   }
   
   // Ahora definimos el useEffect después de las funciones que usa
   useEffect(() => {
     if (formattedSrc) {
-      setIsLoading(true)
-      setError(false)
-      setErrorMessage("")
+      setIsLoading(true);
+      setError(false);
+      setErrorMessage("");
+      setUsedFallback(false);
+      setRetryCount(0);
       
-      // Utilizar createProxyImage para cargar la imagen con manejo de CORS
-      try {
-        // Si ya estamos usando una imagen base64, cargarla directamente
-        if (formattedSrc.startsWith('data:')) {
-          // Para imágenes data:, confiar en que son correctas
-          if (imageRef.current) {
-            imageRef.current.src = formattedSrc;
+      // Para URLs blob, verificar validez primero
+      if (formattedSrc.startsWith('blob:')) {
+        checkBlobValidity(formattedSrc).then(isValid => {
+          if (!isValid) {
+            console.log('Blob URL is invalid, trying alternatives');
+            handleError();
+            return;
           }
           
-          setTimeout(() => {
+          // Si el blob es válido, continuar normalmente
+          loadImage();
+        });
+      } else {
+        // Para otras URLs, cargar normalmente
+        loadImage();
+      }
+      
+      function loadImage() {
+        // Utilizar createProxyImage para cargar la imagen con manejo de CORS
+        try {
+          // Si ya estamos usando una imagen base64, cargarla directamente
+          if (formattedSrc.startsWith('data:')) {
+            // Para imágenes data:, confiar en que son correctas
+            if (imageRef.current) {
+              imageRef.current.src = formattedSrc;
+            }
+            
+            setTimeout(() => {
+              handleImageLoad();
+              setIsLoading(false);
+              setError(false);
+            }, 100);
+            return;
+          }
+          
+          // Para URLs normales, usar createProxyImage
+          const proxyImg = createProxyImage(formattedSrc);
+          
+          proxyImg.onload = () => {
+            // Cuando la imagen carga con éxito, asignarla al elemento de referencia
+            if (imageRef.current) {
+              imageRef.current.src = proxyImg.src;
+            }
+            
             handleImageLoad();
             setIsLoading(false);
             setError(false);
-          }, 100);
-          return;
-        }
-        
-        // Para URLs normales, usar createProxyImage
-        const proxyImg = createProxyImage(formattedSrc);
-        
-        proxyImg.onload = () => {
-          // Cuando la imagen carga con éxito, asignarla al elemento de referencia
-          if (imageRef.current) {
-            imageRef.current.src = proxyImg.src;
-          }
+          };
           
-          handleImageLoad();
-          setIsLoading(false);
-          setError(false);
-        };
-        
-        proxyImg.onerror = () => {
-          console.error('Error loading image with createProxyImage:', formattedSrc);
+          proxyImg.onerror = () => {
+            console.error('Error loading image with createProxyImage:', formattedSrc);
+            handleError();
+          };
+        } catch (e) {
+          console.error('Exception in image loading:', e);
           handleError();
-        };
-      } catch (e) {
-        console.error('Exception in image loading:', e);
-        handleError();
+        }
       }
     } else {
-      setIsLoading(false)
-      setError(true)
+      setIsLoading(false);
+      setError(true);
     }
-  }, [formattedSrc])
+  }, [formattedSrc, checkBlobValidity]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (!isDrawingMode || !containerRef.current) return

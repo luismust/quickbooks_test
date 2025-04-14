@@ -1,5 +1,12 @@
 import type { Question } from './test-storage';
 
+// Extender la interfaz de HTMLImageElement para incluir la propiedad _onloadCallback
+declare global {
+  interface HTMLImageElement {
+    _onloadCallback?: (e: Event) => void;
+  }
+}
+
 /**
  * Función para crear un elemento de imagen con manejo de CORS
  * Permite cargar imágenes desde diferentes fuentes con configuración apropiada
@@ -17,9 +24,56 @@ export function createProxyImage(url: string | Question, element?: HTMLImageElem
   // Verificar si nos pasaron un objeto Question en lugar de una URL
   if (url && typeof url === 'object') {
     // Priorizar la URL directa al blob si existe
-    if (url.blobUrl) {
-      img.src = `${url.blobUrl}${url.blobUrl.includes('?') ? '&' : '?'}t=${timestamp}`;
-      console.log('Using blobUrl for image:', url.blobUrl);
+    const blobUrl = url.blobUrl;
+    if (blobUrl && typeof blobUrl === 'string') {
+      // Verificar si la URL blob es válida intentando hacer una solicitud HEAD
+      try {
+        const checkBlobPromise = fetch(blobUrl, { method: 'HEAD' })
+          .then(response => {
+            if (response.ok) {
+              img.src = `${blobUrl}${blobUrl.includes('?') ? '&' : '?'}t=${timestamp}`;
+              console.log('Using blobUrl for image:', blobUrl);
+              return true;
+            }
+            throw new Error('Blob URL not valid');
+          })
+          .catch(() => {
+            // Si la blob URL falla, intenta la siguiente fuente
+            if (url.imageApiUrl) {
+              img.src = `${url.imageApiUrl}${url.imageApiUrl.includes('?') ? '&' : '?'}t=${timestamp}`;
+              console.log('Blob URL failed, using imageApiUrl instead:', url.imageApiUrl);
+            } else if (url.image) {
+              img.src = `${url.image}${url.image.includes('?') ? '&' : '?'}t=${timestamp}`;
+              console.log('Blob URL failed, using standard image URL instead:', url.image);
+            } else if (url.imageId) {
+              const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+              const imageUrl = `${API_URL}/images?id=${url.imageId}&redirect=1&t=${timestamp}`;
+              img.src = imageUrl;
+              console.log('Blob URL failed, using imageId URL instead:', imageUrl);
+            }
+            return false;
+          });
+        
+        // Establecer un tiempo de espera para la verificación de blob
+        setTimeout(() => {
+          checkBlobPromise.catch(() => {
+            console.log('Blob URL check timed out');
+            if (!img.src && url.imageApiUrl) {
+              img.src = `${url.imageApiUrl}${url.imageApiUrl.includes('?') ? '&' : '?'}t=${timestamp}`;
+            }
+          });
+        }, 3000); // 3 segundos de tiempo de espera
+      } catch (error) {
+        console.error('Error checking blob URL:', error);
+        // Si hay un error al verificar el blob, usar la siguiente fuente disponible
+        if (url.imageApiUrl) {
+          img.src = `${url.imageApiUrl}${url.imageApiUrl.includes('?') ? '&' : '?'}t=${timestamp}`;
+          console.log('Using imageApiUrl for image (blob check failed):', url.imageApiUrl);
+        } else if (url.image) {
+          img.src = `${url.image}${url.image.includes('?') ? '&' : '?'}t=${timestamp}`;
+          console.log('Using standard image URL (blob check failed):', url.image);
+        }
+      }
     }
     // Si hay imageApiUrl como respaldo, usarla
     else if (url.imageApiUrl) {
@@ -31,14 +85,93 @@ export function createProxyImage(url: string | Question, element?: HTMLImageElem
       img.src = `${url.image}${url.image.includes('?') ? '&' : '?'}t=${timestamp}`;
       console.log('Using standard image URL:', url.image);
     }
+    // Si hay imageId pero no hay URLs, construir URL a partir del API_URL
+    else if (url.imageId) {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+      const imageUrl = `${API_URL}/images?id=${url.imageId}&redirect=1&t=${timestamp}`;
+      img.src = imageUrl;
+      console.log('Using API URL constructed from imageId:', imageUrl);
+    }
   } else if (typeof url === 'string') {
+    // Verificar si es una URL de blob
+    if (url.startsWith('blob:')) {
+      // Verificar si la URL blob es válida intentando hacer una solicitud HEAD
+      try {
+        fetch(url, { method: 'HEAD' })
+          .then(response => {
+            if (response.ok) {
+              img.src = url;
+              console.log('Verified blob URL is valid:', url);
+            } else {
+              console.error('Blob URL returned error status:', response.status);
+              img.onerror?.(new ErrorEvent('error'));
+            }
+          })
+          .catch(error => {
+            console.error('Error checking blob URL:', error);
+            img.onerror?.(new ErrorEvent('error'));
+          });
+          
+        // Establecer un tiempo de espera para la verificación
+        setTimeout(() => {
+          if (!img.src) {
+            console.log('Blob URL check timed out');
+            img.onerror?.(new ErrorEvent('error'));
+          }
+        }, 3000); // 3 segundos de tiempo de espera
+      } catch (error) {
+        console.error('Exception checking blob URL:', error);
+        img.onerror?.(new ErrorEvent('error'));
+      }
+    }
     // Para URLs base64, no agregar timestamp
-    if (url.startsWith('data:')) {
+    else if (url.startsWith('data:')) {
       img.src = url;
     } else {
       img.src = `${url}${url.includes('?') ? '&' : '?'}t=${timestamp}`;
     }
   }
+
+  // Establecer un tiempo límite para cargar la imagen
+  const timeoutId = setTimeout(() => {
+    if (!img.complete) {
+      console.error('Image load timed out after 10 seconds:', img.src);
+      img.onerror?.(new ErrorEvent('timeout'));
+    }
+  }, 10000); // 10 segundos
+
+  // Limpiar el timeout cuando la imagen se cargue o falle
+  const originalOnload = img.onload;
+  img.onload = (e: Event) => {
+    clearTimeout(timeoutId);
+    if (img._onloadCallback) {
+      img._onloadCallback(e);
+    }
+    // Call original handler if it exists
+    if (originalOnload) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (originalOnload as any).call(img, e);
+      } catch (err) {
+        console.error('Error calling original onload handler:', err);
+      }
+    }
+  };
+
+  // Store the original error handler
+  const originalOnError = img.onerror;
+  img.onerror = (evt: Event | string) => {
+    clearTimeout(timeoutId);
+    // Call original handler if it exists
+    if (originalOnError) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (originalOnError as any).call(img, evt);
+      } catch (err) {
+        console.error('Error calling original onerror handler:', err);
+      }
+    }
+  };
   
   return img;
 }
@@ -93,6 +226,9 @@ export async function preloadQuestionImages(questions: Question[]): Promise<Reco
       }
       
       const img = createProxyImage(imageUrl);
+      
+      // Guardar la función de callback original
+      img._onloadCallback = img.onload as ((e: Event) => void) | undefined;
       
       // Cuando la imagen se cargue, guardarla en el objeto
       img.onload = () => {
