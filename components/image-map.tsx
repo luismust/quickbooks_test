@@ -675,10 +675,21 @@ export function ImageMap({
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
     
-    console.log('Image clicked at:', { clickX, clickY, scale });
+    console.log('Image clicked at:', { clickX, clickY, scale, areasCount: areas.length });
+    
+    // Debug: imprimir todas las áreas disponibles
+    if (areas.length > 0) {
+      console.log('Available areas:', areas.map(a => ({
+        id: a.id,
+        isCorrect: a.isCorrect,
+        coords: a.coords && a.coords.length >= 4 ? 
+          `(${a.coords[0]},${a.coords[1]}) to (${a.coords[2]},${a.coords[3]})` : 'invalid coords'
+      })));
+    }
     
     // Verificar qué área fue clickeada
     let clickedAreaId: string | null = null;
+    let clickedArea: Area | null = null;
     
     // Revisar áreas en orden inverso (las últimas dibujadas están encima)
     for (let i = areas.length - 1; i >= 0; i--) {
@@ -686,12 +697,13 @@ export function ImageMap({
       if (isPointInArea(clickX, clickY, area)) {
         console.log(`Area ${area.id} was clicked - isCorrect: ${area.isCorrect}`);
         clickedAreaId = area.id;
+        clickedArea = area;
         break;
       }
     }
     
-    if (clickedAreaId) {
-      console.log('Area clicked:', clickedAreaId);
+    if (clickedAreaId && clickedArea) {
+      console.log('Area clicked:', clickedAreaId, 'isCorrect:', clickedArea.isCorrect);
       onAreaClick(clickedAreaId);
       
       // Solo mostrar feedback visual en modo edición

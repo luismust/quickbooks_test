@@ -391,6 +391,8 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
     const question = processedQuestions.find(q => q.id === questionId)
     if (!question) return
     
+    console.log('handleAnswer called with:', { isCorrect, questionId });
+    
     const points = isCorrect ? question.scoring?.correct || 1 : -(question.scoring?.incorrect || 0)
     setScore(prev => Math.max(0, prev + points))
     
@@ -410,6 +412,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
     setAnswered(prev => [...prev, questionId])
     setUserAnswers(prev => ({ ...prev, [questionId]: isCorrect }))
     
+    // Mostrar mensaje global de feedback
     setShowFeedback({
       correct: isCorrect,
       message: isCorrect 
@@ -500,15 +503,25 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                     areas={question.areas || []} 
                     drawingArea={null}
                     onAreaClick={(areaId) => {
-                      if (isAnswered) return
+                      if (isAnswered) return;
+                      
+                      // Buscar el área correcta por ID y obtener su propiedad isCorrect
+                      const area = question.areas?.find(a => a.id === areaId);
+                      
                       console.log('Area clicked in TestViewer:', areaId);
-                      const area = question.areas?.find(a => a.id === areaId)
+                      console.log('Areas available:', question.areas?.map(a => ({ 
+                        id: a.id, 
+                        isCorrect: a.isCorrect 
+                      })));
                       console.log('Found area:', area ? 
-                        { id: area.id, isCorrect: area.isCorrect, coords: area.coords } : 
+                        { id: area.id, isCorrect: area.isCorrect } : 
                         'Area not found');
                       
                       if (area) {
-                        handleAnswer(area.isCorrect || false, question.id);
+                        // Usar específicamente el valor isCorrect del área para determinar si es correcta
+                        const isCorrect = area.isCorrect === true;
+                        console.log('Is this answer correct?', isCorrect);
+                        handleAnswer(isCorrect, question.id);
                       } else {
                         console.error('Area with ID not found:', areaId);
                         handleAnswer(false, question.id);
