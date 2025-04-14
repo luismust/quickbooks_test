@@ -141,48 +141,66 @@ export function ImageMap({
   // Definir handleImageLoad y handleError antes de usarlos en useEffect
   const handleImageLoad = () => {
     if (imageRef.current && containerRef.current) {
-      const containerWidth = containerRef.current.clientWidth
+      const containerWidth = containerRef.current.clientWidth;
       
       // Para imágenes cargadas a través de un div con background-image, 
       // obtenemos el ancho desde la imagen oculta que se usa para los eventos
-      const hiddenImg = document.querySelector(`img[src="${formattedSrc}"]`) as HTMLImageElement
+      const hiddenImg = document.querySelector(`img[src="${formattedSrc}"]`) as HTMLImageElement;
       
       // Si tenemos la imagen oculta, usar su tamaño natural
       let imageNaturalWidth = 300; // valor por defecto
+      let imageNaturalHeight = 200; // valor por defecto
       
       if (hiddenImg && hiddenImg.naturalWidth) {
         imageNaturalWidth = hiddenImg.naturalWidth;
-        console.log('Using naturalWidth from hidden image:', imageNaturalWidth);
+        imageNaturalHeight = hiddenImg.naturalHeight || 200;
+        console.log('Using naturalWidth/Height from hidden image:', 
+          { width: imageNaturalWidth, height: imageNaturalHeight });
       } else {
         // Si no tenemos la imagen oculta, intentar con el backgroundImage
         const backgroundDiv = imageRef.current as HTMLDivElement;
         const computedStyle = window.getComputedStyle(backgroundDiv);
         const bgWidth = parseInt(computedStyle.width);
+        const bgHeight = parseInt(computedStyle.height);
         
         if (!isNaN(bgWidth) && bgWidth > 0) {
-          console.log('Using computed backgroundImage width:', bgWidth);
+          console.log('Using computed backgroundImage dimensions:', 
+            { width: bgWidth, height: bgHeight });
           imageNaturalWidth = bgWidth;
+          imageNaturalHeight = bgHeight || imageNaturalWidth * 0.66; // Proporción aproximada si no hay altura
         } else {
-          console.log('Using default width:', imageNaturalWidth);
+          console.log('Using default dimensions:', 
+            { width: imageNaturalWidth, height: imageNaturalHeight });
         }
       }
       
       // Calcular la escala basada en el ancho del contenedor y el ancho natural de la imagen
-      const imageScale = containerWidth / imageNaturalWidth || 1;
+      const widthScale = containerWidth / imageNaturalWidth || 1;
+      
+      // También necesitamos determinar la altura del contenedor
+      const containerHeight = containerRef.current.clientHeight;
+      // Y calcular la escala de altura
+      const heightScale = containerHeight / imageNaturalHeight || widthScale;
+      
+      // Usar la misma escala para ambas dimensiones para mantener la proporción
+      const imageScale = widthScale;
       
       console.log('Image loaded successfully:', {
         src: formattedSrc.substring(0, 50) + '...',
-        naturalWidth: imageNaturalWidth,
-        containerWidth,
-        scale: imageScale,
-        wasLoading: isLoading
+        naturalDimensions: { width: imageNaturalWidth, height: imageNaturalHeight },
+        containerDimensions: { width: containerWidth, height: containerHeight },
+        scales: { width: widthScale, height: heightScale, used: imageScale },
+        wasLoading: isLoading,
+        mode: isEditMode ? 'edit' : 'view'
       });
       
+      // Guardar la escala para usarla en el posicionamiento de áreas
       setScale(imageScale);
     }
+    
     setIsLoading(false);
     setError(false);
-  }
+  };
 
   // Intentar alternativas cuando la carga de imagen falla
   const tryAlternativeImage = useCallback(async () => {
@@ -598,33 +616,55 @@ export function ImageMap({
     const x2 = Math.max(area.coords[0], area.coords[2]);
     const y2 = Math.max(area.coords[1], area.coords[3]);
     
+    // Obtener una referencia al contenedor para usar sus dimensiones actuales
+    const container = containerRef.current;
+    let containerWidth = 0;
+    let containerHeight = 0;
+    
+    if (container) {
+      containerWidth = container.clientWidth;
+      containerHeight = container.clientHeight;
+    }
+    
+    // Si tenemos la imagen en el DOM, usemos sus dimensiones actuales 
+    const imageElement = imageRef.current;
+    let imageWidth = 0;
+    let imageHeight = 0;
+    
+    if (imageElement) {
+      const computedStyle = window.getComputedStyle(imageElement as HTMLElement);
+      imageWidth = parseInt(computedStyle.width) || containerWidth;
+      imageHeight = parseInt(computedStyle.height) || containerHeight;
+    }
+    
+    // Calcular proporción basada en las dimensiones actuales
+    const currentScale = scale;
+    
     // Aplicar escala a las coordenadas normalizadas
-    const left = x1 * scale;
-    const top = y1 * scale;
-    const width = (x2 - x1) * scale;
-    const height = (y2 - y1) * scale;
+    const left = x1 * currentScale;
+    const top = y1 * currentScale;
+    const width = (x2 - x1) * currentScale;
+    const height = (y2 - y1) * currentScale;
     
     // Asegurar dimensiones mínimas en píxeles para interacción
-    const minDimension = 15; // Reducido de 20 a 15 para permitir áreas un poco más pequeñas
+    const minDimension = 12; // Reducido para permitir áreas más pequeñas
     
     // Si el área es muy pequeña en ambas dimensiones, aumentarla para facilitar el clic
     let finalWidth = Math.max(width, minDimension);
     let finalHeight = Math.max(height, minDimension);
     
-    // Registro para debug (aumentamos probabilidad a 20% para más información)
-    if (Math.random() < 0.2) {
+    // Log detallado pero limitado a un pequeño porcentaje de llamadas
+    if (Math.random() < 0.1) {
       console.log('Area dimensions calculated:', { 
         id: area.id,
         isCorrect: area.isCorrect,
         original: { x1, y1, x2, y2 },
-        scaled: { left, top, width, height },
-        final: { 
-          left, 
-          top, 
-          width: finalWidth, 
-          height: finalHeight 
-        },
-        scale
+        containerSize: { width: containerWidth, height: containerHeight },
+        imageSize: { width: imageWidth, height: imageHeight },
+        scale: currentScale,
+        result: {
+          left, top, width: finalWidth, height: finalHeight
+        }
       });
     }
     
@@ -652,17 +692,20 @@ export function ImageMap({
     
     const isInside = clickX >= left && clickX <= right && clickY >= top && clickY <= bottom;
     
-    console.log('Click check:', { 
-      clickX, 
-      clickY, 
-      area: {
-        id: area.id,
-        isCorrect: area.isCorrect,
-        coords: `(${left},${top}) to (${right},${bottom})`
-      },
-      scale,
-      result: isInside
-    });
+    // Limitar logs, pero mantener algunos para depuración
+    if (Math.random() < 0.2) {
+      console.log('Click check:', { 
+        clickRaw: { x, y },
+        clickNormalized: { x: clickX, y: clickY },
+        area: {
+          id: area.id,
+          isCorrect: area.isCorrect,
+          coords: `(${left},${top}) to (${right},${bottom})`
+        },
+        scale,
+        result: isInside
+      });
+    }
     
     return isInside;
   };
@@ -766,6 +809,14 @@ export function ImageMap({
               }
             }
           }}
+          style={{
+            // Forzar un tamaño mínimo para el contenedor
+            minHeight: "300px",
+            // Asegurar contenedor dimensionado
+            position: "relative",
+            // Preservar ratio
+            aspectRatio: formattedSrc.startsWith('data:') ? "auto" : "16/9"
+          }}
         >
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
@@ -782,7 +833,10 @@ export function ImageMap({
               backgroundPosition: 'center',
               backgroundRepeat: 'no-repeat',
               width: '100%',
-              height: formattedSrc.startsWith('data:') ? '300px' : '400px'
+              height: '100%', // Usar 100% en lugar de altura fija
+              minHeight: "300px", // Altura mínima
+              // No limitar la altura en diferentes tipos - usar contención
+              maxHeight: "none"
             }}
             className={cn(
               "transition-opacity duration-200 image-map-image",
@@ -808,6 +862,7 @@ export function ImageMap({
             <div
               key={area.id}
               data-area-id={area.id}
+              data-is-correct={area.isCorrect ? "true" : "false"}
               className={`absolute transition-colors ${
                 getAreaStyle(area)
               } ${isDrawingMode ? 'pointer-events-none' : ''} ${
@@ -821,13 +876,9 @@ export function ImageMap({
                 // En modo test las áreas deben ser casi invisibles pero receptivas a clics
                 background: isEditMode ? 'rgba(0,0,0,0.03)' : 'transparent',
                 border: isEditMode ? '1px solid' : 'none',
-                // Solo en desarrollo, añadir un sutil borde en hover para testing
-                // Puedes quitar esto en producción
-                ...(process.env.NODE_ENV === 'development' && !isEditMode ? {
-                  transition: 'all 0.2s',
-                  ':hover': {
-                    outline: '1px solid rgba(255,255,255,0.5)'
-                  }
+                // Para propósitos de desarrollo, podemos hacer las áreas ligeramente visibles
+                ...(process.env.NODE_ENV === 'development' ? {
+                  boxShadow: isEditMode ? 'none' : 'inset 0 0 0 1px rgba(255,255,255,0.1)'
                 } : {})
               }}
             />

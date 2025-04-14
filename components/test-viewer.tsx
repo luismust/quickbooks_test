@@ -94,7 +94,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
   const [loadedImages, setLoadedImages] = useState<{ [key: string]: string }>({})
   
   // Placeholder constante para imágenes que fallan o referencias
-  const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
+  const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
 
   // Función mejorada para cargar y procesar la imagen desde URL externa
   const loadAndProcessImage = useCallback(async (url: string): Promise<string> => {
@@ -530,41 +530,42 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                     alt={question.title || 'Test question image'}
                     isDrawingMode={false}
                     isEditMode={false}
-                key={`question-${question.id}-${Date.now()}`} // Force reload on re-render
-                onError={async () => {
+                    className="w-full h-auto object-contain"
+                    key={`question-${question.id}-${Date.now()}`} // Force reload on re-render
+                    onError={async () => {
                       console.error('Failed to load image in test view:', question.image);
                   
-                  // Intentar cargar usando createProxyImage como último recurso
-                  try {
-                    // Si hay imageId, intentar cargar directamente desde él
-                    if (question.imageId) {
-                      const url = await loadImageFromReference(question.imageId);
-                      if (url && typeof url === 'string') {
-                        // Actualizar la pregunta con la nueva URL
-                        const updatedQuestion = { ...question };
-                        updatedQuestion.image = url;
-                        
-                        // Forzar actualización
-                        setLoadedImages(prev => ({
-                          ...prev,
-                          [question.id]: url
-                        }));
+                      // Intentar cargar usando createProxyImage como último recurso
+                      try {
+                        // Si hay imageId, intentar cargar directamente desde él
+                        if (question.imageId) {
+                          const url = await loadImageFromReference(question.imageId);
+                          if (url && typeof url === 'string') {
+                            // Actualizar la pregunta con la nueva URL
+                            const updatedQuestion = { ...question };
+                            updatedQuestion.image = url;
+                            
+                            // Forzar actualización
+                            setLoadedImages(prev => ({
+                              ...prev,
+                              [question.id]: url
+                            }));
+                          }
+                        }
+                      } catch (e) {
+                        console.error('Error in fallback image loading:', e);
                       }
-                    }
-                  } catch (e) {
-                    console.error('Error in fallback image loading:', e);
-                  }
-                  
-                  toast.error("Could not load test image. Please try refreshing the page.");
-                }}
-                // Manejar clics fuera de las áreas definidas
-                onClick={(e) => {
-                  if (isAnswered) return;
-                  
-                  console.log('Click outside defined areas, marking as incorrect');
-                  handleAnswer(false, question.id);
-                }}
-              />
+                      
+                      toast.error("Could not load test image. Please try refreshing the page.");
+                    }}
+                    // Manejar clics fuera de las áreas definidas
+                    onClick={(e) => {
+                      if (isAnswered) return;
+                      
+                      console.log('Click outside defined areas, marking as incorrect');
+                      handleAnswer(false, question.id);
+                    }}
+                  />
             ) : (
               <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
                 <div className="flex flex-col items-center">
@@ -701,7 +702,8 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                             backgroundPosition: 'center',
                             backgroundRepeat: 'no-repeat',
                             width: '100%',
-                            height: '300px'
+                            height: '350px', // Aumentar altura para mejor visualización
+                            minHeight: '300px'
                           }}
                           className="w-full h-auto rounded-lg"
                         ></div>
@@ -726,7 +728,8 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                         backgroundPosition: 'center',
                         backgroundRepeat: 'no-repeat',
                         width: '100%',
-                        height: '300px'
+                        height: '350px', // Aumentar altura para mejor visualización
+                        minHeight: '300px'
                       }}
                       className="w-full h-auto rounded-lg"
                     ></div>
