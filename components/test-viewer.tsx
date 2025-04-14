@@ -43,45 +43,66 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
     try {
       console.log('Attempting to load image from reference:', reference);
       
-      // Extraer el ID de la referencia (formato es "image_reference__ID")
-      const imageId = reference.replace('image_reference_', '');
+      // Extraer el ID de la referencia o usar directamente el imageId
+      let imageId;
+      if (typeof reference === 'string' && reference.startsWith('image_reference_')) {
+        imageId = reference.replace('image_reference_', '');
+      } else {
+        imageId = reference;
+      }
       
-      console.log('Extracted image ID:', imageId);
+      console.log('Using image ID:', imageId);
       
       if (!imageId) {
         console.error('Could not extract image ID from reference:', reference);
         return null;
       }
       
-      // URL del backend en Vercel (ajustar a la URL real)
-      // Esta URL debe apuntar a tu backend de Vercel
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://quickbooks-backend.vercel.app';
+      // URL del backend
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
       
       // Intentar obtener la imagen del backend
-      console.log('Fetching image from backend:', `${backendUrl}/api/images/${imageId}`);
+      console.log('Fetching image from backend:', `${API_URL}/images?id=${imageId}`);
       
       // Hacer la solicitud al endpoint del backend
-      const response = await fetch(`${backendUrl}/api/images/${imageId}`);
+      const response = await fetch(`${API_URL}/images?id=${imageId}`, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
+        }
+      });
       
       if (!response.ok) {
-        throw new Error(`Error fetching image from backend: ${response.statusText}`);
+        throw new Error(`Error fetching image from backend: ${response.status} ${response.statusText}`);
       }
       
       const imageData = await response.json();
       console.log('Received image data from backend:', imageData);
       
-      // El backend debería devolver la URL o los datos de la imagen
+      // El backend debería devolver la URL de la imagen
       if (imageData.url) {
         return imageData.url;
+      } else if (imageData.blobUrl) {
+        return imageData.blobUrl;
       } else if (imageData.data) {
         return imageData.data;
       } else {
-        console.error('Backend response does not contain image URL or data:', imageData);
-        return null;
+        // Como último recurso, construir una URL directa
+        return `${API_URL}/images?id=${imageId}&redirect=data&t=${Date.now()}`;
       }
     } catch (error) {
       console.error('Error loading image from reference:', error);
-      return null;
+      
+      // Como último recurso, intentar directamente con el endpoint de datos binarios
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+        console.log('Trying direct binary endpoint as fallback');
+        return `${API_URL}/images?id=${typeof reference === 'string' ? reference.replace('image_reference_', '') : reference}&redirect=data&t=${Date.now()}`;
+      } catch (fallbackError) {
+        console.error('Fallback image loading also failed:', fallbackError);
+        return null;
+      }
     }
   };
 
@@ -92,43 +113,63 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       const imageKey = `img_${q.id}_${new Date().getTime()}`;
       
       // Si no hay imagen o la imagen es una cadena vacía, no hay nada que procesar
-      if (!q.image) {
+      if (!q.image && !q.imageId && !q.blobUrl && !q.imageApiUrl) {
         return { ...q, image: '', _imageKey: imageKey, _imageType: 'none' };
       }
 
       try {
-        // SOLUCIÓN: Si es una referencia a imagen (formato usado en Airtable)
-        if (typeof q.image === 'string' && q.image.startsWith('image_reference_')) {
-          console.log('TestViewer: Found image reference:', q.image);
-          
-          // Guardar la referencia pero no intentar cargarla inmediatamente
-          // La cargaremos cuando sea necesario
+        // Priorizar las diferentes fuentes de imágenes
+        // 1. Primero blobUrl (URL directa a Vercel Blob)
+        if (q.blobUrl && typeof q.blobUrl === 'string' && q.blobUrl.startsWith('http')) {
+          console.log('TestViewer: Using blobUrl:', q.blobUrl.substring(0, 40) + '...');
+          return {
+            ...q,
+            image: q.blobUrl,
+            _imageKey: imageKey,
+            _imageType: 'blobUrl'
+          };
+        }
+
+        // 2. Luego imageApiUrl (URL a través de API)
+        if (q.imageApiUrl && typeof q.imageApiUrl === 'string' && q.imageApiUrl.startsWith('http')) {
+          console.log('TestViewer: Using imageApiUrl:', q.imageApiUrl.substring(0, 40) + '...');
+          return {
+            ...q,
+            image: q.imageApiUrl,
+            _imageKey: imageKey,
+            _imageType: 'apiUrl'
+          };
+        }
+
+        // 3. Si tenemos imageId, usarlo como referencia
+        if (q.imageId) {
+          console.log('TestViewer: Using imageId as reference:', q.imageId);
           return {
             ...q,
             _imageType: 'reference',
-            _imageRef: q.image,
+            _imageRef: q.imageId,
             _imageKey: imageKey,
-            // La imagen se cargará dinámicamente cuando se necesite
+            // Mantener la imagen original
             image: q.image 
           };
         }
-        
-        // Si la imagen ya es base64, usarla directamente
+
+        // 4. Si la imagen ya es base64, usarla directamente
         if (typeof q.image === 'string' && q.image.startsWith('data:image/')) {
           console.log('TestViewer: Using base64 image directly');
           return { ...q, image: q.image, _imageKey: imageKey, _imageType: 'base64' };
         }
         
-        // Si es una URL blob, conservarla (será manejada por ImageMap si expira)
+        // 5. Si es una URL blob, conservarla 
         if (typeof q.image === 'string' && q.image.startsWith('blob:')) {
           console.log('TestViewer: Using blob URL directly:', q.image.substring(0, 40) + '...');
           
           // Si tenemos datos de imagen en _imageData, son preferibles a la URL blob
-          if ((q as any)._imageData) {
+          if (q._imageData && typeof q._imageData === 'string' && q._imageData.startsWith('data:')) {
             console.log('TestViewer: Using _imageData instead of blob URL');
             return {
               ...q,
-              image: (q as any)._imageData,
+              image: q._imageData,
               _imageKey: imageKey,
               _imageType: 'base64'
             };
@@ -142,21 +183,31 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
           };
         }
         
-        // Si tenemos _imageData, usarlo con prioridad sobre otras URLs
-        if ((q as any)._imageData) {
+        // 6. Si tenemos _imageData o _localFile, usarlo con prioridad sobre otras URLs
+        if (q._imageData && typeof q._imageData === 'string' && q._imageData.startsWith('data:')) {
           console.log('TestViewer: Using _imageData');
           return {
             ...q,
-            image: (q as any)._imageData,
+            image: q._imageData,
+            _imageKey: imageKey,
+            _imageType: 'base64'
+          };
+        }
+
+        if (q._localFile && typeof q._localFile === 'string' && q._localFile.startsWith('data:')) {
+          console.log('TestViewer: Using _localFile');
+          return {
+            ...q,
+            image: q._localFile,
             _imageKey: imageKey,
             _imageType: 'base64'
           };
         }
         
-        // Para cualquier otra URL (HTTP, HTTPS, etc.)
+        // 7. Para cualquier otra URL (HTTP, HTTPS, etc.)
         return {
           ...q,
-          image: q.image,
+          image: q.image || '',
           _imageKey: imageKey,
           _imageType: 'url'
         };
@@ -293,38 +344,26 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       case 'clickArea':
         return (
           <div className="relative">
-            {/* Si es una referencia de imagen y tenemos la imagen cargada */}
+            {/* Si la pregunta tiene blobUrl, imageApiUrl, o imageId, construir objetos para ImageMap */}
             {(currentQuestionData as any)._imageType === 'reference' && loadedImages[(currentQuestionData as any)._imageRef] ? (
-              <div className="relative border border-border rounded-md overflow-hidden">
-                <div 
-                  style={{
-                    backgroundImage: `url(${loadedImages[(currentQuestionData as any)._imageRef]})`,
-                    backgroundSize: 'contain',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat',
-                    width: '100%',
-                    height: '350px'
-                  }}
-                  className="relative"
-                >
-                  {question.areas?.map((area) => (
-                    <div
-                      key={area.id}
-                      className="absolute cursor-pointer"
-                      style={{
-                        left: `${area.coords[0]}%`,
-                        top: `${area.coords[1]}%`,
-                        width: `${area.coords[2] - area.coords[0]}%`,
-                        height: `${area.coords[3] - area.coords[1]}%`
-                      }}
-                      onClick={() => {
-                        if (isAnswered) return;
-                        handleAnswer(area.isCorrect, question.id);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
+              <ImageMap
+                src={loadedImages[(currentQuestionData as any)._imageRef]}
+                areas={question.areas || []}
+                drawingArea={null}
+                onAreaClick={(areaId) => {
+                  if (isAnswered) return
+                  const area = question.areas?.find(a => a.id === areaId)
+                  handleAnswer(area?.isCorrect || false, question.id)
+                }}
+                alt={question.title}
+                isDrawingMode={false}
+                isEditMode={false}
+                key={(question as any)._imageKey || `question-${question.id}-loaded`}
+                onError={() => {
+                  console.error('Failed to load loaded image in test view:', loadedImages[(currentQuestionData as any)._imageRef]);
+                  toast.error("Error loading image. Please try refreshing.");
+                }}
+              />
             ) : (
               <>
                 {/* Si es una referencia de imagen pero aún no está cargada */}
@@ -352,6 +391,25 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                     key={(question as any)._imageKey || `question-${question.id}`}
                     onError={() => {
                       console.error('Failed to load image in test view:', question.image);
+                      // Si falla la carga de imagen, intentar con una URL alternativa si está disponible
+                      if (question.imageApiUrl && question.image !== question.imageApiUrl) {
+                        console.log('Trying alternative imageApiUrl:', question.imageApiUrl);
+                        question.image = question.imageApiUrl;
+                      } else if (question.blobUrl && question.image !== question.blobUrl) {
+                        console.log('Trying alternative blobUrl:', question.blobUrl);
+                        question.image = question.blobUrl;
+                      } else if (question.imageId) {
+                        // Como último recurso, intentar cargar desde imageId
+                        loadImageFromReference(question.imageId).then(url => {
+                          if (url) {
+                            question.image = url;
+                            setLoadedImages(prev => ({
+                              ...prev,
+                              [question.imageId as string]: url
+                            }));
+                          }
+                        });
+                      }
                       toast.error("Could not load test image. Using a placeholder image instead.");
                     }}
                   />
@@ -360,15 +418,25 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
             )}
             
             {/* Mensaje sutil para indicar que se debe hacer clic en la imagen */}
-            {!isAnswered && ((currentQuestionData as any)._imageType !== 'reference' || 
-                            ((currentQuestionData as any)._imageType === 'reference' && 
-                             loadedImages[(currentQuestionData as any)._imageRef])) && (
-              <div className="absolute bottom-2 left-0 right-0 flex justify-center pointer-events-none">
-                <div className="bg-black/40 text-white px-3 py-1 rounded-full text-xs">
-                  Click on the correct answer
-                </div>
-              </div>
-            )}
+            <div className="absolute bottom-2 left-2 right-2 bg-white bg-opacity-70 p-2 rounded text-sm text-center">
+              <p>Haz clic en la área correcta según la pregunta</p>
+            </div>
+            
+            {/* Retroalimentación para las respuestas */}
+            <AnimatePresence>
+              {showFeedback && isAnswered && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className={`absolute top-2 left-0 right-0 p-2 rounded text-white text-center mx-auto max-w-md ${
+                    showFeedback.correct ? 'bg-green-500' : 'bg-red-500'
+                  }`}
+                >
+                  {showFeedback.message}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )
 

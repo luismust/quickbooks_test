@@ -1,6 +1,5 @@
 "use client"
 
-import { uploadImageToAirtable, deleteTestImages } from './airtable-utils'
 
 // Extender el tipo Window para incluir el objeto BlobImageProcessor
 declare global {
@@ -44,13 +43,18 @@ export interface Question {
   title: string
   description: string
   question: string
-  image?: string
-  imageId?: string        // ID de la imagen en Vercel Blob
+  image?: string           // URL principal de la imagen
+  imageId?: string         // ID de la imagen en Vercel Blob
+  blobUrl?: string         // URL directa a Vercel Blob
+  imageApiUrl?: string     // URL alternativa a través de la API
   originalImage?: string
   _localFile?: File | string   // Puede ser un objeto File o una string base64
   _imageData?: string          // Para almacenar datos base64 de la imagen
   isImageReference?: boolean   // Indica si la imagen es una referencia
   imageReference?: string      // Guarda la referencia original a la imagen
+  _imageType?: 'reference' | 'base64' | 'url' | 'blob' | 'blobUrl' | 'apiUrl' | 'none' | 'error'  // Tipo de imagen
+  _imageRef?: string           // Referencia a imagen (ID o nombre)
+  _imageKey?: string           // Clave única para la imagen (para forzar recarga)
   type: 'clickArea' |
   'multipleChoice' |
   'dragAndDrop' |
@@ -190,228 +194,6 @@ async function prepareQuestionWithImage(question: Question): Promise<Question> {
   return processedQuestion;
 }
 
-/**
- * Guarda un test en el backend, procesando correctamente las imágenes
- */
-export async function saveTest(test: Test): Promise<Test> {
-  try {
-    console.log('Starting saveTest function')
-
-    // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
-    const isVercel = true; // Siempre usaremos la URL externa en la build de producción
-
-    // URL base del API
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
-
-    // Procesar todas las imágenes blob en el test usando el procesador de imágenes
-    console.log('Procesando imágenes blob en el test...');
-    let processedTest = test;
-    
-    // Verificar si el procesador de imágenes está disponible
-    if (typeof window !== 'undefined' && window.BlobImageProcessor) {
-      try {
-        // Utilizar el procesador de imágenes recomendado por el backend
-        console.log('Usando BlobImageProcessor para procesar las imágenes');
-        processedTest = await window.BlobImageProcessor.processAllBlobImagesInTest(test);
-        console.log('Procesamiento de imágenes completado');
-      } catch (imageError) {
-        console.error('Error al procesar imágenes con BlobImageProcessor:', imageError);
-        // Si falla, seguimos con el test original
-        processedTest = test;
-      }
-    } else {
-      console.warn('BlobImageProcessor no está disponible, se usará el método anterior');
-      // Usar el método anterior como fallback
-      processedTest = { ...test };
-      
-      // Procesar cada pregunta con imagen siguiendo el método anterior
-      for (let i = 0; i < processedTest.questions.length; i++) {
-        const question = processedTest.questions[i];
-        if (question.image) {
-          console.log(`Procesando imagen para pregunta ${i+1}/${processedTest.questions.length}`);
-          processedTest.questions[i] = await prepareQuestionWithImage(question);
-        }
-      }
-    }
-    
-    // URL del endpoint a usar - usar /api/save-test
-    const apiUrl = isVercel 
-      ? `${API_BASE_URL}/save-test`  // La URL ya incluye /api/ en API_BASE_URL
-      : '/api/save-test';  // URL local en desarrollo
-
-    console.log('Enviando test al servidor:', apiUrl);
-    console.log('Preguntas procesadas:', processedTest.questions.length);
-
-    // Guardar en el backend a través del endpoint correspondiente
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      mode: 'cors',
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Origin': 'https://quickbooks-test-black.vercel.app'
-      },
-      body: JSON.stringify(processedTest),
-    });
-
-    let responseData;
-    
-    try {
-      if (!response.ok) {
-        responseData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('API error response:', responseData);
-        throw new Error(`Failed to save test: ${responseData.error || response.statusText}`);
-      } else {
-        responseData = await response.json().catch(() => ({}));
-      }
-    } catch (parseError) {
-      console.error('Error parsing response:', parseError);
-      responseData = {};
-    }
-
-    // Crear un objeto de test válido basado en los datos enviados y la respuesta
-    const savedTest = {
-      ...processedTest,  // Usar los datos originales como base
-      ...(responseData || {})  // Añadir datos de respuesta si existen
-    };
-
-    // Verificar y arreglar el ID si es necesario
-    if (typeof savedTest.id !== 'string' || !savedTest.id) {
-      console.warn('API response missing valid ID, generating temporary ID');
-      // Generar un ID temporal compatible con el formato esperado
-      savedTest.id = '_temp_' + Date.now();
-    } else if (!savedTest.id.startsWith('_')) {
-      // Asegúrate de que el ID tenga el formato correcto (empezando con _)
-      savedTest.id = '_' + savedTest.id;
-    }
-
-    console.log('Test saved successfully with ID:', savedTest.id);
-    // También guardamos en localStorage para tener una copia local
-    try {
-      const savedTests = localStorage.getItem('quickbook_tests') || '[]'
-      const localTests = JSON.parse(savedTests) as Test[]
-
-      // Actualizar o añadir el test
-      const existingIndex = localTests.findIndex(t => t.id === savedTest.id)
-      if (existingIndex >= 0) {
-        localTests[existingIndex] = savedTest
-      } else {
-        localTests.push(savedTest)
-      }
-
-      // Guardar de vuelta en localStorage
-      localStorage.setItem('quickbook_tests', JSON.stringify(localTests))
-    } catch (e) {
-      console.error('Error saving local copy:', e)
-    }
-
-    return savedTest;
-  } catch (error) {
-    console.error('Error saving test:', error)
-    throw error
-  }
-}
-
-export async function getTests(): Promise<Test[]> {
-  try {
-    console.log('Starting getTests function')
-
-    // Detectar si estamos en Vercel/producción (forzar a true en entorno desplegado)
-    const isVercel = true; // Siempre usaremos la URL externa en la build de producción
-
-    // URL base del API
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
-
-    // URL del endpoint a usar
-    const apiUrl = isVercel
-      ? `${API_BASE_URL}/tests`  // La URL ya incluye /api/ en API_BASE_URL
-      : '/api/tests';  // URL local en desarrollo
-
-    console.log('Fetching tests from API:', apiUrl)
-    
-    // Configurar los headers según lo que acepta Vercel en su configuración
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      mode: 'cors',
-      credentials: 'include', // Incluir cookies según la configuración del backend
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Origin': 'https://quickbooks-test-black.vercel.app' // Usar Origin como lo especifica el servidor
-      }
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch tests: ${response.status} ${response.statusText}`)
-    }
-
-    const { tests } = await response.json()
-
-    // Verificar la estructura de los datos recibidos
-    console.log('Retrieved tests:', tests.length)
-    if (tests.length > 0) {
-      console.log('Sample test fields:', Object.keys(tests[0]))
-    }
-
-    // Procesar las imágenes en cada test
-    const processedTests = tests.map((test: Test) => {
-      // Procesar cada pregunta para verificar las imágenes
-      const processedQuestions = test.questions.map((question: Question) => {
-        // Crear un objeto limpio
-        const cleanQuestion = { ...question };
-
-        // Las imágenes ahora son URLs directas desde el backend o imageId
-        // Si la imagen ya es una URL completa, la mantenemos
-        if (question.image && question.image.startsWith('http')) {
-          console.log('Using direct image URL from API');
-          cleanQuestion.image = question.image;
-        }
-
-        // Si tenemos _imageData, podemos usarlo como copia local
-        if (question._imageData && typeof question._imageData === 'string' &&
-          question._imageData.startsWith('data:')) {
-          console.log('Found _imageData, using it as local backup');
-          // Solo usar _imageData como fallback si no hay una URL válida
-          if (!cleanQuestion.image || !cleanQuestion.image.startsWith('http')) {
-            cleanQuestion.image = question._imageData;
-          }
-        }
-
-        return cleanQuestion;
-      });
-
-      return {
-        ...test,
-        questions: processedQuestions
-      };
-    });
-
-    // También guardamos en localStorage para tener una copia local
-    try {
-      localStorage.setItem('quickbook_tests', JSON.stringify(processedTests))
-    } catch (e) {
-      console.error('Error saving local copy:', e)
-    }
-
-    return processedTests;
-
-  } catch (error) {
-    console.error('Error in getTests:', error)
-
-    // Si hay un error, intentar devolver los tests desde localStorage
-    try {
-      const savedTests = localStorage.getItem('quickbook_tests') || '[]'
-      const localTests = JSON.parse(savedTests) as Test[]
-      console.log('Returning tests from localStorage as fallback:', localTests.length)
-      return localTests
-    } catch (e) {
-      console.error('Error reading from localStorage:', e)
-      return []
-    }
-  }
-}
-
 // URL base de la API
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
 
@@ -420,15 +202,19 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-back
  */
 export const loadTestFromAPI = async (testId: string): Promise<Test | null> => {
   try {
+    // Usar el nuevo endpoint load-tests que ofrece mayor compatibilidad con imágenes
+    const apiUrl = `${API_BASE_URL}/load-tests?id=${testId}`;
+    console.log(`Loading test from API: ${apiUrl}`);
+    
     // Configurar los headers según lo que acepta Vercel en su configuración
-    const response = await fetch(`${API_BASE_URL}/tests?id=${testId}`, {
+    const response = await fetch(apiUrl, {
       method: 'GET',
       mode: 'cors',
-      credentials: 'include', // Incluir cookies según la configuración del backend
+      credentials: 'include',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Origin': 'https://quickbooks-test-black.vercel.app' // Usar Origin como lo especifica el servidor
+        'Origin': 'https://quickbooks-test-black.vercel.app'
       }
     });
 
@@ -442,11 +228,34 @@ export const loadTestFromAPI = async (testId: string): Promise<Test | null> => {
     // Procesar las imágenes para asegurar compatibilidad
     if (test && test.questions) {
       test.questions = test.questions.map((question: Question) => {
-        // Si la imagen es una URL HTTP, está lista para usar
-        if (question.image && question.image.startsWith('http')) {
-          console.log(`Question ${question.id}: Using direct image URL`);
+        const processedQuestion = { ...question };
+        
+        // Priorizar blobUrl si está disponible (URL directa a Vercel Blob)
+        if (question.blobUrl && question.blobUrl.startsWith('http')) {
+          console.log(`Question ${question.id}: Using direct blob URL`);
+          processedQuestion.image = question.blobUrl;
         }
-        return question;
+        // Si no hay blobUrl pero hay imageApiUrl, usarla como respaldo
+        else if (question.imageApiUrl && question.imageApiUrl.startsWith('http')) {
+          console.log(`Question ${question.id}: Using API URL`);
+          processedQuestion.image = question.imageApiUrl;
+        }
+        // Si no hay ninguna URL específica pero hay imagen estándar, usarla
+        else if (question.image && question.image.startsWith('http')) {
+          console.log(`Question ${question.id}: Using standard image URL`);
+          // La imagen ya está asignada correctamente
+        }
+        // Si hay imageId pero faltan URLs, construir URL a partir del ID
+        else if (question.imageId) {
+          console.log(`Question ${question.id}: Constructing URL from imageId`);
+          processedQuestion.imageApiUrl = `${API_BASE_URL}/images?id=${question.imageId}&redirect=1`;
+          // Si no hay imagen principal, usar la construida
+          if (!processedQuestion.image) {
+            processedQuestion.image = processedQuestion.imageApiUrl;
+          }
+        }
+        
+        return processedQuestion;
       });
     }
     
@@ -503,25 +312,67 @@ export const loadTestFromLocalStorage = (testId: string): Test | null => {
  */
 export const loadTestsFromAPI = async () => {
   try {
-    // Usar el nuevo endpoint específico para cargar tests
-    const apiUrl = 'https://quickbooks-backend.vercel.app/api/load-tests';
+    // Usar el endpoint específico para cargar tests
+    const apiUrl = `${API_BASE_URL}/load-tests`;
+    console.log(`Loading tests from API: ${apiUrl}`);
     
     const response = await fetch(apiUrl, {
       method: 'GET',
       credentials: 'include',
       headers: {
         'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Origin': 'https://quickbooks-test-black.vercel.app'
       }
     });
 
     if (!response.ok) {
-      console.error('Error cargando tests desde API:', response.statusText);
+      console.error(`Error loading tests from API: ${response.status} ${response.statusText}`);
       return loadTestsFromLocalStorage();
     }
 
     const data = await response.json();
-    const tests = data.tests || [];
+    const rawTests = data.tests || [];
+    
+    // Procesar las imágenes en cada test
+    const tests = rawTests.map((test: Test) => {
+      // Procesar cada pregunta para tener URLs de imagen correctas
+      const processedQuestions = test.questions.map((question: Question) => {
+        const processedQuestion = { ...question };
+        
+        // Priorizar blobUrl si está disponible (URL directa a Vercel Blob)
+        if (question.blobUrl && question.blobUrl.startsWith('http')) {
+          console.log(`Question ${question.id}: Using direct blob URL`);
+          processedQuestion.image = question.blobUrl;
+        }
+        // Si no hay blobUrl pero hay imageApiUrl, usarla como respaldo
+        else if (question.imageApiUrl && question.imageApiUrl.startsWith('http')) {
+          console.log(`Question ${question.id}: Using API URL`);
+          processedQuestion.image = question.imageApiUrl;
+        }
+        // Si no hay ninguna URL específica pero hay imagen estándar, usarla
+        else if (question.image && question.image.startsWith('http')) {
+          console.log(`Question ${question.id}: Using standard image URL`);
+          // La imagen ya está asignada correctamente
+        }
+        // Si hay imageId pero faltan URLs, construir URL a partir del ID
+        else if (question.imageId) {
+          console.log(`Question ${question.id}: Constructing URL from imageId`);
+          processedQuestion.imageApiUrl = `${API_BASE_URL}/images?id=${question.imageId}&redirect=1`;
+          // Si no hay imagen principal, usar la construida
+          if (!processedQuestion.image) {
+            processedQuestion.image = processedQuestion.imageApiUrl;
+          }
+        }
+        
+        return processedQuestion;
+      });
+
+      return {
+        ...test,
+        questions: processedQuestions
+      };
+    });
     
     // Opcionalmente cachear en localStorage
     try {
@@ -643,5 +494,144 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
   } catch (error) {
     console.error('Error al eliminar test:', error);
     return false;
+  }
+};
+
+/**
+ * Guarda un test en el backend, procesando correctamente las imágenes
+ */
+export async function saveTest(test: Test): Promise<Test> {
+  try {
+    console.log('Starting saveTest function')
+
+    // URL base del API
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+
+    // Procesar todas las imágenes en el test
+    console.log('Procesando imágenes en el test...');
+    let processedTest = { ...test };
+    
+    // Verificar si el procesador de imágenes está disponible
+    if (typeof window !== 'undefined' && window.BlobImageProcessor) {
+      try {
+        // Utilizar el procesador de imágenes para todas las imágenes blob
+        console.log('Usando BlobImageProcessor para procesar las imágenes');
+        processedTest = await window.BlobImageProcessor.processAllBlobImagesInTest(test);
+        console.log('Procesamiento de imágenes completado con BlobImageProcessor');
+      } catch (imageError) {
+        console.error('Error al procesar imágenes con BlobImageProcessor:', imageError);
+        // Si falla, procesamos manualmente cada pregunta con imagen
+        processedTest.questions = await Promise.all(test.questions.map(async (question) => {
+          return await prepareQuestionWithImage(question);
+        }));
+      }
+    } else {
+      console.warn('BlobImageProcessor no está disponible, procesando imágenes manualmente');
+      // Procesar cada pregunta con imagen manualmente
+      processedTest.questions = await Promise.all(test.questions.map(async (question) => {
+        return await prepareQuestionWithImage(question);
+      }));
+    }
+    
+    // URL del endpoint a usar para guardar tests
+    const apiUrl = `${API_URL}/save-test`;
+
+    console.log('Enviando test al servidor:', apiUrl);
+    console.log('Preguntas procesadas:', processedTest.questions.length);
+
+    // Guardar en el backend
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
+      },
+      credentials: 'include',
+      body: JSON.stringify(processedTest)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Error in saveTest:', response.status, errorText);
+      throw new Error(`Error ${response.status}: ${errorText || response.statusText}`);
+    }
+
+    const savedTest = await response.json();
+    console.log('Test guardado correctamente:', savedTest.id);
+    
+    // Proceso opcional: guardar copia en localStorage
+    try {
+      // Guardar en localStorage para acceso offline
+      console.log('Guardando copia en localStorage');
+      const tests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
+      const index = tests.findIndex((t: Test) => t.id === savedTest.id);
+      if (index >= 0) {
+        tests[index] = savedTest;
+      } else {
+        tests.push(savedTest);
+      }
+      localStorage.setItem('saved-tests', JSON.stringify(tests));
+    } catch (error) {
+      console.error('Error guardando en localStorage:', error);
+    }
+
+    // Actualizar las preguntas con campos adicionales antes de devolverlas
+    savedTest.questions = savedTest.questions.map((q: Question) => {
+      // Añadir URLs alternativas para acceso a imágenes
+      if (q.imageId) {
+        // Construir URLs alternativas para cargar la imagen si no existen
+        if (!q.blobUrl && q.imageId) {
+          q.blobUrl = `${API_URL}/images?id=${q.imageId}&redirect=blob`;
+        }
+        if (!q.imageApiUrl && q.imageId) {
+          q.imageApiUrl = `${API_URL}/images?id=${q.imageId}&redirect=data`;
+        }
+      }
+      return q;
+    });
+
+    return savedTest;
+  } catch (error) {
+    console.error('Error in saveTest:', error);
+
+    // Si hay un error, intentar guardar en localStorage
+    try {
+      console.log('Saving test to localStorage as fallback');
+      const testToSave = {
+        ...test,
+        savedOffline: true,
+        lastSaved: new Date().toISOString()
+      };
+      
+      saveTestToLocalStorage(testToSave);
+      
+      return testToSave;
+    } catch (localStorageError) {
+      console.error('Error saving to localStorage:', localStorageError);
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Guarda un test en localStorage
+ */
+export const saveTestToLocalStorage = (test: Test): void => {
+  try {
+    const savedTests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
+    const existingIndex = savedTests.findIndex((t: Test) => t.id === test.id);
+    
+    if (existingIndex >= 0) {
+      savedTests[existingIndex] = test;
+    } else {
+      savedTests.push(test);
+    }
+    
+    localStorage.setItem('saved-tests', JSON.stringify(savedTests));
+    console.log(`Test ${test.id} guardado en localStorage`);
+  } catch (error) {
+    console.error('Error guardando test en localStorage:', error);
   }
 };
