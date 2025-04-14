@@ -163,35 +163,169 @@ async function convertBlobUrlToBase64(blobUrl: string): Promise<string | null> {
   }
 }
 
+// Función para subir una imagen al servidor de Vercel Blob
+async function uploadImageToServer(imageData: string, fileName: string = 'question_image.jpg'): Promise<{imageId: string, url: string, blobUrl?: string}> {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+  
+  try {
+    console.log(`Uploading image to Vercel Blob via ${API_URL}/images?action=upload`);
+    
+    const response = await fetch(`${API_URL}/images?action=upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
+      },
+      body: JSON.stringify({
+        imageData: imageData,
+        fileName: fileName
+      })
+      // No usamos credentials para evitar problemas CORS
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Error al subir la imagen: ${response.status} ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    console.log('Image uploaded successfully to Vercel Blob:', result.imageId);
+    return result; // Devuelve {imageId, url, blobUrl, ...}
+  } catch (error) {
+    console.error('Error uploading image to Vercel Blob:', error);
+    throw error;
+  }
+}
+
 /**
  * Función para procesar una pregunta con imagen
- * Convierte Blob URLs a base64 y los guarda en _localFile
  */
 async function prepareQuestionWithImage(question: Question): Promise<Question> {
-  const processedQuestion = { ...question };
-  
-  // Verificar si hay una imagen y es un Blob URL
-  if (question.image && question.image.startsWith('blob:')) {
-    console.log(`Pregunta ${question.id}: Convirtiendo blob URL a base64`);
-    
-    // Convertir la imagen blob a base64
-    const base64Data = await convertBlobUrlToBase64(question.image);
-    
-    if (base64Data) {
-      // Guardar la versión base64 en _localFile como espera el backend
-      processedQuestion._localFile = base64Data;
-      console.log('Conversión exitosa, base64 guardado en _localFile');
-    } else {
-      console.warn('No se pudo convertir la imagen blob a base64');
+  try {
+    // Si no es pregunta de tipo clickArea, no procesar
+    if (question.type !== 'clickArea') {
+      return question;
     }
-  } 
-  // Si ya tenemos un _localFile base64, mantenerlo
-  else if (question._localFile && typeof question._localFile === 'string' && 
-          question._localFile.startsWith('data:')) {
-    console.log(`Pregunta ${question.id}: Ya tiene _localFile en base64`);
+    
+    console.log(`Procesando imagen para pregunta de tipo clickArea ${question.id}`);
+    
+    // Si ya tenemos un imageId, no es necesario subir la imagen nuevamente
+    // a menos que haya una nueva imagen en _localFile o _imageData
+    if (question.imageId && !question._localFile && !question._imageData) {
+      console.log('La pregunta ya tiene imageId, no es necesario volver a subir la imagen');
+      return question;
+    }
+    
+    // Determinar qué datos de imagen usar
+    let imageData: string | null = null;
+    let fileName = `question_${question.id}_${Date.now()}.jpg`;
+    
+    // Caso 1: _localFile como string base64
+    if (typeof question._localFile === 'string' && question._localFile.startsWith('data:')) {
+      console.log('Usando _localFile (base64) como fuente de imagen');
+      imageData = question._localFile;
+    } 
+    // Caso 2: _imageData como string base64
+    else if (typeof question._imageData === 'string' && question._imageData.startsWith('data:')) {
+      console.log('Usando _imageData como fuente de imagen');
+      imageData = question._imageData;
+    }
+    // Caso 3: URL blob que necesita ser convertida a base64
+    else if (question.image && question.image.startsWith('blob:')) {
+      console.log('Convirtiendo blob URL a base64');
+      imageData = await convertBlobUrlToBase64(question.image);
+    }
+    
+    // Si tenemos datos de imagen, procesarlos y subirlos
+    if (imageData) {
+      // Optimizar la imagen si es posible
+      try {
+        if (typeof window !== 'undefined') {
+          // Función para optimizar imágenes grandes
+          const optimizeImage = async (data: string, maxWidth = 1200, maxHeight = 1200, quality = 0.7): Promise<string> => {
+            return new Promise((resolve) => {
+              const img = new Image();
+              img.onload = function() {
+                let width = img.width;
+                let height = img.height;
+                
+                // Redimensionar si es demasiado grande
+                if (width > maxWidth || height > maxHeight) {
+                  if (width > height) {
+                    height = Math.round(height * maxWidth / width);
+                    width = maxWidth;
+                  } else {
+                    width = Math.round(width * maxHeight / height);
+                    height = maxHeight;
+                  }
+                }
+                
+                // Crear canvas para redimensionar
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                
+                // Dibujar imagen redimensionada
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  ctx.drawImage(img, 0, 0, width, height);
+                  
+                  // Convertir a formato comprimido
+                  const mimeType = data.split(';')[0].split(':')[1] || 'image/jpeg';
+                  const optimizedData = canvas.toDataURL(mimeType, quality);
+                  
+                  resolve(optimizedData);
+                } else {
+                  // Si no se pudo obtener contexto 2D, devolver la imagen original
+                  resolve(data);
+                }
+              };
+              img.onerror = () => {
+                // En caso de error, devolver la imagen original
+                resolve(data);
+              };
+              img.src = data;
+            });
+          };
+          
+          console.log('Optimizando imagen antes de subir');
+          imageData = await optimizeImage(imageData);
+          console.log('Imagen optimizada correctamente');
+        }
+      } catch (optimizeError) {
+        console.warn('No se pudo optimizar la imagen, usando original:', optimizeError);
+      }
+      
+      // Subir la imagen al servidor
+      try {
+        console.log('Subiendo imagen al servidor');
+        const uploadResult = await uploadImageToServer(imageData, fileName);
+        
+        // Actualizar la pregunta con los datos de la imagen
+        const processedQuestion: Question = { ...question };
+        processedQuestion.imageId = uploadResult.imageId;
+        processedQuestion.blobUrl = uploadResult.blobUrl || uploadResult.url;
+        processedQuestion.image = uploadResult.url;
+        
+        // Limpiar los datos de imagen locales para no enviarlos al backend
+        processedQuestion._localFile = undefined;
+        processedQuestion._imageData = undefined;
+        
+        console.log('Imagen subida correctamente. ID:', uploadResult.imageId);
+        return processedQuestion;
+      } catch (uploadError) {
+        console.error('Error al subir la imagen:', uploadError);
+        throw uploadError;
+      }
+    }
+    
+    // Si llegamos aquí, no había datos nuevos de imagen para subir
+    return question;
+  } catch (error) {
+    console.error('Error procesando imagen para pregunta', question.id, error);
+    // En caso de error devolver la pregunta original
+    return question;
   }
-  
-  return processedQuestion;
 }
 
 // URL base de la API
@@ -505,31 +639,59 @@ export async function saveTest(test: Test): Promise<Test> {
     // URL base del API
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
 
-    // Procesar todas las imágenes en el test
-    console.log('Procesando imágenes en el test...');
+    // Crear una copia del test para no modificar el original
     let processedTest = { ...test };
     
-    // Verificar si el procesador de imágenes está disponible
-    if (typeof window !== 'undefined' && window.BlobImageProcessor) {
-      try {
-        // Utilizar el procesador de imágenes para todas las imágenes blob
-        console.log('Usando BlobImageProcessor para procesar las imágenes');
-        processedTest = await window.BlobImageProcessor.processAllBlobImagesInTest(test);
-        console.log('Procesamiento de imágenes completado con BlobImageProcessor');
-      } catch (imageError) {
-        console.error('Error al procesar imágenes con BlobImageProcessor:', imageError);
-        // Si falla, procesamos manualmente cada pregunta con imagen
-        processedTest.questions = await Promise.all(test.questions.map(async (question) => {
+    // Procesar todas las preguntas individualmente para asegurar que las imágenes estén gestionadas correctamente
+    console.log('Procesando imágenes de preguntas individualmente...');
+    const processedQuestions = await Promise.all(
+      processedTest.questions.map(async (question) => {
+        // Si es de tipo clickArea, procesarla con prepareQuestionWithImage
+        if (question.type === 'clickArea') {
+          let imageToProcess = null;
+          
+          // Determinar la fuente de la imagen a procesar
+          if (typeof question._localFile === 'string' && question._localFile.startsWith('data:')) {
+            console.log(`Pregunta ${question.id}: Usando _localFile como fuente de imagen`);
+            imageToProcess = question._localFile;
+          } else if (typeof question._imageData === 'string' && question._imageData.startsWith('data:')) {
+            console.log(`Pregunta ${question.id}: Usando _imageData como fuente de imagen`);
+            imageToProcess = question._imageData;
+          } else if (question.image && question.image.startsWith('blob:')) {
+            console.log(`Pregunta ${question.id}: Usando blob URL como fuente de imagen`);
+            // El procesamiento de blob URL se maneja dentro de prepareQuestionWithImage
+          }
+          
+          // Si no hay nueva imagen pero ya tiene imageId, mantener la pregunta como está
+          if (!imageToProcess && !question.image?.startsWith('blob:') && question.imageId) {
+            console.log(`Pregunta ${question.id}: Ya tiene imageId y no hay nueva imagen, manteniendo como está`);
+            return question;
+          }
+          
+          console.log(`Procesando pregunta de tipo clickArea (ID: ${question.id})`);
           return await prepareQuestionWithImage(question);
-        }));
-      }
-    } else {
-      console.warn('BlobImageProcessor no está disponible, procesando imágenes manualmente');
-      // Procesar cada pregunta con imagen manualmente
-      processedTest.questions = await Promise.all(test.questions.map(async (question) => {
-        return await prepareQuestionWithImage(question);
-      }));
-    }
+        }
+        
+        // Para otros tipos de preguntas, devolverlas sin cambios
+        return question;
+      })
+    );
+    
+    // Actualizar las preguntas procesadas en el test
+    processedTest.questions = processedQuestions;
+    
+    // Limpiar datos temporales o sensibles antes de enviar al servidor
+    processedTest.questions = processedTest.questions.map(question => {
+      const cleanedQuestion = { ...question };
+      
+      // Eliminar datos temporales o demasiado grandes para enviar
+      if (cleanedQuestion._localFile) delete cleanedQuestion._localFile;
+      if (cleanedQuestion._imageData) delete cleanedQuestion._imageData;
+      
+      return cleanedQuestion;
+    });
+    
+    console.log('Todas las imágenes procesadas, enviando test al servidor');
     
     // URL del endpoint a usar para guardar tests
     const apiUrl = `${API_URL}/save-test`;

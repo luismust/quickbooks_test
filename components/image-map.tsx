@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import type { Area } from "@/lib/test-storage"
+import { createProxyImage } from "@/lib/image-utils"
 
 interface ImageMapProps {
   src: string
@@ -185,28 +186,44 @@ export function ImageMap({
       setError(false)
       setErrorMessage("")
       
-      // Cargar la imagen en segundo plano para poder manejar los eventos
-      const img = new Image();
-      img.onload = () => {
-        handleImageLoad();
-        setIsLoading(false);
-        setError(false);
-      };
-      img.onerror = () => {
-        handleError();
-      };
-      
-      // IMPORTANTE: Evitar solicitudes GET para imágenes data:
-      if (formattedSrc.startsWith('data:')) {
-        // Para imágenes data:, confiar en que son correctas
-        setTimeout(() => {
+      // Utilizar createProxyImage para cargar la imagen con manejo de CORS
+      try {
+        // Si ya estamos usando una imagen base64, cargarla directamente
+        if (formattedSrc.startsWith('data:')) {
+          // Para imágenes data:, confiar en que son correctas
+          if (imageRef.current) {
+            imageRef.current.src = formattedSrc;
+          }
+          
+          setTimeout(() => {
+            handleImageLoad();
+            setIsLoading(false);
+            setError(false);
+          }, 100);
+          return;
+        }
+        
+        // Para URLs normales, usar createProxyImage
+        const proxyImg = createProxyImage(formattedSrc);
+        
+        proxyImg.onload = () => {
+          // Cuando la imagen carga con éxito, asignarla al elemento de referencia
+          if (imageRef.current) {
+            imageRef.current.src = proxyImg.src;
+          }
+          
           handleImageLoad();
           setIsLoading(false);
           setError(false);
-        }, 100);
-      } else {
-        // Para URLs normales, cargar normalmente
-        img.src = formattedSrc;
+        };
+        
+        proxyImg.onerror = () => {
+          console.error('Error loading image with createProxyImage:', formattedSrc);
+          handleError();
+        };
+      } catch (e) {
+        console.error('Exception in image loading:', e);
+        handleError();
       }
     } else {
       setIsLoading(false)

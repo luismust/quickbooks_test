@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 import { ResultsDialog } from "./results-dialog"
 import type { Area, Test, Question } from "@/lib/test-storage"
+import { createProxyImage, getBestImageUrl, preloadQuestionImages } from "@/lib/image-utils"
 
 interface Connection {
   start: string
@@ -22,6 +23,63 @@ interface Connection {
 interface TestViewerProps {
   test: Test
   onFinish?: () => void
+}
+
+// Función para leer una imagen como base64
+function readImageAsBase64(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target?.result as string);
+    reader.onerror = (e) => reject(new Error('Error al leer la imagen'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Función para optimizar imágenes grandes
+function optimizeImage(imageData: string, maxWidth = 1200, maxHeight = 1200, quality = 0.7): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = function() {
+      let width = img.width;
+      let height = img.height;
+      
+      // Redimensionar si es demasiado grande
+      if (width > maxWidth || height > maxHeight) {
+        if (width > height) {
+          height = Math.round(height * maxWidth / width);
+          width = maxWidth;
+        } else {
+          width = Math.round(width * maxHeight / height);
+          height = maxHeight;
+        }
+      }
+      
+      // Crear canvas para redimensionar
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      
+      // Dibujar imagen redimensionada
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convertir a formato comprimido
+        const mimeType = imageData.split(';')[0].split(':')[1] || 'image/jpeg';
+        const optimizedData = canvas.toDataURL(mimeType, quality);
+        
+        resolve(optimizedData);
+      } else {
+        // Si no se pudo obtener contexto 2D, devolver la imagen original
+        resolve(imageData);
+      }
+    };
+    img.onerror = () => {
+      // En caso de error, devolver la imagen original
+      resolve(imageData);
+    };
+    img.src = imageData;
+  });
 }
 
 export function TestViewer({ test, onFinish }: TestViewerProps) {
@@ -36,10 +94,46 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
   const [loadedImages, setLoadedImages] = useState<{ [key: string]: string }>({})
   
   // Placeholder constante para imágenes que fallan o referencias
-  const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
+  const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
 
-  // Función para cargar la imagen real a partir de la referencia
-  const loadImageFromReference = async (reference: string) => {
+  // Función mejorada para cargar y procesar la imagen desde URL externa
+  const loadAndProcessImage = useCallback(async (url: string): Promise<string> => {
+    try {
+      console.log('Fetching and processing image from URL:', url);
+      
+      // Intentar cargar la imagen como un blob
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'image/*',
+        },
+        // No incluir credentials para evitar problemas CORS
+        mode: 'cors',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error fetching image: ${response.status} ${response.statusText}`);
+      }
+
+      // Obtener la imagen como blob
+      const imageBlob = await response.blob();
+      
+      // Convertir el blob a base64
+      const base64Data = await readImageAsBase64(imageBlob);
+      
+      // Optimizar la imagen para mejor rendimiento
+      const optimizedImage = await optimizeImage(base64Data);
+      
+      console.log('Successfully processed and optimized image');
+      return optimizedImage;
+      
+    } catch (error) {
+      console.error('Error processing image:', error);
+      return url; // Devolver la URL original en caso de error
+    }
+  }, []);
+
+  // Función mejorada para cargar la imagen real a partir de la referencia
+  const loadImageFromReference = useCallback(async (reference: string) => {
     try {
       console.log('Attempting to load image from reference:', reference);
       
@@ -61,55 +155,44 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       // URL del backend
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
       
-      // Intentar obtener la imagen del backend
-      console.log('Fetching image from backend:', `${API_URL}/images?id=${imageId}`);
+      // Construir URL para obtener la imagen del backend
+      const imageUrl = `${API_URL}/images?id=${imageId}&redirect=1`;
       
-      // Hacer la solicitud al endpoint del backend SIN credentials
-      const response = await fetch(`${API_URL}/images?id=${imageId}`, {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
-        }
+      // Usar createProxyImage para cargar la imagen con manejo de CORS
+      return new Promise<string>((resolve, reject) => {
+        const img = createProxyImage(imageUrl);
+        
+        img.onload = () => {
+          console.log('Image loaded successfully via createProxyImage');
+          // Si la imagen se cargó con éxito, devolver la URL
+          resolve(imageUrl);
+        };
+        
+        img.onerror = () => {
+          console.error('Error loading image via createProxyImage');
+          
+          // Intentar con otra URL como último recurso
+          const fallbackUrl = `${API_URL}/images?id=${imageId}&redirect=data`;
+          console.log('Trying fallback URL:', fallbackUrl);
+          
+          const fallbackImg = createProxyImage(fallbackUrl);
+          
+          fallbackImg.onload = () => {
+            console.log('Fallback image loaded successfully');
+            resolve(fallbackUrl);
+          };
+          
+          fallbackImg.onerror = () => {
+            console.error('Fallback image also failed to load');
+            reject(new Error('Failed to load image'));
+          };
+        };
       });
-      
-      if (!response.ok) {
-        // Si falla con 401/403, intentar con redirect directo
-        if (response.status === 401 || response.status === 403) {
-          console.log('Auth error, trying direct image load instead');
-          return `${API_URL}/images?id=${imageId}&redirect=1&t=${Date.now()}`;
-        }
-        throw new Error(`Error fetching image from backend: ${response.status} ${response.statusText}`);
-      }
-      
-      const imageData = await response.json();
-      console.log('Received image data from backend:', imageData);
-      
-      // El backend debería devolver la URL de la imagen
-      if (imageData.url) {
-        return imageData.url;
-      } else if (imageData.blobUrl) {
-        return imageData.blobUrl;
-      } else if (imageData.data) {
-        return imageData.data;
-      } else {
-        // Como último recurso, construir una URL directa
-        return `${API_URL}/images?id=${imageId}&redirect=1&t=${Date.now()}`;
-      }
     } catch (error) {
       console.error('Error loading image from reference:', error);
-      
-      // Como último recurso, intentar directamente con el endpoint de datos binarios
-      try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
-        console.log('Trying direct binary endpoint as fallback');
-        return `${API_URL}/images?id=${typeof reference === 'string' ? reference.replace('image_reference_', '') : reference}&redirect=1&t=${Date.now()}`;
-      } catch (fallbackError) {
-        console.error('Fallback image loading also failed:', fallbackError);
-        return null;
-      }
+      return null;
     }
-  };
+  }, []);
 
   // Procesar las imágenes
   const processedQuestions = useMemo(() => {
@@ -263,6 +346,45 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
     }
   }, [currentQuestion, processedQuestions, loadedImages, loadImageFromReference]);
 
+  // Efecto para precargar todas las imágenes al inicio
+  useEffect(() => {
+    const preloadImages = async () => {
+      if (processedQuestions.length === 0) return;
+      
+      console.log('Preloading images for all questions...');
+      
+      try {
+        const preloadedImgs = await preloadQuestionImages(processedQuestions);
+        console.log(`Successfully preloaded ${Object.keys(preloadedImgs).length} images`);
+        
+        // Almacenar las imágenes precargadas
+        const newLoadedImages: {[key: string]: string} = {};
+        
+        // Procesar cada imagen precargada
+        Object.entries(preloadedImgs).forEach(([questionId, img]) => {
+          // Si la pregunta tiene imageId, guardar con esa clave
+          const question = processedQuestions.find(q => q.id === questionId);
+          if (question?.imageId) {
+            newLoadedImages[question.imageId] = img.src;
+          }
+          
+          // También guardar con el ID de la pregunta como respaldo
+          newLoadedImages[questionId] = img.src;
+        });
+        
+        // Actualizar el estado con las imágenes precargadas
+        setLoadedImages(prev => ({
+          ...prev,
+          ...newLoadedImages
+        }));
+      } catch (error) {
+        console.error('Error preloading images:', error);
+      }
+    };
+    
+    preloadImages();
+  }, [processedQuestions]);
+
   const handleAnswer = (isCorrect: boolean, questionId: string, connection?: Connection) => {
     if (answered.includes(questionId) || testCompleted) return
     
@@ -329,6 +451,28 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
     setConnections({})
   }
 
+  // Función para procesar blobs de URL a base64
+  const processBlobUrl = useCallback(async (blobUrl: string): Promise<string> => {
+    try {
+      // Obtener el blob desde la URL
+      const response = await fetch(blobUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch blob: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      
+      // Convertir blob a base64
+      const base64 = await readImageAsBase64(blob);
+      
+      // Optimizar la imagen
+      return await optimizeImage(base64);
+    } catch (error) {
+      console.error('Error processing blob URL:', error);
+      return blobUrl; // Devolver la URL original en caso de error
+    }
+  }, []);
+
   if (!processedQuestions || processedQuestions.length === 0) {
     return (
       <Card className="w-full max-w-4xl mx-auto">
@@ -349,10 +493,10 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       case 'clickArea':
         return (
           <div className="relative">
-            {/* Si la pregunta tiene blobUrl, imageApiUrl, o imageId, construir objetos para ImageMap */}
-            {(currentQuestionData as any)._imageType === 'reference' && loadedImages[(currentQuestionData as any)._imageRef] ? (
+            {/* Si la pregunta tiene imageId o image, utilizar ImageMap */}
+            {question.imageId || question.image ? (
               <ImageMap
-                src={loadedImages[(currentQuestionData as any)._imageRef]}
+                src={getBestImageUrl(question) || ''}
                 areas={question.areas || []}
                 drawingArea={null}
                 onAreaClick={(areaId) => {
@@ -363,63 +507,41 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                 alt={question.title}
                 isDrawingMode={false}
                 isEditMode={false}
-                key={(question as any)._imageKey || `question-${question.id}-loaded`}
-                onError={() => {
-                  console.error('Failed to load loaded image in test view:', loadedImages[(currentQuestionData as any)._imageRef]);
-                  toast.error("Error loading image. Please try refreshing.");
+                key={`question-${question.id}-${Date.now()}`} // Force reload on re-render
+                onError={async () => {
+                  console.error('Failed to load image in test view:', question.image);
+                  
+                  // Intentar cargar usando createProxyImage como último recurso
+                  try {
+                    // Si hay imageId, intentar cargar directamente desde él
+                    if (question.imageId) {
+                      const url = await loadImageFromReference(question.imageId);
+                      if (url && typeof url === 'string') {
+                        // Actualizar la pregunta con la nueva URL
+                        const updatedQuestion = { ...question };
+                        updatedQuestion.image = url;
+                        
+                        // Forzar actualización
+                        setLoadedImages(prev => ({
+                          ...prev,
+                          [question.id]: url
+                        }));
+                      }
+                    }
+                  } catch (e) {
+                    console.error('Error in fallback image loading:', e);
+                  }
+                  
+                  toast.error("Could not load test image. Please try refreshing the page.");
                 }}
               />
             ) : (
-              <>
-                {/* Si es una referencia de imagen pero aún no está cargada */}
-                {(currentQuestionData as any)._imageType === 'reference' && !loadedImages[(currentQuestionData as any)._imageRef] ? (
-                  <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
-                    <div className="flex flex-col items-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
-                      <span className="text-sm text-gray-500">Cargando imagen...</span>
-                    </div>
-                  </div>
-                ) : (
-                  /* Para imágenes normales (no referencias) */
-                  <ImageMap
-                    src={question.image || ''}
-                    areas={question.areas || []} 
-                    drawingArea={null}
-                    onAreaClick={(areaId) => {
-                      if (isAnswered) return
-                      const area = question.areas?.find(a => a.id === areaId)
-                      handleAnswer(area?.isCorrect || false, question.id)
-                    }}
-                    alt={question.title}
-                    isDrawingMode={false}
-                    isEditMode={false}
-                    key={(question as any)._imageKey || `question-${question.id}`}
-                    onError={() => {
-                      console.error('Failed to load image in test view:', question.image);
-                      // Si falla la carga de imagen, intentar con una URL alternativa si está disponible
-                      if (question.imageApiUrl && question.image !== question.imageApiUrl) {
-                        console.log('Trying alternative imageApiUrl:', question.imageApiUrl);
-                        question.image = question.imageApiUrl;
-                      } else if (question.blobUrl && question.image !== question.blobUrl) {
-                        console.log('Trying alternative blobUrl:', question.blobUrl);
-                        question.image = question.blobUrl;
-                      } else if (question.imageId) {
-                        // Como último recurso, intentar cargar desde imageId
-                        loadImageFromReference(question.imageId).then(url => {
-                          if (url) {
-                            question.image = url;
-                            setLoadedImages(prev => ({
-                              ...prev,
-                              [question.imageId as string]: url
-                            }));
-                          }
-                        });
-                      }
-                      toast.error("Could not load test image. Using a placeholder image instead.");
-                    }}
-                  />
-                )}
-              </>
+              <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
+                <div className="flex flex-col items-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+                  <span className="text-sm text-gray-500">No image available for this question</span>
+                </div>
+              </div>
             )}
             
             {/* Mensaje sutil para indicar que se debe hacer clic en la imagen */}

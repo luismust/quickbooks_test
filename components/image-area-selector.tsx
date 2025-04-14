@@ -13,7 +13,7 @@ import type { Area } from "@/lib/test-storage"
 interface ImageAreaSelectorProps {
   image: string
   areas: Area[]
-  onChange: (data: { image?: string; areas?: Area[]; localFile?: File }) => void
+  onChange: (data: { image?: string; areas?: Area[]; localFile?: File | string }) => void
   isEditMode?: boolean
   onImageUpload?: (file: File) => Promise<string>
 }
@@ -68,22 +68,35 @@ export function ImageAreaSelector({
 
     try {
       const localUrl = URL.createObjectURL(file)
-      
       setLocalFile(file)
-      
       setCurrentImage(localUrl)
+
+      // Convertir la imagen a base64 para preparar la subida a Vercel Blob
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64Data = reader.result as string
         
-      onChange({ 
-        image: localUrl, 
-        areas: areas,
-        localFile: file
-      })
+        // Actualizar el componente y preparar los datos para subir a Vercel Blob
+        onChange({ 
+          image: localUrl,  // URL temporal local para vista previa
+          areas: areas,
+          localFile: base64Data // Guardar la imagen en base64 para subirla a Vercel Blob
+        })
+        
+        setIsLoading(false)
+        toast.success('Image loaded successfully and ready for upload')
+      }
       
-      toast.success('Image loaded successfully')
+      reader.onerror = () => {
+        toast.error('Error reading image file. Please try again.')
+        setIsLoading(false)
+      }
+      
+      // Iniciar la lectura del archivo como base64
+      reader.readAsDataURL(file)
     } catch (error) {
       console.error('Error handling image:', error)
       toast.error('Error processing image. Please try again.')
-    } finally {
       setIsLoading(false)
     }
   }
