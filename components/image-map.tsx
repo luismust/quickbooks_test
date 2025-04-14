@@ -494,6 +494,12 @@ export function ImageMap({
     const normalizedX = x / scale
     const normalizedY = y / scale
 
+    // Validar que las coordenadas son números válidos y finitos
+    if (!Number.isFinite(normalizedX) || !Number.isFinite(normalizedY)) {
+      console.error('Invalid coordinates detected:', { normalizedX, normalizedY });
+      return;
+    }
+
     console.log('MouseDown event:', { 
       raw: { x, y }, 
       normalized: { x: normalizedX, y: normalizedY },
@@ -523,6 +529,12 @@ export function ImageMap({
     // Normalizar las coordenadas según la escala para mantener consistencia
     const normalizedX = x / scale
     const normalizedY = y / scale
+    
+    // Validar que las coordenadas son números válidos y finitos
+    if (!Number.isFinite(normalizedX) || !Number.isFinite(normalizedY)) {
+      console.error('Invalid coordinates detected during move:', { normalizedX, normalizedY });
+      return;
+    }
     
     // Solo registramos cada 5 movimientos para no saturar la consola
     if (Math.random() < 0.05) {
@@ -597,6 +609,13 @@ export function ImageMap({
       return { left: 0, top: 0, width: 20, height: 20 };
     }
     
+    // Verificar que las coordenadas son válidas (no Infinity, NaN, etc.)
+    const hasInvalidCoords = area.coords.some(coord => !Number.isFinite(coord) || Number.isNaN(coord));
+    if (hasInvalidCoords) {
+      console.error('Invalid coordinates in area. Using fallback:', area.id, area.coords);
+      return { left: 0, top: 0, width: 30, height: 30 };
+    }
+    
     // Primero normalizar las coordenadas para asegurar que x1,y1 sea la esquina superior izquierda
     // y x2,y2 sea la esquina inferior derecha
     const x1 = Math.min(area.coords[0], area.coords[2]);
@@ -626,13 +645,18 @@ export function ImageMap({
     }
     
     // Calcular proporción basada en las dimensiones actuales
-    const currentScale = scale;
+    // Verificar que la escala es válida y usar un valor por defecto seguro si no lo es
+    let effectiveScale = scale;
+    if (!Number.isFinite(effectiveScale) || effectiveScale <= 0) {
+      console.error('Invalid scale:', scale, 'Using default scale 1');
+      effectiveScale = 1;
+    }
     
     // Aplicar escala a las coordenadas normalizadas
-    const left = x1 * currentScale;
-    const top = y1 * currentScale;
-    const width = (x2 - x1) * currentScale;
-    const height = (y2 - y1) * currentScale;
+    const left = x1 * effectiveScale;
+    const top = y1 * effectiveScale;
+    const width = (x2 - x1) * effectiveScale;
+    const height = (y2 - y1) * effectiveScale;
     
     // Asegurar dimensiones mínimas en píxeles para interacción
     const minDimension = 12; // Reducido para permitir áreas más pequeñas
@@ -649,7 +673,7 @@ export function ImageMap({
         original: { x1, y1, x2, y2 },
         containerSize: { width: containerWidth, height: containerHeight },
         imageSize: { width: imageWidth, height: imageHeight },
-        scale: currentScale,
+        scale: effectiveScale,
         result: {
           left, top, width: finalWidth, height: finalHeight
         }
@@ -668,6 +692,13 @@ export function ImageMap({
   const isPointInArea = (x: number, y: number, area: Area): boolean => {
     if (!area.coords || area.coords.length < 4) return false;
     
+    // Verificar que las coordenadas son válidas (no Infinity, NaN, etc.)
+    const hasInvalidCoords = area.coords.some(coord => !Number.isFinite(coord) || Number.isNaN(coord));
+    if (hasInvalidCoords) {
+      console.error('Invalid coordinates in area:', area.id, area.coords);
+      return false;
+    }
+    
     // Coordenadas originales sin escalar
     const left = Math.min(area.coords[0], area.coords[2]);
     const right = Math.max(area.coords[0], area.coords[2]);
@@ -678,7 +709,13 @@ export function ImageMap({
     const clickX = x / scale;
     const clickY = y / scale;
     
-    // Añadir un margen de error para facilitar el cliqueo
+    // Verificar que las coordenadas del clic normalizadas son válidas
+    if (!Number.isFinite(clickX) || !Number.isFinite(clickY)) {
+      console.error('Invalid click coordinates after normalization:', { clickX, clickY });
+      return false;
+    }
+    
+    // Añadir un margen de error para facilitar el cliqueo, pero controlado
     const errorMargin = 5; // 5 píxeles de margen
     const isInside = 
       clickX >= (left - errorMargin / scale) && 
@@ -686,20 +723,18 @@ export function ImageMap({
       clickY >= (top - errorMargin / scale) && 
       clickY <= (bottom + errorMargin / scale);
     
-    // Limitar logs, pero mantener algunos para depuración
-    if (Math.random() < 0.2) {
-      console.log('Click check:', { 
-        clickRaw: { x, y },
-        clickNormalized: { x: clickX, y: clickY },
-        area: {
-          id: area.id,
-          isCorrect: area.isCorrect,
-          coords: `(${left},${top}) to (${right},${bottom})`
-        },
-        scale,
-        result: isInside
-      });
-    }
+    // Siempre loguear para depuración cuando se hace clic
+    console.log('Click check:', { 
+      clickRaw: { x, y },
+      clickNormalized: { x: clickX, y: clickY },
+      area: {
+        id: area.id,
+        isCorrect: area.isCorrect,
+        coords: `(${left},${top}) to (${right},${bottom})`
+      },
+      scale,
+      result: isInside
+    });
     
     return isInside;
   };
@@ -849,8 +884,35 @@ export function ImageMap({
             />
           </div>
       
-          {!isLoading && areas.map((area) => {
+          {!isLoading && areas.filter(area => {
+            // Filtrar áreas con coordenadas inválidas
+            if (!area.coords || area.coords.length < 4) {
+              console.error('Skipping area with invalid coords:', area.id);
+              return false;
+            }
+            
+            // Verificar que no contiene Infinity o NaN
+            const hasInvalidCoords = area.coords.some(coord => 
+              !Number.isFinite(coord) || Number.isNaN(coord)
+            );
+            
+            if (hasInvalidCoords) {
+              console.error('Skipping area with invalid coordinate values:', area.id, area.coords);
+              return false;
+            }
+            
+            return true;
+          }).map((area) => {
             const dimensions = getAreaDimensions(area);
+            // Verificar que las dimensiones calculadas son válidas
+            if (!Number.isFinite(dimensions.left) || 
+                !Number.isFinite(dimensions.top) ||
+                !Number.isFinite(dimensions.width) ||
+                !Number.isFinite(dimensions.height)) {
+              console.error('Skipping area with invalid dimensions:', area.id, dimensions);
+              return null;
+            }
+            
             return (
             <div
               key={area.id}
@@ -879,7 +941,9 @@ export function ImageMap({
             );
           })}
 
-          {!isLoading && drawingArea && (
+          {!isLoading && drawingArea && drawingArea.coords && 
+           drawingArea.coords.length === 4 &&
+           !drawingArea.coords.some(coord => !Number.isFinite(coord) || Number.isNaN(coord)) && (
             <div
               className="absolute border-2 border-blue-500 bg-blue-500/20"
               style={{

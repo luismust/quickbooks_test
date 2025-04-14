@@ -18,7 +18,7 @@ interface ImageErrorEditorProps {
 
 export function ImageErrorEditor({ imageUrl, question, errors, onChange }: ImageErrorEditorProps) {
   const [currentImage, setCurrentImage] = useState(imageUrl)
-  const [localFile, setLocalFile] = useState<File | null>(null)
+  const [localFile, setLocalFile] = useState<File | undefined>(undefined)
   const [isLoading, setIsLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 

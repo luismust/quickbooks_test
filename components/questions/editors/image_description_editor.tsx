@@ -31,7 +31,7 @@ export function ImageDescriptionEditor({
   onChange 
 }: ImageDescriptionEditorProps) {
   const [currentImage, setCurrentImage] = useState(imageUrl)
-  const [localFile, setLocalFile] = useState<File | null>(null)
+  const [localFile, setLocalFile] = useState<File | undefined>(undefined)
   const [isLoading, setIsLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 

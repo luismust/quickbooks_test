@@ -498,9 +498,29 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
           <div className="relative">
             {/* Si la pregunta tiene imageId o image, utilizar ImageMap */}
             {question.imageId || question.image ? (
+                  <>
+                  {/* Image map component below */}
                   <ImageMap
-                src={getBestImageUrl(question) || ''}
-                    areas={question.areas || []} 
+                    src={getBestImageUrl(question) || ''}
+                    areas={question.areas?.filter(a => {
+                      // Filtrar áreas con coordenadas válidas
+                      if (!a.coords || a.coords.length < 4) {
+                        console.error('Invalid area coords, skipping:', a.id);
+                        return false;
+                      }
+                      
+                      // Verificar que no hay valores Infinity o NaN
+                      const hasInvalidCoords = a.coords.some(
+                        coord => !Number.isFinite(coord) || Number.isNaN(coord)
+                      );
+                      
+                      if (hasInvalidCoords) {
+                        console.error('Area has invalid coordinate values, skipping:', a.id, a.coords);
+                        return false;
+                      }
+                      
+                      return true;
+                    }) || []} 
                     drawingArea={null}
                     onAreaClick={(areaId) => {
                       if (isAnswered) return;
@@ -567,6 +587,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                       handleAnswer(false, question.id);
                     }}
                   />
+                  </>
             ) : (
               <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
                 <div className="flex flex-col items-center">

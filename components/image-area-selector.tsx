@@ -104,6 +104,12 @@ export function ImageAreaSelector({
   const handleDrawStart = (x: number, y: number) => {
     if (!isDrawingMode) return
     
+    // Validar que las coordenadas son números finitos
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      console.error('Invalid coordinates in handleDrawStart:', { x, y });
+      return;
+    }
+    
     console.log('Draw start at:', x, y)
     
     // Las coordenadas recibidas ya están normalizadas por ImageMap
@@ -122,6 +128,12 @@ export function ImageAreaSelector({
   const handleDrawMove = (x: number, y: number) => {
     if (!drawingArea) return
 
+    // Validar que las coordenadas son números finitos
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      console.error('Invalid coordinates in handleDrawMove:', { x, y });
+      return;
+    }
+
     // Solo registrar algunos movimientos para no saturar la consola
     if (Math.random() < 0.05) {
       console.log('Draw move to:', x, y);
@@ -130,6 +142,12 @@ export function ImageAreaSelector({
     // Usar el punto de inicio guardado para coordenadas consistentes
     setDrawingArea((prev: any) => {
       if (!prev) return null
+      
+      // Verificar que el punto inicial es válido
+      if (!Number.isFinite(prev.x) || !Number.isFinite(prev.y)) {
+        console.error('Invalid stored coordinates:', { prevX: prev.x, prevY: prev.y });
+        return prev;
+      }
       
       // Asegurarnos que las coordenadas están en el formato [x1, y1, x2, y2]
       // donde x1,y1 es el punto inicial y x2,y2 es el punto actual
@@ -146,6 +164,18 @@ export function ImageAreaSelector({
     if (!drawingArea) return
 
     console.log('Draw end with final coords:', drawingArea.coords)
+    
+    // Verificar que las coordenadas son números válidos
+    const hasInvalidCoords = drawingArea.coords.some((coord: number) => 
+      !Number.isFinite(coord) || Number.isNaN(coord)
+    );
+    
+    if (hasInvalidCoords) {
+      console.error('Invalid coordinates in handleDrawEnd:', drawingArea.coords);
+      toast.error('Invalid drawing coordinates. Please try again.');
+      setDrawingArea(null);
+      return;
+    }
     
     const width = Math.abs(drawingArea.coords[2] - drawingArea.coords[0])
     const height = Math.abs(drawingArea.coords[3] - drawingArea.coords[1])

@@ -546,12 +546,17 @@ export const loadTest = async (testId: string): Promise<Test | null> => {
 };
 
 /**
- * Función principal para cargar todos los tests
+ * Carga tests desde la API o localStorage
  */
 export const loadTests = async (): Promise<Test[]> => {
   // Intentar primero desde la API, si falla usa localStorage
   return await loadTestsFromAPI();
 };
+
+/**
+ * Alias para loadTests para mayor compatibilidad
+ */
+export const getTests = loadTests;
 
 /**
  * Exporta un test como JSON

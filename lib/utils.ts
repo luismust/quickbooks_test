@@ -10,25 +10,6 @@ export function processImageUrl(url: string): string {
   return url
 }
 
-export const validateImageUrl = (url: string): boolean => {
-  if (!url) return false
-
-  try {
-    const parsed = new URL(url)
-    
-    // Validar dominios de imágenes comunes
-    const validDomains = [
-      'imgur.com',
-      'i.imgur.com',
-      'cloudinary.com',
-      'res.cloudinary.com',
-      'api.airtable.com'
-    ]
-    return validDomains.some(domain => parsed.hostname.includes(domain))
-  } catch {
-    return false
-  }
-}
 
 export async function downloadAndCacheImage(url: string): Promise<string> {
   try {

@@ -4,8 +4,6 @@ import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { toast } from "sonner"
 import { Plus } from "lucide-react"
 
 interface Hotspot {
@@ -34,7 +32,7 @@ export function ImageHotspotsEditor({
   onChange 
 }: ImageHotspotsEditorProps) {
   const [currentImage, setCurrentImage] = useState(imageUrl)
-  const [localFile, setLocalFile] = useState<File | null>(null)
+  const [localFile, setLocalFile] = useState<File | undefined>(undefined)
   const [isLoading, setIsLoading] = useState(false)
   const [isPlacingHotspot, setIsPlacingHotspot] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
