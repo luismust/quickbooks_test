@@ -260,55 +260,121 @@ export function ImageMap({
       }
     }
     
-    // Aumentar el máximo de reintentos
-    if (retryCount >= 2) {
-      console.error('Error loading image after multiple attempts:', formattedSrc);
+    // Si la URL es de la API y no tiene redirect=1, intentar con redirect=1
+    if (formattedSrc && typeof formattedSrc === 'string' && 
+        formattedSrc.includes('quickbooks-backend') && 
+        formattedSrc.includes('id=') && 
+        !formattedSrc.includes('redirect=1')) {
       
-      // Intentar alternativas antes de rendirnos
-      const foundAlternative = await tryAlternativeImage();
-      if (!foundAlternative) {
-        setIsLoading(false);
-        setError(true);
-        setErrorMessage(`Could not load the image after multiple attempts.`);
-        
-        // Depurar la causa del error
-        console.log('Source format analysis:', {
-          isBase64: formattedSrc?.startsWith('data:image/'),
-          isHttp: formattedSrc?.startsWith('http'),
-          isBlob: formattedSrc?.startsWith('blob:'),
-          isAirtable: formattedSrc?.includes('api.airtable.com'),
-          sourceLength: formattedSrc?.length || 0,
-          sourceStart: formattedSrc?.substring(0, 50) || 'empty'
-        });
-        
-        onError?.();
-      }
-      return;
-    }
-    
-    setRetryCount(prev => prev + 1);
-    console.error(`Error loading image (attempt ${retryCount + 1}):`, formattedSrc);
-    
-    // Si es una URL relativa de Airtable, intentar corregirla
-    if (formattedSrc?.includes('api.airtable.com') && !formattedSrc.startsWith('https://')) {
-      const correctedUrl = `https://api.airtable.com/${formattedSrc.replace(/^\/+/, '')}`;
-      console.log('Attempting with corrected Airtable URL:', correctedUrl);
+      // Modificar para usar redirect=1, que evita problemas CORS
+      const newUrl = `${formattedSrc}${formattedSrc.includes('?') ? '&' : '?'}redirect=1&t=${Date.now()}`;
+      console.log('Retrying image with redirect=1 to avoid CORS issues:', newUrl);
       
       if (imageRef.current) {
-        imageRef.current.src = correctedUrl;
+        const img = createProxyImage(newUrl);
+        img.onload = () => {
+          if (imageRef.current) {
+            // Actualizar el div de imagen con el nuevo src
+            (imageRef.current as HTMLDivElement).style.backgroundImage = `url(${newUrl})`;
+            handleImageLoad();
+          }
+        };
         return;
       }
     }
     
-    setIsLoading(false);
-    setError(true);
-    setErrorMessage("Could not load the image. Trying alternatives...");
+    // Error de CORS específico
+    if (formattedSrc && 
+       !formattedSrc.startsWith('data:') && 
+       !formattedSrc.startsWith('blob:') &&
+       !formattedSrc.includes('redirect=1')) {
+      
+      console.log('Possible CORS error, attempting with proxy:', formattedSrc);
+      
+      // Usar técnica alternativa para URL con posible error CORS
+      const timestamp = Date.now();
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+      
+      // Si la URL tiene una forma que podemos convertir a petición de proxy
+      const urlMatch = formattedSrc.match(/\/images\/([^\/\?]+)/i);
+      if (urlMatch && urlMatch[1]) {
+        const imageId = urlMatch[1];
+        const proxyUrl = `${API_URL}/images?id=${imageId}&redirect=1&t=${timestamp}`;
+        
+        console.log('Trying to load image through proxy URL:', proxyUrl);
+        
+        if (imageRef.current) {
+          const img = createProxyImage(proxyUrl);
+          img.onload = () => {
+            if (imageRef.current) {
+              // Actualizar el div de imagen con el nuevo src
+              (imageRef.current as HTMLDivElement).style.backgroundImage = `url(${proxyUrl})`;
+              handleImageLoad();
+            }
+          };
+          img.onerror = () => {
+            // Continuar con los reintentos normales si esto no funciona
+            continueWithRetries();
+          };
+          return;
+        }
+      }
+    }
     
-    // Intentar alternativas
-    const foundAlternative = await tryAlternativeImage();
-    if (!foundAlternative) {
-      toast.error("Could not load the image. Check the URL.");
-      onError?.();
+    // Proceso normal de reintentos
+    continueWithRetries();
+    
+    function continueWithRetries() {
+      // Aumentar el máximo de reintentos
+      if (retryCount >= 2) {
+        console.error('Error loading image after multiple attempts:', formattedSrc);
+        
+        // Intentar alternativas antes de rendirnos
+        const foundAlternative = tryAlternativeImage();
+        if (!foundAlternative) {
+          setIsLoading(false);
+          setError(true);
+          setErrorMessage(`Could not load the image after multiple attempts.`);
+          
+          // Depurar la causa del error
+          console.log('Source format analysis:', {
+            isBase64: formattedSrc?.startsWith('data:image/'),
+            isHttp: formattedSrc?.startsWith('http'),
+            isBlob: formattedSrc?.startsWith('blob:'),
+            isAirtable: formattedSrc?.includes('api.airtable.com'),
+            sourceLength: formattedSrc?.length || 0,
+            sourceStart: formattedSrc?.substring(0, 50) || 'empty'
+          });
+          
+          onError?.();
+        }
+        return;
+      }
+      
+      setRetryCount(prev => prev + 1);
+      console.error(`Error loading image (attempt ${retryCount + 1}):`, formattedSrc);
+      
+      // Si es una URL relativa de Airtable, intentar corregirla
+      if (formattedSrc?.includes('api.airtable.com') && !formattedSrc.startsWith('https://')) {
+        const correctedUrl = `https://api.airtable.com/${formattedSrc.replace(/^\/+/, '')}`;
+        console.log('Attempting with corrected Airtable URL:', correctedUrl);
+        
+        if (imageRef.current) {
+          (imageRef.current as HTMLDivElement).style.backgroundImage = `url(${correctedUrl})`;
+          return;
+        }
+      }
+      
+      setIsLoading(false);
+      setError(true);
+      setErrorMessage("Could not load the image. Trying alternatives...");
+      
+      // Intentar alternativas
+      const foundAlternative = tryAlternativeImage();
+      if (!foundAlternative) {
+        toast.error("Could not load the image. Check the URL.");
+        onError?.();
+      }
     }
   }
   
