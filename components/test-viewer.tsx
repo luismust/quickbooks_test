@@ -413,8 +413,8 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
     setShowFeedback({
       correct: isCorrect,
       message: isCorrect 
-        ? `Respuesta correcta! +${question.scoring?.correct || 1} puntos` 
-        : `Respuesta incorrecta. Intenta encontrar el área correcta.`
+        ? `Correct answer! +${question.scoring?.correct || 1} points` 
+        : `Incorrect!`
     })
 
     setTimeout(() => {
@@ -503,10 +503,18 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                       if (isAnswered) return
                       console.log('Area clicked in TestViewer:', areaId);
                       const area = question.areas?.find(a => a.id === areaId)
-                      console.log('Found area:', area);
-                      handleAnswer(area?.isCorrect || false, question.id)
+                      console.log('Found area:', area ? 
+                        { id: area.id, isCorrect: area.isCorrect, coords: area.coords } : 
+                        'Area not found');
+                      
+                      if (area) {
+                        handleAnswer(area.isCorrect || false, question.id);
+                      } else {
+                        console.error('Area with ID not found:', areaId);
+                        handleAnswer(false, question.id);
+                      }
                     }}
-                    alt={question.title}
+                    alt={question.title || 'Test question image'}
                     isDrawingMode={false}
                     isEditMode={false}
                 key={`question-${question.id}-${Date.now()}`} // Force reload on re-render
@@ -555,24 +563,8 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
             
             {/* Mensaje sutil para indicar que se debe hacer clic en la imagen */}
             <div className="absolute bottom-2 left-2 right-2 bg-white bg-opacity-70 p-2 rounded text-sm text-center">
-              <p>Haz clic en la imagen según la pregunta</p>
-                </div>
-            
-            {/* Retroalimentación para las respuestas */}
-            <AnimatePresence>
-              {showFeedback && isAnswered && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className={`absolute top-2 left-0 right-0 p-2 rounded text-white text-center mx-auto max-w-md ${
-                    showFeedback.correct ? 'bg-green-500' : 'bg-red-500'
-                  }`}
-                >
-                  {showFeedback.message}
-                </motion.div>
-              )}
-            </AnimatePresence>
+              <p>Click on the image according to the question</p>
+            </div>
           </div>
         )
 
@@ -705,7 +697,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                         <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
                           <div className="flex flex-col items-center">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
-                            <span className="text-sm text-gray-500">Cargando imagen...</span>
+                            <span className="text-sm text-gray-500">Image loading...</span>
                           </div>
                         </div>
                       )}

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { QuickbooksTest } from "@/components/quickbooks-test"
-import { getTests } from "@/lib/test-storage"
+import { loadTests } from "@/lib/test-storage"
 import { useLocalStorage } from "@/components/local-storage-provider"
 import type { Test } from "@/lib/test-storage"
 
@@ -47,8 +47,8 @@ export function EditTestClient({ id }: EditTestClientProps) {
           }
         } else {
           // En modo normal, cargar desde API
-          const tests = await getTests()
-          const foundTest = tests.find(t => t.id === id)
+          const tests = await loadTests()
+          const foundTest = tests.find((t: Test) => t.id === id)
           if (!foundTest) {
             throw new Error("Test not found")
           }

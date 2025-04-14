@@ -10,7 +10,6 @@ import {
   Pencil,
   FileText,
   CheckSquare,
-  Image,
   Layout,
   Layers,
   Copy,
@@ -19,13 +18,11 @@ import {
   ZoomIn,
   Edit,
   Save,
-  Upload,
-  Download,
-  Settings
+  Download
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import type { Test } from "@/lib/types"
+import type { Test } from "@/lib/test-storage"
 
 interface FloatingEditorIconsProps {
   isDrawing: boolean
@@ -227,7 +224,7 @@ export function FloatingEditorIcons({
           className="gap-2"
         >
           <Save className="h-4 w-4" />
-          {isSaving ? "Guardando..." : "Guardar"}
+          {isSaving ? "Saving..." : "Save"}
         </Button>
       </div>
     </div>

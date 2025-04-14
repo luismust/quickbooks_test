@@ -145,12 +145,30 @@ export function ImageMap({
       
       // Para imágenes cargadas a través de un div con background-image, 
       // obtenemos el ancho desde la imagen oculta que se usa para los eventos
-      const hiddenImg = document.querySelector(`img[src="${formattedSrc}"]`)
-      const imageNaturalWidth = hiddenImg ? 
-        (hiddenImg as HTMLImageElement).naturalWidth || 300 :
-        300 // valor por defecto
+      const hiddenImg = document.querySelector(`img[src="${formattedSrc}"]`) as HTMLImageElement
       
-      const imageScale = containerWidth / imageNaturalWidth || 1
+      // Si tenemos la imagen oculta, usar su tamaño natural
+      let imageNaturalWidth = 300; // valor por defecto
+      
+      if (hiddenImg && hiddenImg.naturalWidth) {
+        imageNaturalWidth = hiddenImg.naturalWidth;
+        console.log('Using naturalWidth from hidden image:', imageNaturalWidth);
+      } else {
+        // Si no tenemos la imagen oculta, intentar con el backgroundImage
+        const backgroundDiv = imageRef.current as HTMLDivElement;
+        const computedStyle = window.getComputedStyle(backgroundDiv);
+        const bgWidth = parseInt(computedStyle.width);
+        
+        if (!isNaN(bgWidth) && bgWidth > 0) {
+          console.log('Using computed backgroundImage width:', bgWidth);
+          imageNaturalWidth = bgWidth;
+        } else {
+          console.log('Using default width:', imageNaturalWidth);
+        }
+      }
+      
+      // Calcular la escala basada en el ancho del contenedor y el ancho natural de la imagen
+      const imageScale = containerWidth / imageNaturalWidth || 1;
       
       console.log('Image loaded successfully:', {
         src: formattedSrc.substring(0, 50) + '...',
@@ -158,12 +176,12 @@ export function ImageMap({
         containerWidth,
         scale: imageScale,
         wasLoading: isLoading
-      })
+      });
       
-      setScale(imageScale)
+      setScale(imageScale);
     }
-    setIsLoading(false)
-    setError(false)
+    setIsLoading(false);
+    setError(false);
   }
 
   // Intentar alternativas cuando la carga de imagen falla
@@ -555,15 +573,15 @@ export function ImageMap({
     if (isEditMode) {
       return area.isCorrect ? 'border-green-500' : 'border-red-500';
     }
-    // En modo prueba, hacer las áreas completamente invisibles (sin borde, sin fondo, sin hover)
-    return 'border-0 bg-transparent';
+    // En modo prueba, hacer las áreas muy sutiles pero detectables al hover
+    return 'hover:bg-white/10';
   }
 
   // Determinar la clase de cursor basado en el modo
   const getCursorClass = (isDrawingMode: boolean, isEditMode: boolean) => {
     if (isDrawingMode) return "cursor-crosshair";
     if (isEditMode) return ""; // cursor normal
-    return ""; // cursor normal en modo test
+    return "cursor-pointer"; // cursor pointer en modo test para indicar que es clicable
   }
 
   // Asegurar que las áreas sean lo suficientemente grandes para que se puedan clickear
@@ -586,23 +604,29 @@ export function ImageMap({
     const width = (x2 - x1) * scale;
     const height = (y2 - y1) * scale;
     
-    // Registro para debug
-    if (Math.random() < 0.1) { // Solo logueamos aproximadamente 10% de las llamadas para no saturar la consola
-      console.log('Area dimensions calculated:', { 
-        original: { x1, y1, x2, y2 },
-        scaled: { left, top, width, height },
-        scale,
-        areaId: area.id,
-        isCorrect: area.isCorrect
-      });
-    }
-    
     // Asegurar dimensiones mínimas en píxeles para interacción
     const minDimension = 15; // Reducido de 20 a 15 para permitir áreas un poco más pequeñas
     
     // Si el área es muy pequeña en ambas dimensiones, aumentarla para facilitar el clic
     let finalWidth = Math.max(width, minDimension);
     let finalHeight = Math.max(height, minDimension);
+    
+    // Registro para debug (aumentamos probabilidad a 20% para más información)
+    if (Math.random() < 0.2) {
+      console.log('Area dimensions calculated:', { 
+        id: area.id,
+        isCorrect: area.isCorrect,
+        original: { x1, y1, x2, y2 },
+        scaled: { left, top, width, height },
+        final: { 
+          left, 
+          top, 
+          width: finalWidth, 
+          height: finalHeight 
+        },
+        scale
+      });
+    }
     
     return {
       left,
@@ -626,15 +650,21 @@ export function ImageMap({
     const clickX = x / scale;
     const clickY = y / scale;
     
+    const isInside = clickX >= left && clickX <= right && clickY >= top && clickY <= bottom;
+    
     console.log('Click check:', { 
       clickX, 
       clickY, 
-      area: `(${left},${top}) to (${right},${bottom})`,
+      area: {
+        id: area.id,
+        isCorrect: area.isCorrect,
+        coords: `(${left},${top}) to (${right},${bottom})`
+      },
       scale,
-      result: (clickX >= left && clickX <= right && clickY >= top && clickY <= bottom)
+      result: isInside
     });
     
-    return clickX >= left && clickX <= right && clickY >= top && clickY <= bottom;
+    return isInside;
   };
   
   // Función para manejar el clic en un área específica
@@ -776,11 +806,17 @@ export function ImageMap({
                 top: dimensions.top,
                 width: dimensions.width,
                 height: dimensions.height,
-                // En modo test las áreas deben ser completamente invisibles pero receptivas a clics
+                // En modo test las áreas deben ser casi invisibles pero receptivas a clics
                 background: isEditMode ? 'rgba(0,0,0,0.03)' : 'transparent',
                 border: isEditMode ? '1px solid' : 'none',
-                // Para depuración en desarrollo (quitar o comentar en producción)
-                // outline: !isEditMode ? '1px solid red' : 'none'
+                // Solo en desarrollo, añadir un sutil borde en hover para testing
+                // Puedes quitar esto en producción
+                ...(process.env.NODE_ENV === 'development' && !isEditMode ? {
+                  transition: 'all 0.2s',
+                  ':hover': {
+                    outline: '1px solid rgba(255,255,255,0.5)'
+                  }
+                } : {})
               }}
             />
             );
