@@ -1,12 +1,20 @@
 "use client"
 
-import type React from "react"
-import { useState, useRef, useEffect, useCallback, useMemo } from "react"
+import React, { 
+  useState, 
+  useRef, 
+  useEffect, 
+  useCallback, 
+  useMemo,
+  MouseEvent,
+  SyntheticEvent 
+} from 'react'
 import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import type { Area } from "@/lib/test-storage"
 import { createProxyImage, getBestImageUrl } from "@/lib/image-utils"
+import { clsx } from "clsx"
 
 interface ImageMapProps {
   src: string
@@ -138,69 +146,49 @@ export function ImageMap({
     return placeholderImage;
   }, [src])
 
-  // Definir handleImageLoad y handleError antes de usarlos en useEffect
-  const handleImageLoad = () => {
-    if (imageRef.current && containerRef.current) {
-      const containerWidth = containerRef.current.clientWidth;
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event> | null) => {
+    if (e && e.currentTarget) {
+      console.log("Image loaded in ImageMap:", src);
+      const img = e.currentTarget as HTMLImageElement;
       
-      // Para imágenes cargadas a través de un div con background-image, 
-      // obtenemos el ancho desde la imagen oculta que se usa para los eventos
-      const hiddenImg = document.querySelector(`img[src="${formattedSrc}"]`) as HTMLImageElement;
+      // Get the natural dimensions of the image
+      const naturalWidth = img.naturalWidth;
+      const naturalHeight = img.naturalHeight;
       
-      // Si tenemos la imagen oculta, usar su tamaño natural
-      let imageNaturalWidth = 300; // valor por defecto
-      let imageNaturalHeight = 200; // valor por defecto
+      // Get the rendered dimensions of the image
+      const renderedWidth = img.width;
+      const renderedHeight = img.height;
       
-      if (hiddenImg && hiddenImg.naturalWidth) {
-        imageNaturalWidth = hiddenImg.naturalWidth;
-        imageNaturalHeight = hiddenImg.naturalHeight || 200;
-        console.log('Using naturalWidth/Height from hidden image:', 
-          { width: imageNaturalWidth, height: imageNaturalHeight });
-      } else {
-        // Si no tenemos la imagen oculta, intentar con el backgroundImage
-        const backgroundDiv = imageRef.current as HTMLDivElement;
-        const computedStyle = window.getComputedStyle(backgroundDiv);
-        const bgWidth = parseInt(computedStyle.width);
-        const bgHeight = parseInt(computedStyle.height);
-        
-        if (!isNaN(bgWidth) && bgWidth > 0) {
-          console.log('Using computed backgroundImage dimensions:', 
-            { width: bgWidth, height: bgHeight });
-          imageNaturalWidth = bgWidth;
-          imageNaturalHeight = bgHeight || imageNaturalWidth * 0.66; // Proporción aproximada si no hay altura
-        } else {
-          console.log('Using default dimensions:', 
-            { width: imageNaturalWidth, height: imageNaturalHeight });
-        }
-      }
-      
-      // Calcular la escala basada en el ancho del contenedor y el ancho natural de la imagen
-      const widthScale = containerWidth / imageNaturalWidth || 1;
-      
-      // También necesitamos determinar la altura del contenedor
-      const containerHeight = containerRef.current.clientHeight;
-      // Y calcular la escala de altura
-      const heightScale = containerHeight / imageNaturalHeight || widthScale;
-      
-      // Usar la misma escala para ambas dimensiones para mantener la proporción
-      const imageScale = widthScale;
-      
-      console.log('Image loaded successfully:', {
-        src: formattedSrc.substring(0, 50) + '...',
-        naturalDimensions: { width: imageNaturalWidth, height: imageNaturalHeight },
-        containerDimensions: { width: containerWidth, height: containerHeight },
-        scales: { width: widthScale, height: heightScale, used: imageScale },
-        wasLoading: isLoading,
-        mode: isEditMode ? 'edit' : 'view'
+      console.log("Image dimensions:", {
+        naturalWidth,
+        naturalHeight,
+        renderedWidth,
+        renderedHeight,
+        scale: renderedWidth / naturalWidth
       });
       
-      // Guardar la escala para usarla en el posicionamiento de áreas
-      setScale(imageScale);
+      // Calculate the scale factor between natural and rendered dimensions
+      const scaleX = renderedWidth / naturalWidth;
+      const scaleY = renderedHeight / naturalHeight;
+      
+      setScale(scaleX);
+      
+      setIsLoading(false);
+      setError(false);
+      setErrorMessage("");
+      setUsedFallback(false);
+      setRetryCount(0);
+    } else {
+      console.log("Image loaded via alternative method:", src);
+      // Handle the case where we're loading without an event (e.g., from fallback mechanisms)
     }
-    
-    setIsLoading(false);
-    setError(false);
-  };
+  }, [setScale, imageRef]);
+
+  // Handler for div container's onLoad event
+  const handleDivLoad = useCallback((e: React.SyntheticEvent<HTMLDivElement, Event>) => {
+    console.log("Container div loaded");
+    // Any div-specific logic can go here
+  }, []);
 
   // Intentar alternativas cuando la carga de imagen falla
   const tryAlternativeImage = useCallback(async () => {
@@ -280,7 +268,7 @@ export function ImageMap({
     if (imageRef.current && formattedSrc?.startsWith('blob:')) {
       console.log('All alternatives failed, showing placeholder image');
       imageRef.current.src = placeholderImage;
-      handleImageLoad();
+      handleImageLoad(null);
       return true;
     }
     
@@ -320,7 +308,7 @@ export function ImageMap({
           if (imageRef.current) {
             // Actualizar el div de imagen con el nuevo src
             (imageRef.current as HTMLDivElement).style.backgroundImage = `url(${newUrl})`;
-            handleImageLoad();
+            handleImageLoad(null);
           }
         };
         return;
@@ -353,7 +341,7 @@ export function ImageMap({
             if (imageRef.current) {
               // Actualizar el div de imagen con el nuevo src
               (imageRef.current as HTMLDivElement).style.backgroundImage = `url(${proxyUrl})`;
-              handleImageLoad();
+              handleImageLoad(null);
             }
           };
           img.onerror = () => {
@@ -459,7 +447,7 @@ export function ImageMap({
             }
             
         setTimeout(() => {
-          handleImageLoad();
+          handleImageLoad(null);
           setIsLoading(false);
           setError(false);
         }, 100);
@@ -475,7 +463,7 @@ export function ImageMap({
               imageRef.current.src = proxyImg.src;
             }
             
-            handleImageLoad();
+            handleImageLoad(null);
             setIsLoading(false);
             setError(false);
           };
@@ -676,7 +664,7 @@ export function ImageMap({
     };
   };
   
-  // Función para verificar si un punto está dentro de un área
+  // Función para verificar si un punto está dentro de un área - mejorada
   const isPointInArea = (x: number, y: number, area: Area): boolean => {
     if (!area.coords || area.coords.length < 4) return false;
     
@@ -690,7 +678,13 @@ export function ImageMap({
     const clickX = x / scale;
     const clickY = y / scale;
     
-    const isInside = clickX >= left && clickX <= right && clickY >= top && clickY <= bottom;
+    // Añadir un margen de error para facilitar el cliqueo
+    const errorMargin = 5; // 5 píxeles de margen
+    const isInside = 
+      clickX >= (left - errorMargin / scale) && 
+      clickX <= (right + errorMargin / scale) && 
+      clickY >= (top - errorMargin / scale) && 
+      clickY <= (bottom + errorMargin / scale);
     
     // Limitar logs, pero mantener algunos para depuración
     if (Math.random() < 0.2) {
@@ -815,7 +809,7 @@ export function ImageMap({
             // Asegurar contenedor dimensionado
             position: "relative",
             // Preservar ratio
-            aspectRatio: formattedSrc.startsWith('data:') ? "auto" : "16/9"
+            aspectRatio: "1200/572" // Establecer relación de aspecto fija para coherencia
           }}
         >
           {isLoading && (
@@ -843,7 +837,6 @@ export function ImageMap({
               isLoading ? "opacity-0" : "opacity-100",
               className
             )}
-            onLoad={handleImageLoad}
             onError={handleError}
           >
             {/* Imagen invisible para detectar eventos de carga/error */}
@@ -874,11 +867,12 @@ export function ImageMap({
                 width: dimensions.width,
                 height: dimensions.height,
                 // En modo test las áreas deben ser casi invisibles pero receptivas a clics
-                background: isEditMode ? 'rgba(0,0,0,0.03)' : 'transparent',
+                background: isEditMode ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
                 border: isEditMode ? '1px solid' : 'none',
-                // Para propósitos de desarrollo, podemos hacer las áreas ligeramente visibles
+                // Para propósitos de desarrollo, hacer las áreas más visibles
                 ...(process.env.NODE_ENV === 'development' ? {
-                  boxShadow: isEditMode ? 'none' : 'inset 0 0 0 1px rgba(255,255,255,0.1)'
+                  boxShadow: isEditMode ? 'none' : 'inset 0 0 0 1px rgba(255,255,255,0.2)',
+                  outline: !isEditMode ? '1px dashed rgba(255,0,0,0.3)' : 'none'
                 } : {})
               }}
             />

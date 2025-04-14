@@ -511,10 +511,11 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                       console.log('Area clicked in TestViewer:', areaId);
                       console.log('Areas available:', question.areas?.map(a => ({ 
                         id: a.id, 
-                        isCorrect: a.isCorrect 
+                        isCorrect: a.isCorrect,
+                        coords: a.coords
                       })));
                       console.log('Found area:', area ? 
-                        { id: area.id, isCorrect: area.isCorrect } : 
+                        { id: area.id, isCorrect: area.isCorrect, coords: area.coords } : 
                         'Area not found');
                       
                       if (area) {
@@ -531,7 +532,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                     isDrawingMode={false}
                     isEditMode={false}
                     className="w-full h-auto object-contain"
-                    key={`question-${question.id}-${Date.now()}`} // Force reload on re-render
+                    key={`question-${question.id}-${currentQuestion}`} // Use currentQuestion to ensure refresh
                     onError={async () => {
                       console.error('Failed to load image in test view:', question.image);
                   
