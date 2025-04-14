@@ -21,7 +21,6 @@ export function TrueOrFalse({ question, answer, isAnswered = false }: TrueOrFals
 
   return (
     <div className="space-y-4">
-      <p className="text-lg font-medium">{question}</p>
       <div className="flex gap-4">
         <Button
           variant={selected === true ? "default" : "outline"}
