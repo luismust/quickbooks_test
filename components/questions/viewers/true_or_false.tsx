@@ -21,14 +21,14 @@ export function TrueOrFalseEditor({ question, answer, onChange }: TrueOrFalseEdi
           Pregunta
         </label>
         <Input
-          placeholder="Escribe la pregunta..."
+          placeholder="Write the question..."
           value={question}
           onChange={(e) => onChange({ question: e.target.value, answer })}
         />
       </div>
       <div>
         <label className="block text-sm font-medium mb-2">
-          Respuesta correcta
+          Correct answer
         </label>
         <RadioGroup
           value={answer.toString()}
@@ -37,11 +37,11 @@ export function TrueOrFalseEditor({ question, answer, onChange }: TrueOrFalseEdi
         >
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="true" id="true" />
-            <Label htmlFor="true">Verdadero</Label>
+            <Label htmlFor="true">True</Label>
           </div>
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="false" id="false" />
-            <Label htmlFor="false">Falso</Label>
+            <Label htmlFor="false">False</Label>
           </div>
         </RadioGroup>
       </div>
@@ -77,7 +77,7 @@ export function TrueOrFalse({ question, answer, isAnswered = false }: TrueOrFals
             isAnswered && selected === true && "bg-green-500 hover:bg-green-500"
           )}
         >
-          Verdadero
+          True
         </Button>
         <Button
           variant={selected === false ? "default" : "outline"}
@@ -88,7 +88,7 @@ export function TrueOrFalse({ question, answer, isAnswered = false }: TrueOrFals
             isAnswered && selected === false && "bg-red-500 hover:bg-red-500"
           )}
         >
-          Falso
+          False
         </Button>
       </div>
     </div>

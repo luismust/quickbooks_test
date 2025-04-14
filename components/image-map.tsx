@@ -21,6 +21,7 @@ interface ImageMapProps {
   onDrawMove?: (x: number, y: number) => void
   onDrawEnd?: () => void
   onError?: () => void
+  onClick?: (e: React.MouseEvent) => void
 }
 
 export function ImageMap({ 
@@ -35,7 +36,8 @@ export function ImageMap({
   onDrawStart,
   onDrawMove,
   onDrawEnd,
-  onError
+  onError,
+  onClick
 }: ImageMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
@@ -618,7 +620,7 @@ export function ImageMap({
   
   // Función para manejar el clic en un área específica
   const handleAreaClick = useCallback((e: React.MouseEvent) => {
-    if (isDrawingMode || !containerRef.current) return;
+    if (isDrawingMode || !containerRef.current) return false;
     
     const rect = containerRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
@@ -639,16 +641,21 @@ export function ImageMap({
       console.log('Area clicked:', clickedAreaId);
       onAreaClick(clickedAreaId);
       
-      // Agregar feedback visual temporal
-      const clickedElement = document.querySelector(`[data-area-id="${clickedAreaId}"]`);
-      if (clickedElement) {
-        clickedElement.classList.add('bg-primary/20');
-        setTimeout(() => {
-          clickedElement.classList.remove('bg-primary/20');
-        }, 200);
+      // Solo mostrar feedback visual en modo edición
+      if (isEditMode) {
+        const clickedElement = document.querySelector(`[data-area-id="${clickedAreaId}"]`);
+        if (clickedElement) {
+          clickedElement.classList.add('bg-primary/20');
+          setTimeout(() => {
+            clickedElement.classList.remove('bg-primary/20');
+          }, 200);
+        }
       }
+      return true; // Indicar que se hizo clic en un área
     }
-  }, [areas, isDrawingMode, onAreaClick, scale]);
+    
+    return false; // Indicar que no se hizo clic en ningún área
+  }, [areas, isDrawingMode, isEditMode, onAreaClick, scale]);
 
   return (
     <div className="relative">
@@ -670,12 +677,22 @@ export function ImageMap({
       {!error && src && (
         <div 
           ref={containerRef}
-          className={cn("relative border border-border rounded-md overflow-hidden", getCursorClass(isDrawingMode, isEditMode))}
+          className={cn("relative border border-border rounded-md overflow-hidden image-map-container", getCursorClass(isDrawingMode, isEditMode))}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          onClick={!isDrawingMode ? handleAreaClick : undefined}
+          onClick={(e) => {
+            if (!isDrawingMode) {
+              // Primero intentar manejar el clic en un área específica
+              const clickedArea = handleAreaClick(e);
+              
+              // Si no se hizo clic en un área y hay un manejador onClick personalizado, llamarlo
+              if (!clickedArea && onClick) {
+                onClick(e);
+              }
+            }
+          }}
         >
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
@@ -695,7 +712,7 @@ export function ImageMap({
               height: formattedSrc.startsWith('data:') ? '300px' : '400px'
             }}
             className={cn(
-              "transition-opacity duration-200",
+              "transition-opacity duration-200 image-map-image",
               isLoading ? "opacity-0" : "opacity-100",
               className
             )}
@@ -721,13 +738,17 @@ export function ImageMap({
                 className={`absolute transition-colors ${
                   getAreaStyle(area)
                 } ${isDrawingMode ? 'pointer-events-none' : ''} ${
-                  !isEditMode ? 'hover:bg-primary/10' : 'cursor-pointer'
+                  !isEditMode ? '' : 'cursor-pointer hover:bg-primary/10'
                 }`}
                 style={{
                   left: dimensions.left,
                   top: dimensions.top,
                   width: dimensions.width,
                   height: dimensions.height,
+                  // Asegurar que en modo test (no edit) las áreas sean completamente invisibles
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none'
                 }}
               />
             );

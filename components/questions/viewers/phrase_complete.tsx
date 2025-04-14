@@ -24,24 +24,24 @@ export function PhraseComplete({ question, answer, onChange, isEditMode = true }
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2">
-              Frase incompleta
+              Incomplete phrase
             </label>
             <Textarea
-              placeholder="Escribe la frase con ___ para indicar los espacios a completar..."
+              placeholder="Write the phrase with ___ to indicate the spaces to complete..."
               value={question}
               onChange={(e) => onChange?.({ question: e.target.value, answer })}
               className="min-h-[100px]"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Usa ___ (tres guiones bajos) para indicar donde debe completarse la frase
+              Use ___ (three underscores) to indicate where the phrase should be completed
             </p>
           </div>
           <div>
             <label className="block text-sm font-medium mb-2">
-              Palabra(s) correcta(s)
+              Correct word(s)
             </label>
             <Input
-              placeholder="Escribe la palabra o frase que completa correctamente..."
+              placeholder="Write the word or phrase that completes correctly..."
               value={answer}
               onChange={(e) => onChange?.({ question, answer: e.target.value })}
             />
@@ -53,7 +53,7 @@ export function PhraseComplete({ question, answer, onChange, isEditMode = true }
           <Card className="p-4">
             <p className="text-sm font-medium mb-4">{question}</p>
             <Input
-              placeholder="Completa la frase..."
+              placeholder="Complete the phrase..."
               value={userAnswer}
               onChange={(e) => setUserAnswer(e.target.value)}
             />
@@ -64,13 +64,13 @@ export function PhraseComplete({ question, answer, onChange, isEditMode = true }
               variant="outline"
               onClick={() => setShowAnswer(!showAnswer)}
             >
-              {showAnswer ? "Ocultar respuesta" : "Ver respuesta"}
+              {showAnswer ? "Hide answer" : "Show answer"}
             </Button>
           </div>
 
           {showAnswer && (
             <Card className="p-4 bg-muted">
-              <h4 className="text-sm font-medium mb-2">Respuesta correcta:</h4>
+              <h4 className="text-sm font-medium mb-2">Correct answer:</h4>
               <p className="text-sm">{answer}</p>
               <p className="text-sm mt-2">
                 {question.replace('___', `[${answer}]`)}
