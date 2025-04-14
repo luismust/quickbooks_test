@@ -586,6 +586,17 @@ export function ImageMap({
     const width = (x2 - x1) * scale;
     const height = (y2 - y1) * scale;
     
+    // Registro para debug
+    if (Math.random() < 0.1) { // Solo logueamos aproximadamente 10% de las llamadas para no saturar la consola
+      console.log('Area dimensions calculated:', { 
+        original: { x1, y1, x2, y2 },
+        scaled: { left, top, width, height },
+        scale,
+        areaId: area.id,
+        isCorrect: area.isCorrect
+      });
+    }
+    
     // Asegurar dimensiones mínimas en píxeles para interacción
     const minDimension = 15; // Reducido de 20 a 15 para permitir áreas un poco más pequeñas
     
@@ -611,9 +622,17 @@ export function ImageMap({
     const top = Math.min(area.coords[1], area.coords[3]);
     const bottom = Math.max(area.coords[1], area.coords[3]);
     
-    // Coordenadas del clic sin escalar
+    // Coordenadas del clic sin escalar (dividimos por escala para normalizarlas)
     const clickX = x / scale;
     const clickY = y / scale;
+    
+    console.log('Click check:', { 
+      clickX, 
+      clickY, 
+      area: `(${left},${top}) to (${right},${bottom})`,
+      scale,
+      result: (clickX >= left && clickX <= right && clickY >= top && clickY <= bottom)
+    });
     
     return clickX >= left && clickX <= right && clickY >= top && clickY <= bottom;
   };
@@ -626,13 +645,17 @@ export function ImageMap({
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
     
+    console.log('Image clicked at:', { clickX, clickY, scale });
+    
     // Verificar qué área fue clickeada
     let clickedAreaId: string | null = null;
     
     // Revisar áreas en orden inverso (las últimas dibujadas están encima)
     for (let i = areas.length - 1; i >= 0; i--) {
-      if (isPointInArea(clickX, clickY, areas[i])) {
-        clickedAreaId = areas[i].id;
+      const area = areas[i];
+      if (isPointInArea(clickX, clickY, area)) {
+        console.log(`Area ${area.id} was clicked - isCorrect: ${area.isCorrect}`);
+        clickedAreaId = area.id;
         break;
       }
     }
@@ -648,14 +671,22 @@ export function ImageMap({
           clickedElement.classList.add('bg-primary/20');
           setTimeout(() => {
             clickedElement.classList.remove('bg-primary/20');
-          }, 200);
+          }, 300);
         }
       }
-      return true; // Indicar que se hizo clic en un área
+      
+      return true;
     }
     
-    return false; // Indicar que no se hizo clic en ningún área
-  }, [areas, isDrawingMode, isEditMode, onAreaClick, scale]);
+    // Si no se hizo clic en ningún área y hay un onClick definido, llamarlo
+    if (onClick) {
+      console.log('No area clicked, calling general onClick handler');
+      onClick(e);
+      return true;
+    }
+    
+    return false;
+  }, [isDrawingMode, areas, isEditMode, onAreaClick, onClick, isPointInArea]);
 
   return (
     <div className="relative">
@@ -734,23 +765,24 @@ export function ImageMap({
             return (
             <div
               key={area.id}
-                data-area-id={area.id}
+              data-area-id={area.id}
               className={`absolute transition-colors ${
                 getAreaStyle(area)
               } ${isDrawingMode ? 'pointer-events-none' : ''} ${
-                  !isEditMode ? '' : 'cursor-pointer hover:bg-primary/10'
+                  !isEditMode ? 'cursor-pointer' : 'cursor-pointer hover:bg-primary/10'
                 }`}
-                style={{
-                  left: dimensions.left,
-                  top: dimensions.top,
-                  width: dimensions.width,
-                  height: dimensions.height,
-                  // Asegurar que en modo test (no edit) las áreas sean completamente invisibles
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none'
-                }}
-              />
+              style={{
+                left: dimensions.left,
+                top: dimensions.top,
+                width: dimensions.width,
+                height: dimensions.height,
+                // En modo test las áreas deben ser completamente invisibles pero receptivas a clics
+                background: isEditMode ? 'rgba(0,0,0,0.03)' : 'transparent',
+                border: isEditMode ? '1px solid' : 'none',
+                // Para depuración en desarrollo (quitar o comentar en producción)
+                // outline: !isEditMode ? '1px solid red' : 'none'
+              }}
+            />
             );
           })}
 
