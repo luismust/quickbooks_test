@@ -64,7 +64,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       // Intentar obtener la imagen del backend
       console.log('Fetching image from backend:', `${API_URL}/images?id=${imageId}`);
       
-      // Hacer la solicitud al endpoint del backend
+      // Hacer la solicitud al endpoint del backend SIN credentials
       const response = await fetch(`${API_URL}/images?id=${imageId}`, {
         headers: {
           'Accept': 'application/json',
@@ -74,6 +74,11 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       });
       
       if (!response.ok) {
+        // Si falla con 401/403, intentar con redirect directo
+        if (response.status === 401 || response.status === 403) {
+          console.log('Auth error, trying direct image load instead');
+          return `${API_URL}/images?id=${imageId}&redirect=1&t=${Date.now()}`;
+        }
         throw new Error(`Error fetching image from backend: ${response.status} ${response.statusText}`);
       }
       
@@ -89,7 +94,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         return imageData.data;
       } else {
         // Como último recurso, construir una URL directa
-        return `${API_URL}/images?id=${imageId}&redirect=data&t=${Date.now()}`;
+        return `${API_URL}/images?id=${imageId}&redirect=1&t=${Date.now()}`;
       }
     } catch (error) {
       console.error('Error loading image from reference:', error);
@@ -98,7 +103,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
         console.log('Trying direct binary endpoint as fallback');
-        return `${API_URL}/images?id=${typeof reference === 'string' ? reference.replace('image_reference_', '') : reference}&redirect=data&t=${Date.now()}`;
+        return `${API_URL}/images?id=${typeof reference === 'string' ? reference.replace('image_reference_', '') : reference}&redirect=1&t=${Date.now()}`;
       } catch (fallbackError) {
         console.error('Fallback image loading also failed:', fallbackError);
         return null;
@@ -114,7 +119,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       
       // Si no hay imagen o la imagen es una cadena vacía, no hay nada que procesar
       if (!q.image && !q.imageId && !q.blobUrl && !q.imageApiUrl) {
-        return { ...q, image: '', _imageKey: imageKey, _imageType: 'none' };
+        return { ...q, image: '', _imageKey: imageKey, _imageType: 'none' as const };
       }
 
       try {
@@ -126,7 +131,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
             ...q,
             image: q.blobUrl,
             _imageKey: imageKey,
-            _imageType: 'blobUrl'
+            _imageType: 'blobUrl' as const
           };
         }
 
@@ -137,7 +142,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
             ...q,
             image: q.imageApiUrl,
             _imageKey: imageKey,
-            _imageType: 'apiUrl'
+            _imageType: 'apiUrl' as const
           };
         }
 
@@ -146,7 +151,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
           console.log('TestViewer: Using imageId as reference:', q.imageId);
           return {
             ...q,
-            _imageType: 'reference',
+            _imageType: 'reference' as const,
             _imageRef: q.imageId,
             _imageKey: imageKey,
             // Mantener la imagen original
@@ -157,7 +162,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         // 4. Si la imagen ya es base64, usarla directamente
         if (typeof q.image === 'string' && q.image.startsWith('data:image/')) {
           console.log('TestViewer: Using base64 image directly');
-          return { ...q, image: q.image, _imageKey: imageKey, _imageType: 'base64' };
+          return { ...q, image: q.image, _imageKey: imageKey, _imageType: 'base64' as const };
         }
         
         // 5. Si es una URL blob, conservarla 
@@ -171,7 +176,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
               ...q,
               image: q._imageData,
               _imageKey: imageKey,
-              _imageType: 'base64'
+              _imageType: 'base64' as const
             };
           }
           
@@ -179,7 +184,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
             ...q,
             image: q.image,
             _imageKey: imageKey,
-            _imageType: 'blob'
+            _imageType: 'blob' as const
           };
         }
         
@@ -190,7 +195,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
             ...q,
             image: q._imageData,
             _imageKey: imageKey,
-            _imageType: 'base64'
+            _imageType: 'base64' as const
           };
         }
 
@@ -200,7 +205,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
             ...q,
             image: q._localFile,
             _imageKey: imageKey,
-            _imageType: 'base64'
+            _imageType: 'base64' as const
           };
         }
         
@@ -209,7 +214,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
           ...q,
           image: q.image || '',
           _imageKey: imageKey,
-          _imageType: 'url'
+          _imageType: 'url' as const
         };
       } catch (error) {
         console.error('Error processing image for question', q.id, error);
@@ -217,7 +222,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
           ...q, 
           image: '',
           _imageKey: imageKey,
-          _imageType: 'error'
+          _imageType: 'error' as const
         };
       }
     });

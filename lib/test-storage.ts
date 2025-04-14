@@ -210,11 +210,10 @@ export const loadTestFromAPI = async (testId: string): Promise<Test | null> => {
     const response = await fetch(apiUrl, {
       method: 'GET',
       mode: 'cors',
-      credentials: 'include',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Origin': 'https://quickbooks-test-black.vercel.app'
+        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
       }
     });
 
@@ -318,11 +317,10 @@ export const loadTestsFromAPI = async () => {
     
     const response = await fetch(apiUrl, {
       method: 'GET',
-      credentials: 'include',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Origin': 'https://quickbooks-test-black.vercel.app'
+        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
       }
     });
 
@@ -451,10 +449,10 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
     
     const response = await fetch(apiUrl, {
       method: 'POST',
-      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
       },
       body: JSON.stringify({
         id: testId
@@ -547,7 +545,6 @@ export async function saveTest(test: Test): Promise<Test> {
         'Accept': 'application/json',
         'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://quickbooks-test-black.vercel.app'
       },
-      credentials: 'include',
       body: JSON.stringify(processedTest)
     });
 
