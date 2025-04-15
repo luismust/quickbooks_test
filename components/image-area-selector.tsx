@@ -195,6 +195,49 @@ export function ImageAreaSelector({
     })
   }
 
+  // Función para asegurar que las coordenadas son consistentes
+  const normalizeAndValidateCoords = (coords: number[]): number[] => {
+    if (!coords || coords.length < 4) {
+      console.error('Cannot normalize invalid coordinates');
+      return coords;
+    }
+    
+    // Verificar valores inválidos
+    const hasInvalidValues = coords.some(coord => 
+      !Number.isFinite(coord) || Number.isNaN(coord)
+    );
+    
+    if (hasInvalidValues) {
+      console.error('Coordinates contain invalid values:', coords);
+      return coords;
+    }
+    
+    // Asegurar que x1,y1 es la esquina superior izquierda
+    // y x2,y2 es la esquina inferior derecha
+    const x1 = Math.min(coords[0], coords[2]);
+    const y1 = Math.min(coords[1], coords[3]);
+    const x2 = Math.max(coords[0], coords[2]);
+    const y2 = Math.max(coords[1], coords[3]);
+    
+    // Redondear para precisión
+    const normalizedCoords = [
+      Math.round(x1), 
+      Math.round(y1), 
+      Math.round(x2), 
+      Math.round(y2)
+    ];
+    
+    // Verificar que el ancho y alto son suficientes
+    const width = Math.abs(x2 - x1);
+    const height = Math.abs(y2 - y1);
+    
+    if (width < 5 || height < 5) {
+      console.warn('Area too small, might be difficult to click:', { width, height });
+    }
+    
+    return normalizedCoords;
+  }
+
   const handleDrawEnd = () => {
     if (!drawingArea) return
 
@@ -222,15 +265,8 @@ export function ImageAreaSelector({
       return
     }
 
-    // Asegurarnos de ordenar las coordenadas para que x1,y1 sea la esquina superior izquierda
-    // y x2,y2 sea la esquina inferior derecha (necesario para correcta detección de clics)
-    const x1 = Math.min(drawingArea.coords[0], drawingArea.coords[2])
-    const y1 = Math.min(drawingArea.coords[1], drawingArea.coords[3])
-    const x2 = Math.max(drawingArea.coords[0], drawingArea.coords[2])
-    const y2 = Math.max(drawingArea.coords[1], drawingArea.coords[3])
-    
-    // Valores finales redondeados para mejor precisión
-    const normalizedCoords = [x1, y1, x2, y2].map((coord) => Math.round(coord))
+    // Usar nuestra función de normalización para asegurar coordenadas consistentes
+    const normalizedCoords = normalizeAndValidateCoords(drawingArea.coords);
     
     console.log('Normalized coords:', normalizedCoords)
 
