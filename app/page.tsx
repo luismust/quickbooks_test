@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Edit, Play } from "lucide-react"
 import { motion } from "framer-motion"
 import FloatingIcons from "@/components/floating-icons"
+import { Navbar } from "@/components/ui/navbar"
+import { Chatbot } from "@/components/ui/chatbot"
 
 export default function Home() {
   const container = {
@@ -25,6 +27,8 @@ export default function Home() {
   }
 
   return (
+    <>
+    <Navbar />
     <motion.main
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -87,7 +91,9 @@ export default function Home() {
           </Card>
         </motion.div>
       </motion.div>
+      <Chatbot />
     </motion.main>
+    </>
   )
 }
 

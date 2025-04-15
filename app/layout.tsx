@@ -7,6 +7,9 @@ import { LocalStorageProvider } from '@/components/local-storage-provider';
 export const metadata: Metadata = {
   title: 'Tests System',
   description: 'Create tests for new employee candidates',
+  icons: {
+    icon: '/logo1.png',
+  },
 }
 
 export default function RootLayout({
