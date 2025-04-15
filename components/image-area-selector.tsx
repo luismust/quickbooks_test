@@ -40,6 +40,18 @@ export function ImageAreaSelector({
     }
   }, [image])
 
+  // When isEditMode changes, ensure drawing mode is set appropriately
+  useEffect(() => {
+    if (!isEditMode) {
+      setIsDrawingMode(false);
+    }
+  }, [isEditMode]);
+
+  // Add debug logging for drawingArea state changes
+  useEffect(() => {
+    console.log("Drawing area changed:", drawingArea);
+  }, [drawingArea]);
+
   useEffect(() => {
     return () => {
       if (currentImage && currentImage.startsWith('blob:')) {
@@ -71,6 +83,9 @@ export function ImageAreaSelector({
       setLocalFile(file)
       setCurrentImage(localUrl)
 
+      // Automatically activate drawing mode after image load
+      setIsDrawingMode(true)
+
       // Convertir la imagen a base64 para preparar la subida a Vercel Blob
       const reader = new FileReader()
       reader.onloadend = () => {
@@ -84,7 +99,7 @@ export function ImageAreaSelector({
         })
         
         setIsLoading(false)
-        toast.success('Image loaded successfully and ready for upload')
+        toast.success('Image loaded successfully. Click and drag to draw clickable areas.')
       }
       
       reader.onerror = () => {

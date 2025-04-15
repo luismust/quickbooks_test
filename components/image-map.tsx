@@ -48,7 +48,7 @@ export function ImageMap({
   onClick
 }: ImageMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const imageRef = useRef<HTMLImageElement>(null)
+  const imageRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -147,42 +147,80 @@ export function ImageMap({
   }, [src])
 
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event> | null) => {
-    if (e && e.currentTarget) {
-      console.log("Image loaded in ImageMap:", src);
-      const img = e.currentTarget as HTMLImageElement;
+    console.log("Image load event triggered in ImageMap:", src);
+    
+    // For the div background approach, we need to use a different method to get natural dimensions
+    // Create a temporary image to get the natural dimensions
+    const tempImg = new Image();
+    tempImg.onload = () => {
+      const naturalWidth = tempImg.naturalWidth || 1200; // Default if not available
+      const naturalHeight = tempImg.naturalHeight || 600; // Default if not available
       
-      // Get the natural dimensions of the image
-      const naturalWidth = img.naturalWidth;
-      const naturalHeight = img.naturalHeight;
+      // Get a reference to the div container with background image
+      const imgContainer = imageRef.current;
       
-      // Get the rendered dimensions of the image
-      const renderedWidth = img.width;
-      const renderedHeight = img.height;
-      
-      console.log("Image dimensions:", {
-        naturalWidth,
-        naturalHeight,
-        renderedWidth,
-        renderedHeight,
-        scale: renderedWidth / naturalWidth
-      });
-      
-      // Calculate the scale factor between natural and rendered dimensions
-      const scaleX = renderedWidth / naturalWidth;
-      const scaleY = renderedHeight / naturalHeight;
-      
-      setScale(scaleX);
-      
+      if (imgContainer) {
+        console.log("Image loaded in ImageMap:", src);
+        
+        // Use getBoundingClientRect for more accurate dimensions
+        const rect = imgContainer.getBoundingClientRect();
+        const renderedWidth = rect.width;
+        const renderedHeight = rect.height;
+        
+        // Calculate the scale factor between natural and rendered dimensions
+        const scaleX = renderedWidth / naturalWidth;
+        const scaleY = renderedHeight / naturalHeight;
+        
+        // Use the smallest scale to ensure the entire image is visible
+        const effectiveScale = Math.min(scaleX, scaleY);
+        
+        console.log("Image dimensions calculated:", {
+          naturalWidth,
+          naturalHeight,
+          renderedWidth,
+          renderedHeight,
+          scaleX,
+          scaleY,
+          effectiveScale
+        });
+        
+        // Only update if we have valid scale values
+        if (effectiveScale > 0 && Number.isFinite(effectiveScale)) {
+          setScale(effectiveScale);
+        } else {
+          console.error("Invalid scale calculated, using default:", effectiveScale);
+          setScale(1); // Fallback to default scale
+        }
+        
+        setIsLoading(false);
+        setError(false);
+        setErrorMessage("");
+        setUsedFallback(false);
+        setRetryCount(0);
+        
+        // Force a redraw
+        setTimeout(() => {
+          if (containerRef.current) {
+            containerRef.current.style.opacity = "0.99";
+            setTimeout(() => {
+              if (containerRef.current) containerRef.current.style.opacity = "1";
+            }, 50);
+          }
+        }, 100);
+      } else {
+        console.log("No image reference available for getting dimensions");
+        setIsLoading(false);
+      }
+    };
+    
+    tempImg.onerror = () => {
+      console.error("Error loading image for dimension calculation");
       setIsLoading(false);
-      setError(false);
-      setErrorMessage("");
-      setUsedFallback(false);
-      setRetryCount(0);
-    } else {
-      console.log("Image loaded via alternative method:", src);
-      // Handle the case where we're loading without an event (e.g., from fallback mechanisms)
-    }
-  }, [setScale, imageRef]);
+      setScale(1); // Fallback to default scale
+    };
+    
+    tempImg.src = formattedSrc;
+  }, [src, formattedSrc]);
 
   // Handler for div container's onLoad event
   const handleDivLoad = useCallback((e: React.SyntheticEvent<HTMLDivElement, Event>) => {
@@ -208,7 +246,7 @@ export function ImageMap({
         // Usar createProxyImage para cargar esta alternativa
         const proxyImg = createProxyImage(alternativeUrl);
         if (imageRef.current) {
-          imageRef.current.src = proxyImg.src;
+          imageRef.current.style.backgroundImage = `url(${proxyImg.src})`;
           return true;
         }
       }
@@ -230,7 +268,7 @@ export function ImageMap({
         try {
           const proxyImg = createProxyImage(alternativeUrl);
           if (imageRef.current) {
-            imageRef.current.src = proxyImg.src;
+            imageRef.current.style.backgroundImage = `url(${proxyImg.src})`;
             return true;
           }
         } catch (e) {
@@ -255,7 +293,7 @@ export function ImageMap({
         try {
           const proxyImg = createProxyImage(fallbackUrl);
           if (imageRef.current) {
-            imageRef.current.src = proxyImg.src;
+            imageRef.current.style.backgroundImage = `url(${proxyImg.src})`;
             return true;
           }
         } catch (e) {
@@ -267,7 +305,7 @@ export function ImageMap({
     // Último recurso: simplemente mostrar un placeholder en vez de nada
     if (imageRef.current && formattedSrc?.startsWith('blob:')) {
       console.log('All alternatives failed, showing placeholder image');
-      imageRef.current.src = placeholderImage;
+      imageRef.current.style.backgroundImage = `url(${placeholderImage})`;
       handleImageLoad(null);
       return true;
     }
@@ -307,7 +345,7 @@ export function ImageMap({
         img.onload = () => {
           if (imageRef.current) {
             // Actualizar el div de imagen con el nuevo src
-            (imageRef.current as HTMLDivElement).style.backgroundImage = `url(${newUrl})`;
+            imageRef.current.style.backgroundImage = `url(${newUrl})`;
             handleImageLoad(null);
           }
         };
@@ -340,7 +378,7 @@ export function ImageMap({
           img.onload = () => {
             if (imageRef.current) {
               // Actualizar el div de imagen con el nuevo src
-              (imageRef.current as HTMLDivElement).style.backgroundImage = `url(${proxyUrl})`;
+              imageRef.current.style.backgroundImage = `url(${proxyUrl})`;
               handleImageLoad(null);
             }
           };
@@ -392,7 +430,7 @@ export function ImageMap({
         console.log('Attempting with corrected Airtable URL:', correctedUrl);
         
         if (imageRef.current) {
-          (imageRef.current as HTMLDivElement).style.backgroundImage = `url(${correctedUrl})`;
+          imageRef.current.style.backgroundImage = `url(${correctedUrl})`;
           return;
         }
       }
@@ -410,78 +448,53 @@ export function ImageMap({
     }
   }
   
-  // Ahora definimos el useEffect después de las funciones que usa
+  // Update the useEffect that loads the image
   useEffect(() => {
     if (formattedSrc) {
+      console.log('Loading image:', formattedSrc.substring(0, 30) + '...');
       setIsLoading(true);
       setError(false);
       setErrorMessage("");
-      setUsedFallback(false);
-      setRetryCount(0);
       
-      // Para URLs blob, verificar validez primero
+      // For blob URLs, first verify they're still valid
       if (formattedSrc.startsWith('blob:')) {
+        console.log('Checking blob URL validity');
         checkBlobValidity(formattedSrc).then(isValid => {
-          if (!isValid) {
-            console.log('Blob URL is invalid, trying alternatives');
-        handleError();
-            return;
+          if (isValid) {
+            console.log('Blob URL is valid, proceeding with load');
+            if (imageRef.current) {
+              imageRef.current.style.backgroundImage = `url(${formattedSrc})`;
+              
+              // Trigger load dimensions manually
+              const tempImg = new Image();
+              tempImg.onload = () => handleImageLoad(null);
+              tempImg.onerror = () => handleError();
+              tempImg.src = formattedSrc;
+            }
+          } else {
+            console.error('Blob URL is invalid, trying alternatives');
+            setError(true);
+            setErrorMessage("The image reference is no longer valid");
+            tryAlternativeImage();
           }
-          
-          // Si el blob es válido, continuar normalmente
-          loadImage();
         });
       } else {
-        // Para otras URLs, cargar normalmente
-        loadImage();
-      }
-      
-      function loadImage() {
-        // Utilizar createProxyImage para cargar la imagen con manejo de CORS
-        try {
-          // Si ya estamos usando una imagen base64, cargarla directamente
-      if (formattedSrc.startsWith('data:')) {
-        // Para imágenes data:, confiar en que son correctas
-            if (imageRef.current) {
-              imageRef.current.src = formattedSrc;
-            }
-            
-        setTimeout(() => {
-          handleImageLoad(null);
-          setIsLoading(false);
-          setError(false);
-        }, 100);
-            return;
-          }
+        // For regular URLs or data URIs
+        if (imageRef.current) {
+          imageRef.current.style.backgroundImage = `url(${formattedSrc})`;
           
-          // Para URLs normales, usar createProxyImage
-          const proxyImg = createProxyImage(formattedSrc);
-          
-          proxyImg.onload = () => {
-            // Cuando la imagen carga con éxito, asignarla al elemento de referencia
-            if (imageRef.current) {
-              imageRef.current.src = proxyImg.src;
-            }
-            
-            handleImageLoad(null);
-            setIsLoading(false);
-            setError(false);
-          };
-          
-          proxyImg.onerror = () => {
-            console.error('Error loading image with createProxyImage:', formattedSrc);
-            handleError();
-          };
-        } catch (e) {
-          console.error('Exception in image loading:', e);
-          handleError();
+          // Trigger load dimensions manually
+          const tempImg = new Image();
+          tempImg.onload = () => handleImageLoad(null);
+          tempImg.onerror = () => handleError();
+          tempImg.src = formattedSrc;
         }
       }
     } else {
       setIsLoading(false);
       setError(true);
     }
-  }, [formattedSrc, checkBlobValidity]);
+  }, [formattedSrc, checkBlobValidity, handleImageLoad]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (!isDrawingMode || !containerRef.current) return
@@ -945,12 +958,14 @@ export function ImageMap({
            drawingArea.coords.length === 4 &&
            !drawingArea.coords.some(coord => !Number.isFinite(coord) || Number.isNaN(coord)) && (
             <div
-              className="absolute border-2 border-blue-500 bg-blue-500/20"
+              key="drawing-area"
+              className="absolute border-2 border-blue-500 bg-blue-500/20 z-10"
               style={{
                 left: Math.min(drawingArea.coords[0], drawingArea.coords[2]) * scale,
                 top: Math.min(drawingArea.coords[1], drawingArea.coords[3]) * scale,
                 width: Math.abs(drawingArea.coords[2] - drawingArea.coords[0]) * scale,
-                height: Math.abs(drawingArea.coords[3] - drawingArea.coords[1]) * scale
+                height: Math.abs(drawingArea.coords[3] - drawingArea.coords[1]) * scale,
+                pointerEvents: 'none'
               }}
             />
           )}
