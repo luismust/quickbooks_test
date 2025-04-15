@@ -86,7 +86,7 @@ export function ImageMap({
   })
   
   // Placeholder constante para imágenes que fallan
-  const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
+  const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
   
   // Función para verificar si una blob URL sigue siendo válida
   const checkBlobValidity = useCallback(async (blobUrl: string): Promise<boolean> => {
@@ -574,130 +574,202 @@ export function ImageMap({
     }
   }, [formattedSrc, checkBlobValidity, handleImageLoad]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDrawingMode || !imageRef.current || isDragging) return
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!isDrawingMode || !containerRef.current) return;
     
-    const image = imageRef.current
-    const rect = image.getBoundingClientRect()
-    const offsetX = e.clientX - rect.left
-    const offsetY = e.clientY - rect.top
+    // Get container and image references
+    const container = containerRef.current;
+    const imageElement = imageRef.current;
     
-    // Calcular posición relativa al tamaño natural de la imagen
-    const relX = offsetX / rect.width
-    const relY = offsetY / rect.height
+    if (!imageElement) return;
     
-    // Convertir a coordenadas naturales de la imagen
-    const naturalX = Math.round(relX * imageDimensions.naturalWidth)
-    const naturalY = Math.round(relY * imageDimensions.naturalHeight)
+    // Get container dimensions
+    const containerRect = container.getBoundingClientRect();
     
-    console.log(`Drawing at: ${offsetX},${offsetY} -> Natural coords: ${naturalX},${naturalY}`);
+    // Calculate click position relative to the container
+    const clickX = e.clientX - containerRect.left;
+    const clickY = e.clientY - containerRect.top;
     
-    if (onDrawStart) {
-      onDrawStart(offsetX, offsetY)
+    // Get natural dimensions
+    const naturalWidth = Math.max(imageDimensions.naturalWidth, 1);
+    const naturalHeight = Math.max(imageDimensions.naturalHeight, 1);
+    
+    // Calculate rendered dimensions
+    const imageRatio = naturalWidth / naturalHeight;
+    const containerRatio = containerRect.width / containerRect.height;
+    
+    let renderedWidth, renderedHeight;
+    if (containerRatio > imageRatio) {
+      // Height-constrained
+      renderedHeight = containerRect.height;
+      renderedWidth = renderedHeight * imageRatio;
+    } else {
+      // Width-constrained
+      renderedWidth = containerRect.width;
+      renderedHeight = renderedWidth / imageRatio;
     }
     
-    setIsDragging(true)
+    // Calculate margins for centering
+    const marginLeft = (containerRect.width - renderedWidth) / 2;
+    const marginTop = (containerRect.height - renderedHeight) / 2;
     
-    // Crear un nuevo área con las coordenadas iniciales
-    const newDrawingArea: AreaType = {
-      id: generateId(),
-      shape: "rect" as const, // Especificar como literal de tipo
-      coords: [naturalX, naturalY, naturalX, naturalY],
-      isCorrect: true,
-      x: naturalX,
-      y: naturalY,
-      width: 0,
-      height: 0,
-      // Guardar dimensiones naturales para referencia futura
-      imageDimensions: {
-        naturalWidth: imageDimensions.naturalWidth,
-        naturalHeight: imageDimensions.naturalHeight
-      }
-    }
-      
-    if (setDrawingArea) {
-      setDrawingArea(newDrawingArea)
-    }
-  }, [isDrawingMode, isDragging, onDrawStart, imageDimensions, setDrawingArea])
+    // Adjust click position to account for margins
+    const adjustedX = clickX - marginLeft;
+    const adjustedY = clickY - marginTop;
+    
+    // Convert to natural coordinates
+    let naturalX = Math.round((adjustedX / renderedWidth) * naturalWidth);
+    let naturalY = Math.round((adjustedY / renderedHeight) * naturalHeight);
+    
+    // Limit to image boundaries
+    naturalX = Math.max(0, Math.min(naturalWidth, naturalX));
+    naturalY = Math.max(0, Math.min(naturalHeight, naturalY));
+    
+    console.log('MouseDown:', {
+      click: { x: clickX, y: clickY },
+      adjusted: { x: adjustedX, y: adjustedY },
+      natural: { x: naturalX, y: naturalY }
+    });
+    
+    // Start the drawing
+    setIsDragging(true);
+    onDrawStart?.(naturalX, naturalY);
+    
+    // Prevent browser behaviors
+    e.preventDefault();
+  }, [isDrawingMode, onDrawStart, imageDimensions]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawingMode || !containerRef.current || !isDragging) return
     
-    const rect = containerRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    
-    // Obtener imagen y coordenadas
+    // Get container and image references
+    const container = containerRef.current;
     const imageElement = imageRef.current;
+    
     if (!imageElement) return;
     
-    // Dimensiones naturales de la imagen
+    // Get container dimensions
+    const containerRect = container.getBoundingClientRect();
+    
+    // Calculate click position relative to the container
+    const clickX = e.clientX - containerRect.left;
+    const clickY = e.clientY - containerRect.top;
+    
+    // Get natural dimensions
     const naturalWidth = Math.max(imageDimensions.naturalWidth, 1);
     const naturalHeight = Math.max(imageDimensions.naturalHeight, 1);
     
-    // Calcular dimensiones del contenedor
-    const containerWidth = rect.width;
-    const containerHeight = rect.height;
-    
-    // Calcular relación de aspecto
+    // Calculate rendered dimensions
     const imageRatio = naturalWidth / naturalHeight;
+    const containerRatio = containerRect.width / containerRect.height;
     
-    // Calcular dimensiones de la imagen renderizada
     let renderedWidth, renderedHeight;
-    if (containerWidth / containerHeight > imageRatio) {
-      // Limitado por altura
-      renderedHeight = containerHeight;
+    if (containerRatio > imageRatio) {
+      // Height-constrained
+      renderedHeight = containerRect.height;
       renderedWidth = renderedHeight * imageRatio;
     } else {
-      // Limitado por ancho
-      renderedWidth = containerWidth;
+      // Width-constrained
+      renderedWidth = containerRect.width;
       renderedHeight = renderedWidth / imageRatio;
     }
     
-    // Calcular márgenes para centrado
-    const marginLeft = (containerWidth - renderedWidth) / 2;
-    const marginTop = (containerHeight - renderedHeight) / 2;
+    // Calculate margins for centering
+    const marginLeft = (containerRect.width - renderedWidth) / 2;
+    const marginTop = (containerRect.height - renderedHeight) / 2;
     
-    // Ajustar coordenadas para considerar márgenes
-    const adjustedX = x - marginLeft;
-    const adjustedY = y - marginTop;
+    // Adjust click position to account for margins
+    const adjustedX = clickX - marginLeft;
+    const adjustedY = clickY - marginTop;
     
-    // Convertir a coordenadas normalizadas basadas en dimensiones naturales
-    let normalizedX = (adjustedX / renderedWidth) * naturalWidth;
-    let normalizedY = (adjustedY / renderedHeight) * naturalHeight;
+    // Convert to natural coordinates
+    let naturalX = Math.round((adjustedX / renderedWidth) * naturalWidth);
+    let naturalY = Math.round((adjustedY / renderedHeight) * naturalHeight);
     
-    // Limitar a los límites de la imagen
-    normalizedX = Math.max(0, Math.min(naturalWidth, normalizedX));
-    normalizedY = Math.max(0, Math.min(naturalHeight, normalizedY));
+    // Limit to image boundaries
+    naturalX = Math.max(0, Math.min(naturalWidth, naturalX));
+    naturalY = Math.max(0, Math.min(naturalHeight, naturalY));
     
-    // Log detallado (limitado para no saturar)
-    if (Math.random() < 0.02) {
-      console.log('MouseMove - coords:', {
-        raw: { x, y },
+    // Log limited to reduce console spam
+    if (Math.random() < 0.05) {
+      console.log('MouseMove:', {
+        click: { x: clickX, y: clickY },
         adjusted: { x: adjustedX, y: adjustedY },
-        normalized: { x: normalizedX, y: normalizedY }
+        natural: { x: naturalX, y: naturalY }
       });
     }
     
-    // Continuar el dibujo
-    onDrawMove?.(normalizedX, normalizedY)
+    // Continue the drawing
+    onDrawMove?.(naturalX, naturalY);
     
-    // Evitar comportamientos del navegador
-    e.preventDefault()
-  }, [isDrawingMode, onDrawMove, isDragging, imageDimensions])
+    // Prevent browser behaviors
+    e.preventDefault();
+  }, [isDrawingMode, onDrawMove, isDragging, imageDimensions]);
   
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
-    if (!isDrawingMode || !isDragging) return
+    if (!isDrawingMode || !isDragging || !containerRef.current) return;
     
-    console.log('MouseUp event, ending drag operation')
+    // Get container and image references
+    const container = containerRef.current;
+    const imageElement = imageRef.current;
     
-    setIsDragging(false)
-    onDrawEnd?.()
+    if (!imageElement) return;
     
-    // Evitar comportamientos del navegador
-    e.preventDefault()
+    // Get container dimensions
+    const containerRect = container.getBoundingClientRect();
     
-    // Forzar un redibujado del componente
+    // Calculate click position relative to the container
+    const clickX = e.clientX - containerRect.left;
+    const clickY = e.clientY - containerRect.top;
+    
+    // Get natural dimensions
+    const naturalWidth = Math.max(imageDimensions.naturalWidth, 1);
+    const naturalHeight = Math.max(imageDimensions.naturalHeight, 1);
+    
+    // Calculate rendered dimensions
+    const imageRatio = naturalWidth / naturalHeight;
+    const containerRatio = containerRect.width / containerRect.height;
+    
+    let renderedWidth, renderedHeight;
+    if (containerRatio > imageRatio) {
+      // Height-constrained
+      renderedHeight = containerRect.height;
+      renderedWidth = renderedHeight * imageRatio;
+    } else {
+      // Width-constrained
+      renderedWidth = containerRect.width;
+      renderedHeight = renderedWidth / imageRatio;
+    }
+    
+    // Calculate margins for centering
+    const marginLeft = (containerRect.width - renderedWidth) / 2;
+    const marginTop = (containerRect.height - renderedHeight) / 2;
+    
+    // Adjust click position to account for margins
+    const adjustedX = clickX - marginLeft;
+    const adjustedY = clickY - marginTop;
+    
+    // Convert to natural coordinates
+    let naturalX = Math.round((adjustedX / renderedWidth) * naturalWidth);
+    let naturalY = Math.round((adjustedY / renderedHeight) * naturalHeight);
+    
+    // Limit to image boundaries
+    naturalX = Math.max(0, Math.min(naturalWidth, naturalX));
+    naturalY = Math.max(0, Math.min(naturalHeight, naturalY));
+    
+    console.log('MouseUp:', {
+      click: { x: clickX, y: clickY },
+      adjusted: { x: adjustedX, y: adjustedY },
+      natural: { x: naturalX, y: naturalY }
+    });
+    
+    setIsDragging(false);
+    onDrawEnd?.();
+    
+    // Prevent browser behaviors
+    e.preventDefault();
+    
+    // Force a component redraw
     setTimeout(() => {
       if (containerRef.current) {
         containerRef.current.style.opacity = "0.99";
@@ -708,7 +780,7 @@ export function ImageMap({
         }, 10);
       }
     }, 10);
-  }, [isDrawingMode, onDrawEnd, isDragging])
+  }, [isDrawingMode, onDrawEnd, isDragging, imageDimensions]);
   
   // Añadimos un manejador global para capturar cuando se suelta el botón del ratón fuera del componente
   useEffect(() => {
