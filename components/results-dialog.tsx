@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Trophy, XCircle } from "lucide-react"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 interface ResultsDialogProps {
   isOpen: boolean
@@ -35,6 +36,7 @@ export function ResultsDialog({
   testName,
   userName
 }: ResultsDialogProps) {
+  const router = useRouter()
   const passed = score >= minScore
   
   const saveTestResult = async () => {
@@ -70,19 +72,26 @@ export function ResultsDialog({
       await response.json();
       toast.success("The test result has been saved");
       
-      // Cerrar el diálogo después de guardar
+      // Cerrar el diálogo y redirigir a la página de tests disponibles
       onClose();
+      router.push("/");
     } catch (error) {
       console.error('Error saving test result:', error);
       toast.error("Error saving test result");
       
-      // Cerrar el diálogo de todas formas
+      // Cerrar el diálogo de todas formas y redirigir
       onClose();
+      router.push("/");
     }
   };
 
+  const handleClose = () => {
+    onClose();
+    router.push("/");
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center text-2xl">
