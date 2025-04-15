@@ -1,0 +1,5 @@
+public/
+  ├── favicon.ico       # 32x32 px
+  ├── icon.png         # 256x256 px (o más grande)
+  ├── apple-icon.png   # 180x180 px
+  └── manifest.json    # Para PWA (opcional) 
