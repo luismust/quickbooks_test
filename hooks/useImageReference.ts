@@ -22,8 +22,11 @@ export function useImageReference(reference: string | undefined) {
       setError(null);
       
       try {
-        const imageUrl = await loadImageFromReference(reference);
-        setImage(imageUrl);
+        // Ensure reference exists before calling loadImageFromReference
+        if (reference) {
+          const imageUrl = await loadImageFromReference(reference);
+          setImage(imageUrl);
+        }
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Unknown error'));
         console.error('Error in useImageReference:', err);

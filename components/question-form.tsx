@@ -1,27 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "./ui/button"
-import { Input } from "./ui/input"
-import { Textarea } from "./ui/textarea"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Plus, Link } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
-import { processGoogleDriveUrl } from "@/lib/utils"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { processImageUrl, generateId } from "@/lib/utils"
+import { Question } from "@/lib/test-storage"
 
 interface QuestionFormProps {
-  onAddQuestion: (question: {
-    id: number
-    title: string
-    description: string
-    question: string
-    image: string
-    areas: Array<{
-      id: string
-      shape: "rect"
-      coords: number[]
-      isCorrect: boolean
-    }>
-  }) => void
+  onAddQuestion: (question: Question) => void
 }
 
 export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
@@ -44,12 +33,13 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
     e.preventDefault();
     
     const newQuestion: Question = {
-      id: Date.now(),
+      id: generateId('q'),
       title: formData.title,
       description: formData.description,
       question: formData.question,
-      image: processGoogleDriveUrl(formData.imageUrl) || "/placeholder.svg",
+      image: processImageUrl(formData.imageUrl) || "/placeholder.svg",
       areas: [],
+      type: 'clickArea',
       scoring: {
         correct: 1,
         incorrect: 1,
@@ -66,12 +56,12 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
     });
   };
 
-  const handleGoogleDriveUrl = (url: string) => {
+  const handleImageUrl = (url: string) => {
     setFormData(prev => ({
       ...prev,
       imageUrl: url
     }));
-    // Aquí podrías agregar validación del formato de la URL
+    // Optional: Add URL validation here
   }
 
   return (
@@ -97,28 +87,29 @@ export function QuestionForm({ onAddQuestion }: QuestionFormProps) {
 
           <div>
             <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">
-              Image URL (Google Drive)
+              Image URL
             </label>
             <div className="flex gap-2">
               <Input
                 id="imageUrl"
                 name="imageUrl"
                 value={formData.imageUrl}
-                onChange={(e) => handleGoogleDriveUrl(e.target.value)}
-                placeholder="https://drive.google.com/file/d/..."
+                onChange={(e) => handleImageUrl(e.target.value)}
+                placeholder="https://example.com/image.jpg"
                 type="url"
               />
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                onClick={() => window.open('https://drive.google.com', '_blank')}
+                onClick={() => window.open(formData.imageUrl, '_blank')}
+                disabled={!formData.imageUrl}
               >
                 <Link className="h-4 w-4" />
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Ensure the image is public in Google Drive
+              Enter a valid image URL
             </p>
           </div>
 

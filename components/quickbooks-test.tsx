@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress"
 import { ChevronLeft, ChevronRight, Info, Edit, Play, Link, Download, Save, Loader2 } from "lucide-react"
 import { ImageMap } from "@/components/image-map"
 import { questionTemplates } from "@/lib/templates"
-import { saveTest } from "@/lib/test-storage"
+import { saveTest, getTests } from "@/lib/test-storage"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { generateId } from "@/lib/utils"
@@ -619,10 +619,15 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
         question: currentQuestion,
         image: currentImage,
         // Si la imagen es blob, asegurarnos de guardar también la versión base64
-        _localFile: currentImage.startsWith('blob:') ? null : 
-                   currentImage.startsWith('data:') ? currentImage : null,
+        _localFile: currentImage.startsWith('blob:') ? undefined :
+          currentImage.startsWith('data:') ? currentImage : undefined,
         areas: currentAreas,
-        type: 'clickArea'
+        type: 'clickArea',
+        scoring: {
+          correct: 1,
+          incorrect: 0,
+          retain: 0
+        }
       }
       
       setScreens(updatedScreens)
@@ -638,13 +643,14 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
         image: currentImage,
         // Si la imagen es una URL blob, no la podemos guardar directamente
         // Si es base64, guardarla como _localFile para recuperarla después
-        _localFile: currentImage.startsWith('blob:') ? null : 
-                   currentImage.startsWith('data:') ? currentImage : null,
+        _localFile: currentImage.startsWith('blob:') ? undefined :
+          currentImage.startsWith('data:') ? currentImage : undefined,
         areas: currentAreas,
         type: 'clickArea',
         scoring: {
           correct: 1,
-          incorrect: 0
+          incorrect: 0,
+          retain: 0
         }
       }
       
