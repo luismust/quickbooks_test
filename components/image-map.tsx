@@ -669,226 +669,273 @@ export function ImageMap({
     return "cursor-pointer"; // cursor pointer en modo test para indicar que es clicable
   }
 
-  // Update the getAreaDimensions function for more accurate area positioning
-  const getAreaDimensions = (area: Area) => {
-    if (!area.coords || area.coords.length < 4) {
-      console.error('Invalid area coordinates:', area);
-      return { left: 0, top: 0, width: 20, height: 20 };
-    }
-    
-    // Verify that the coordinates are valid (not Infinity, NaN, etc.)
-    const hasInvalidCoords = area.coords.some(coord => !Number.isFinite(coord) || Number.isNaN(coord));
-    if (hasInvalidCoords) {
-      console.error('Invalid coordinates in area. Using fallback:', area.id, area.coords);
-      return { left: 0, top: 0, width: 30, height: 30 };
-    }
-    
-    // First normalize the coordinates to ensure that x1,y1 is the top-left corner
-    // and x2,y2 is the bottom-right corner
-    const x1 = Math.min(area.coords[0], area.coords[2]);
-    const y1 = Math.min(area.coords[1], area.coords[3]);
-    const x2 = Math.max(area.coords[0], area.coords[2]);
-    const y2 = Math.max(area.coords[1], area.coords[3]);
-    
-    // Get a reference to the container and image for their current dimensions
+  // Helper function to calculate dimensions consistently
+  const calculateDimension = (start: number, end: number, isXAxis: boolean): { size: number, min: number } => {
+    // Get container and image references
     const container = containerRef.current;
     const imageElement = imageRef.current;
     
+    // Make sure we have all the needed references
     if (!container || !imageElement) {
-      console.warn('Container or image reference not available for area dimension calculation');
-      // Apply scale directly as a fallback
-      const scaledLeft = x1 * scale;
-      const scaledTop = y1 * scale;
-      const scaledWidth = (x2 - x1) * scale;
-      const scaledHeight = (y2 - y1) * scale;
+      // Use scale-based as fallback
+      const min = Math.min(start, end);
+      const size = Math.abs(end - start) * scale;
+      return { size, min };
+    }
+    
+    // Calculate based on mode
+    const isTestMode = !isDrawingMode && !isEditMode;
+    
+    if (isTestMode && 
+        ((isXAxis && imageDimensions.naturalWidth > 0) || 
+         (!isXAxis && imageDimensions.naturalHeight > 0))) {
       
-      return {
-        left: scaledLeft,
-        top: scaledTop,
-        width: Math.max(scaledWidth, 12), // Minimum clickable size
-        height: Math.max(scaledHeight, 12) // Minimum clickable size
-      };
+      // In test mode, use proportional mapping
+      const imgStyle = window.getComputedStyle(imageElement);
+      const containerRect = container.getBoundingClientRect();
+      
+      // Get image dimensions
+      const imgWidth = parseFloat(imgStyle.width) || containerRect.width;
+      const imgHeight = parseFloat(imgStyle.height) || containerRect.height;
+      
+      // Calculate image offset for centering
+      const imgLeft = (containerRect.width - imgWidth) / 2;
+      const imgTop = (containerRect.height - imgHeight) / 2;
+      
+      // Calculate coordinates
+      const min = Math.min(start, end);
+      const max = Math.max(start, end);
+      const diff = max - min;
+      
+      if (isXAxis) {
+        // Calculate width proportionally
+        const size = (diff / imageDimensions.naturalWidth) * imgWidth;
+        return { size, min };
+      } else {
+        // Calculate height proportionally
+        const size = (diff / imageDimensions.naturalHeight) * imgHeight;
+        return { size, min };
+      }
+    } else {
+      // In drawing/edit mode, use scale-based calculation
+      const min = Math.min(start, end);
+      const size = Math.abs(end - start) * scale;
+      return { size, min };
+    }
+  };
+
+  // Restore the getConsistentAreaPosition function that was removed
+  const getConsistentAreaPosition = (coords: number[], index: number): number => {
+    // Make sure we have valid coordinates
+    if (!coords || coords.length < 4 || !Number.isFinite(coords[index])) {
+      console.error('Invalid coordinate at index', index);
+      return 0;
     }
     
-    // Get the container dimensions
+    // Get container and image for offset calculations
+    const container = containerRef.current;
+    const imageElement = imageRef.current;
+    
+    // If we don't have references, just apply scale directly
+    if (!container || !imageElement) {
+      return coords[index] * scale;
+    }
+    
+    // Get container and image dimensions for proper positioning
     const containerRect = container.getBoundingClientRect();
-    const containerWidth = containerRect.width;
-    const containerHeight = containerRect.height;
-    
-    // Get the computed style of the image element to determine its size
     const imgStyle = window.getComputedStyle(imageElement);
-    const imgWidth = parseFloat(imgStyle.width) || containerWidth;
-    const imgHeight = parseFloat(imgStyle.height) || containerHeight;
+    const imgWidth = parseFloat(imgStyle.width) || containerRect.width;
+    const imgHeight = parseFloat(imgStyle.height) || containerRect.height;
     
-    // Get the positioning of the image within the container (for centering)
-    const imgLeft = (containerWidth - imgWidth) / 2;
-    const imgTop = (containerHeight - imgHeight) / 2;
+    // Calculate image offset for centering
+    const imgLeft = (containerRect.width - imgWidth) / 2;
+    const imgTop = (containerRect.height - imgHeight) / 2;
     
-    // Verify that we have a valid scale value
-    let effectiveScale = scale;
-    if (!Number.isFinite(effectiveScale) || effectiveScale <= 0) {
-      console.error('Invalid scale:', scale, 'Using default scale 1');
-      effectiveScale = 1;
+    // Get the actual coordinate value
+    const coordValue = coords[index];
+    
+    // In test mode, use a direct proportional mapping
+    const isTestMode = !isDrawingMode && !isEditMode;
+    
+    if (isTestMode && imageDimensions.naturalWidth > 0 && imageDimensions.naturalHeight > 0) {
+      // For X coordinates (0, 2)
+      if (index % 2 === 0) {
+        // Simple proportional mapping: originalCoord/naturalWidth * renderedWidth
+        return imgLeft + (coordValue / imageDimensions.naturalWidth) * imgWidth;
+      } 
+      // For Y coordinates (1, 3)
+      else {
+        // Simple proportional mapping: originalCoord/naturalHeight * renderedHeight
+        return imgTop + (coordValue / imageDimensions.naturalHeight) * imgHeight;
+      }
     }
     
-    // Calculate the position of the area in pixels
-    const left = x1 * effectiveScale + imgLeft;
-    const top = y1 * effectiveScale + imgTop;
-    const width = (x2 - x1) * effectiveScale;
-    const height = (y2 - y1) * effectiveScale;
+    // For drawing/edit mode, use the scale-based approach
+    if (index % 2 === 0) { // X coordinate
+      return coordValue * scale + imgLeft;
+    } else { // Y coordinate
+      return coordValue * scale + imgTop;
+    }
+  };
+
+  // Update the mapping for area rendering
+  {!isLoading && areas.filter(area => {
+    // Filtering logic remains the same...
+    return true;
+  }).map((area) => {
+    // Use the helper function to calculate dimensions
+    const { size: width } = calculateDimension(area.coords[0], area.coords[2], true);
+    const { size: height } = calculateDimension(area.coords[1], area.coords[3], false);
+    
+    // Calculate positions
+    const left = getConsistentAreaPosition(area.coords, 0);
+    const top = getConsistentAreaPosition(area.coords, 1);
     
     // Ensure minimum dimensions for clickability
     const minDimension = 12;
     const finalWidth = Math.max(width, minDimension);
     const finalHeight = Math.max(height, minDimension);
     
-    // Only log a small percentage of calls to avoid console spam
-    if (Math.random() < 0.05) {
-      console.log('Area dimensions calculated:', { 
-        id: area.id,
-        isCorrect: area.isCorrect,
-        coords: `(${x1},${y1}) to (${x2},${y2})`,
-        container: { width: containerWidth, height: containerHeight },
-        image: { width: imgWidth, height: imgHeight, left: imgLeft, top: imgTop },
-        scale: effectiveScale,
-        result: { left, top, width: finalWidth, height: finalHeight },
-        mode: isDrawingMode ? "drawing" : isEditMode ? "edit" : "test"
-      });
+    // Verify calculated dimensions are valid
+    if (!Number.isFinite(left) || 
+        !Number.isFinite(top) ||
+        !Number.isFinite(finalWidth) ||
+        !Number.isFinite(finalHeight)) {
+      console.error('Invalid dimensions calculated:', { left, top, width: finalWidth, height: finalHeight });
+      return null;
     }
     
-    return {
-      left,
-      top,
-      width: finalWidth,
-      height: finalHeight
-    };
-  };
-  
-  // Update isPointInArea to use the improved coordinate mapping
+    // Rest of the rendering code remains the same...
+    return (
+      <div
+        key={area.id}
+        data-area-id={area.id}
+        data-is-correct={area.isCorrect ? "true" : "false"}
+        className={`absolute transition-colors ${
+          getAreaStyle(area)
+        } ${isDrawingMode ? 'pointer-events-none' : ''} ${
+            !isEditMode ? 'cursor-pointer' : 'cursor-pointer hover:bg-primary/10'
+          }`}
+        style={{
+          left,
+          top,
+          width: finalWidth,
+          height: finalHeight,
+          // Rest of styling remains the same...
+        }}
+      />
+    );
+  })}
+
+  // Update the click detection to use the same mapping logic
   const isPointInArea = (x: number, y: number, area: Area): boolean => {
     if (!area.coords || area.coords.length < 4) return false;
     
-    // Verify that the coordinates are valid (not Infinity, NaN, etc.)
+    // Verify coordinates are valid
     const hasInvalidCoords = area.coords.some(coord => !Number.isFinite(coord) || Number.isNaN(coord));
     if (hasInvalidCoords) {
-      console.error('Invalid coordinates in area:', area.id, area.coords);
+      console.error('Invalid area coordinates:', area.id, area.coords);
       return false;
     }
     
-    // Get the container and image for accurate offset calculations
+    // Get container and image references
     const container = containerRef.current;
     const imageElement = imageRef.current;
     
-    // Calculate image offset within the container (for centered images)
-    let imgLeft = 0;
-    let imgTop = 0;
-    let imgWidth = 0;
-    let imgHeight = 0;
-    
-    if (container && imageElement) {
-      const containerRect = container.getBoundingClientRect();
-      const imgStyle = window.getComputedStyle(imageElement);
-      imgWidth = parseFloat(imgStyle.width) || containerRect.width;
-      imgHeight = parseFloat(imgStyle.height) || containerRect.height;
-      
-      // If the image doesn't fill the container, it will be centered
-      imgLeft = (containerRect.width - imgWidth) / 2;
-      imgTop = (containerRect.height - imgHeight) / 2;
+    if (!container || !imageElement) {
+      console.error('Container or image reference not available');
+      return false;
     }
     
-    // Original normalized coordinates of the area
-    const left = Math.min(area.coords[0], area.coords[2]);
-    const right = Math.max(area.coords[0], area.coords[2]);
-    const top = Math.min(area.coords[1], area.coords[3]);
-    const bottom = Math.max(area.coords[1], area.coords[3]);
+    // Calculate image dimensions and offset
+    const containerRect = container.getBoundingClientRect();
+    const imgStyle = window.getComputedStyle(imageElement);
+    const imgWidth = parseFloat(imgStyle.width) || containerRect.width;
+    const imgHeight = parseFloat(imgStyle.height) || containerRect.height;
     
-    // Determine if we're in test mode
+    // Image offset for centering
+    const imgLeft = (containerRect.width - imgWidth) / 2;
+    const imgTop = (containerRect.height - imgHeight) / 2;
+    
+    // Get original area coordinates
+    const areaX1 = Math.min(area.coords[0], area.coords[2]);
+    const areaY1 = Math.min(area.coords[1], area.coords[3]);
+    const areaX2 = Math.max(area.coords[0], area.coords[2]);
+    const areaY2 = Math.max(area.coords[1], area.coords[3]);
+    
+    // Determine test mode
     const isTestMode = !isDrawingMode && !isEditMode;
     
-    // In test mode and with valid image dimensions, use direct relative mapping
-    if (isTestMode && imageDimensions.naturalWidth > 0 && imageDimensions.naturalHeight > 0 && 
-        imgWidth > 0 && imgHeight > 0) {
-      // Adjust click coordinates relative to the image (removing container offset)
+    // In test mode with valid image dimensions, use direct proportional mapping
+    if (isTestMode && imageDimensions.naturalWidth > 0 && imageDimensions.naturalHeight > 0) {
+      // Click coordinates relative to the image (remove container offset)
       const relativeClickX = x - imgLeft;
       const relativeClickY = y - imgTop;
       
-      // Convert to normalized 0-1 position within the rendered image
-      const normalizedClickX = relativeClickX / imgWidth;
-      const normalizedClickY = relativeClickY / imgHeight;
+      // Map click coordinates to the original image space
+      const mappedClickX = (relativeClickX / imgWidth) * imageDimensions.naturalWidth;
+      const mappedClickY = (relativeClickY / imgHeight) * imageDimensions.naturalHeight;
       
-      // Map to original image coordinate space
-      const mappedClickX = normalizedClickX * imageDimensions.naturalWidth;
-      const mappedClickY = normalizedClickY * imageDimensions.naturalHeight;
+      // Error margin in original image space
+      const errorMargin = 10; // pixels
       
-      // Add error margin relative to original image size
-      const errorMargin = 10; // pixels in original image space
-      
+      // Check if click is within the area bounds
       const isInside = 
-        mappedClickX >= (left - errorMargin) && 
-        mappedClickX <= (right + errorMargin) && 
-        mappedClickY >= (top - errorMargin) && 
-        mappedClickY <= (bottom + errorMargin);
+        mappedClickX >= (areaX1 - errorMargin) && 
+        mappedClickX <= (areaX2 + errorMargin) && 
+        mappedClickY >= (areaY1 - errorMargin) && 
+        mappedClickY <= (areaY2 + errorMargin);
       
       // Log for debugging
       console.log('Test mode click check:', { 
         clickRaw: { x, y },
         relativeToImage: { x: relativeClickX, y: relativeClickY },
-        normalizedInImage: { x: normalizedClickX, y: normalizedClickY },
         mappedToOriginal: { x: mappedClickX, y: mappedClickY },
         area: {
           id: area.id,
           isCorrect: area.isCorrect,
-          coords: `(${left},${top}) to (${right},${bottom})`
+          coords: `(${areaX1},${areaY1}) to (${areaX2},${areaY2})`
         },
         imgDimensions: {
           natural: { width: imageDimensions.naturalWidth, height: imageDimensions.naturalHeight },
-          rendered: { width: imgWidth, height: imgHeight },
-          offset: { left: imgLeft, top: imgTop }
+          rendered: { width: imgWidth, height: imgHeight }
         },
-        result: isInside,
-        mode: "test"
+        result: isInside
       });
       
       return isInside;
     }
     
-    // For edit/draw mode, use the original approach
-    // Adjust click coordinates to account for image offset and scale
+    // In edit/draw mode, use scale-based approach
     const adjustedX = x - imgLeft;
     const adjustedY = y - imgTop;
     
-    // Then normalize by dividing by scale to match the original coordinates
     const clickX = adjustedX / scale;
     const clickY = adjustedY / scale;
     
-    // Verify that the normalized click coordinates are valid
     if (!Number.isFinite(clickX) || !Number.isFinite(clickY)) {
-      console.error('Invalid click coordinates after normalization:', { clickX, clickY });
+      console.error('Invalid normalized click coordinates:', { clickX, clickY });
       return false;
     }
     
-    // Add a small error margin to make clicking easier
-    const errorMargin = 5; // 5 pixels margin
+    const errorMargin = 5;
     const isInside = 
-      clickX >= (left - errorMargin / scale) && 
-      clickX <= (right + errorMargin / scale) && 
-      clickY >= (top - errorMargin / scale) && 
-      clickY <= (bottom + errorMargin / scale);
+      clickX >= (areaX1 - errorMargin / scale) && 
+      clickX <= (areaX2 + errorMargin / scale) && 
+      clickY >= (areaY1 - errorMargin / scale) && 
+      clickY <= (areaY2 + errorMargin / scale);
     
-    // Log click checks for debugging
     console.log('Edit mode click check:', { 
       clickRaw: { x, y },
       adjusted: { x: adjustedX, y: adjustedY },
-      clickNormalized: { x: clickX, y: clickY },
-      imgOffset: { left: imgLeft, top: imgTop },
+      normalized: { x: clickX, y: clickY },
       area: {
         id: area.id,
         isCorrect: area.isCorrect,
-        coords: `(${left},${top}) to (${right},${bottom})`
+        coords: `(${areaX1},${areaY1}) to (${areaX2},${areaY2})`
       },
       scale,
-      result: isInside,
-      mode: isDrawingMode ? "drawing" : "edit"
+      result: isInside
     });
     
     return isInside;
@@ -956,65 +1003,6 @@ export function ImageMap({
     
     return false;
   }, [isDrawingMode, areas, isEditMode, onAreaClick, onClick, isPointInArea]);
-
-  // Update getConsistentAreaPosition for better accuracy in test mode
-  const getConsistentAreaPosition = (coords: number[], index: number): number => {
-    // Make sure we have valid coordinates
-    if (!coords || coords.length < 4 || !Number.isFinite(coords[index])) {
-      console.error('Invalid coordinate at index', index);
-      return 0;
-    }
-    
-    // Get container and image for offset calculations
-    const container = containerRef.current;
-    const imageElement = imageRef.current;
-    
-    // If we don't have references, just apply scale directly
-    if (!container || !imageElement) {
-      return coords[index] * scale;
-    }
-    
-    // Get container and image dimensions for proper positioning
-    const containerRect = container.getBoundingClientRect();
-    const imgStyle = window.getComputedStyle(imageElement);
-    const imgWidth = parseFloat(imgStyle.width) || containerRect.width;
-    const imgHeight = parseFloat(imgStyle.height) || containerRect.height;
-    
-    // Calculate image offset for centering
-    const imgLeft = (containerRect.width - imgWidth) / 2;
-    const imgTop = (containerRect.height - imgHeight) / 2;
-    
-    // In test mode, use a more direct mapping from the normalized coordinates
-    const isTestMode = !isDrawingMode && !isEditMode;
-
-    // Get the coordinate value we're calculating
-    const coordValue = coords[index];
-    
-    // For test mode, directly map the coordinate based on position within the image
-    if (isTestMode && imageDimensions.naturalWidth > 0 && imageDimensions.naturalHeight > 0) {
-      // X coordinate (even index)
-      if (index % 2 === 0) {
-        // Calculate the relative position (0-1) within the image
-        const relativeX = coordValue / imageDimensions.naturalWidth;
-        // Map to the actual rendered image width
-        return imgLeft + (relativeX * imgWidth);
-      } 
-      // Y coordinate (odd index)
-      else {
-        // Calculate the relative position (0-1) within the image
-        const relativeY = coordValue / imageDimensions.naturalHeight;
-        // Map to the actual rendered image height
-        return imgTop + (relativeY * imgHeight);
-      }
-    }
-    
-    // For edit/draw mode, use the regular scaling approach
-    if (index % 2 === 0) { // X coordinate (0, 2)
-      return coordValue * scale + imgLeft;
-    } else { // Y coordinate (1, 3)
-      return coordValue * scale + imgTop;
-    }
-  };
 
   return (
     <div className="relative">
@@ -1130,29 +1118,25 @@ export function ImageMap({
             
             return true;
           }).map((area) => {
-            // Calculate the position and dimensions for this area
-            const x1 = Math.min(area.coords[0], area.coords[2]);
-            const y1 = Math.min(area.coords[1], area.coords[3]);
-            const x2 = Math.max(area.coords[0], area.coords[2]);
-            const y2 = Math.max(area.coords[1], area.coords[3]);
+            // Use the helper function to calculate dimensions
+            const { size: width } = calculateDimension(area.coords[0], area.coords[2], true);
+            const { size: height } = calculateDimension(area.coords[1], area.coords[3], false);
             
-            // Use our consistent positioning function
+            // Calculate positions
             const left = getConsistentAreaPosition(area.coords, 0);
             const top = getConsistentAreaPosition(area.coords, 1);
-            const width = Math.abs(area.coords[2] - area.coords[0]) * scale;
-            const height = Math.abs(area.coords[3] - area.coords[1]) * scale;
             
             // Ensure minimum dimensions for clickability
             const minDimension = 12;
             const finalWidth = Math.max(width, minDimension);
             const finalHeight = Math.max(height, minDimension);
             
-            // Verify that the calculated dimensions are valid
+            // Verify calculated dimensions are valid
             if (!Number.isFinite(left) || 
                 !Number.isFinite(top) ||
                 !Number.isFinite(finalWidth) ||
                 !Number.isFinite(finalHeight)) {
-              console.error('Skipping area with invalid calculated dimensions:', area.id, {left, top, width: finalWidth, height: finalHeight});
+              console.error('Invalid dimensions calculated:', { left, top, width: finalWidth, height: finalHeight });
               return null;
             }
             
@@ -1161,7 +1145,7 @@ export function ImageMap({
               console.log('Area rendering:', {
                 id: area.id,
                 isCorrect: area.isCorrect,
-                coords: `(${x1},${y1}) to (${x2},${y2})`,
+                coords: `(${area.coords[0]},${area.coords[1]}) to (${area.coords[2]},${area.coords[3]})`,
                 calculatedPosition: {left, top, width: finalWidth, height: finalHeight},
                 scale,
                 mode: isDrawingMode ? "drawing" : isEditMode ? "edit" : "test"
@@ -1216,8 +1200,50 @@ export function ImageMap({
               style={{
                 left: getConsistentAreaPosition(drawingArea.coords, 0),
                 top: getConsistentAreaPosition(drawingArea.coords, 1),
-                width: Math.abs(drawingArea.coords[2] - drawingArea.coords[0]) * scale,
-                height: Math.abs(drawingArea.coords[3] - drawingArea.coords[1]) * scale,
+                width: (() => {
+                  // Get container and image references
+                  const container = containerRef.current;
+                  const imageElement = imageRef.current;
+                  
+                  // Calculate width based on mode
+                  if (!isDrawingMode && !isEditMode && container && imageElement && 
+                      imageDimensions.naturalWidth > 0) {
+                    // For test mode, calculate width proportionally
+                    const imgStyle = window.getComputedStyle(imageElement);
+                    const imgWidth = parseFloat(imgStyle.width);
+                    // Get width as a proportion of the image
+                    const x1 = Math.min(drawingArea.coords[0], drawingArea.coords[2]);
+                    const x2 = Math.max(drawingArea.coords[0], drawingArea.coords[2]);
+                    const width = x2 - x1;
+                    // Map to the rendered image size
+                    return (width / imageDimensions.naturalWidth) * imgWidth;
+                  }
+                  
+                  // Default scale-based calculation for drawing/edit mode
+                  return Math.abs(drawingArea.coords[2] - drawingArea.coords[0]) * scale;
+                })(),
+                height: (() => {
+                  // Get container and image references
+                  const container = containerRef.current;
+                  const imageElement = imageRef.current;
+                  
+                  // Calculate height based on mode
+                  if (!isDrawingMode && !isEditMode && container && imageElement && 
+                      imageDimensions.naturalHeight > 0) {
+                    // For test mode, calculate height proportionally
+                    const imgStyle = window.getComputedStyle(imageElement);
+                    const imgHeight = parseFloat(imgStyle.height);
+                    // Get height as a proportion of the image
+                    const y1 = Math.min(drawingArea.coords[1], drawingArea.coords[3]);
+                    const y2 = Math.max(drawingArea.coords[1], drawingArea.coords[3]);
+                    const height = y2 - y1;
+                    // Map to the rendered image size
+                    return (height / imageDimensions.naturalHeight) * imgHeight;
+                  }
+                  
+                  // Default scale-based calculation for drawing/edit mode
+                  return Math.abs(drawingArea.coords[3] - drawingArea.coords[1]) * scale;
+                })(),
                 pointerEvents: 'none'
               }}
             />
