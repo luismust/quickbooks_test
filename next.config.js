@@ -2,8 +2,13 @@
 const nextConfig = {
   reactStrictMode: true,
   
-  // Configuración para exportación estática
-  output: 'export',
+  // Ajustar según el tipo de despliegue
+  // Para Vercel: comentar la línea output
+  // Para exportación estática: descomentar la línea output
+  // output: 'export',
+  
+  // Agregar trailing slash para mejorar compatibilidad
+  trailingSlash: true,
   
   // Deshabilitar imagen optimizada para exportación estática
   images: {

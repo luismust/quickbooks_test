@@ -8,10 +8,9 @@ import { Progress } from "@/components/ui/progress"
 import { ChevronLeft, ChevronRight, Info, Edit, Play, Link, Download, Save, Loader2 } from "lucide-react"
 import { ImageMap } from "@/components/image-map"
 import { questionTemplates } from "@/lib/templates"
-import { saveTest, getTests } from "@/lib/test-storage"
+import { saveTest, getTests, editTest, generateId } from "@/lib/test-storage"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { generateId } from "@/lib/utils"
 import type { Area, Test, Question, DragItem, SequenceItem } from "@/lib/test-storage"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
@@ -469,22 +468,33 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
         // Redirigir a la página principal
         router.push('/')
       } else {
-        // Guardar mediante API utilizando la función saveTest que ya maneja correctamente las imágenes blob
         console.log('Saving test with data:', {
           id: testData.id,
           name: testData.name,
           questionsCount: testData.questions.length,
+          isEdit: !!initialTest?.id
         })
 
-        const savedTest = await saveTest(testData)
-        console.log('Test saved successfully with ID:', savedTest.id)
+        // Determinar si es un test nuevo o uno existente para editar
+        let savedTest;
+        if (initialTest?.id) {
+          // Es un test existente, usar editTest
+          console.log('Editing existing test with ID:', initialTest.id)
+          savedTest = await editTest(testData)
+          console.log('Test edited successfully with ID:', savedTest.id)
+          toast.success("Test edited successfully")
+        } else {
+          // Es un test nuevo, usar saveTest
+          console.log('Creating new test')
+          savedTest = await saveTest(testData)
+          console.log('Test created successfully with ID:', savedTest.id)
+          toast.success("Test created successfully")
+        }
 
         // Actualizar el estado con los datos guardados
         setTest(savedTest)
         setScreens(savedTest.questions)
         setHasUnsavedChanges(false)
-
-        toast.success("Test saved successfully")
         
         // Redirigir a la página principal
         router.push('/')
@@ -636,7 +646,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
     } else {
       // Crear nueva pregunta
       const newQuestion: ExtendedQuestion = {
-        id: generateId('question'),
+        id: generateId(),
         title: currentTitle,
         description: currentDescription,
         question: currentQuestion,

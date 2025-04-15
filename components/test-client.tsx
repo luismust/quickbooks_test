@@ -6,6 +6,7 @@ import { QuickbooksTest } from "@/components/quickbooks-test"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft } from "lucide-react"
 import { useLocalStorage } from "@/components/local-storage-provider"
+import { loadTest } from "@/lib/test-storage"
 import type { Test } from "@/lib/test-storage"
 
 interface TestClientProps {
@@ -16,14 +17,15 @@ export function TestClient({ id }: TestClientProps) {
   const router = useRouter()
   const [test, setTest] = useState<Test | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const { localTests, isStaticMode, getLocalTest } = useLocalStorage()
+  const { isStaticMode } = useLocalStorage()
 
   useEffect(() => {
-    const loadTest = async () => {
+    const fetchTest = async () => {
       try {
         setIsLoading(true)
         
         if (id === 'new') {
+          // Crear un nuevo test vacío
           setTest({
             id: Date.now().toString(),
             name: "New Test",
@@ -37,42 +39,39 @@ export function TestClient({ id }: TestClientProps) {
           return
         }
         
-        if (isStaticMode) {
-          // En modo estático, buscar en localStorage
-          const localTest = getLocalTest(id)
-          if (localTest) {
-            setTest(localTest)
-          } else if (id === 'sample-test') {
-            // Si es la página de muestra y no hay test, crear uno de ejemplo
-            setTest({
-              id: 'sample-test',
-              name: 'Sample Test',
-              description: 'This is a sample test for editing.',
-              questions: [],
-              maxScore: 100,
-              minScore: 60,
-              passingMessage: 'Congratulations!',
-              failingMessage: 'Try again'
-            })
-          } else {
-            router.push('/tests')
-          }
+        // Usar la función centralizada de carga de tests
+        const loadedTest = await loadTest(id)
+        
+        if (loadedTest) {
+          console.log(`Test ${id} loaded successfully`)
+          setTest(loadedTest)
+        } else if (isStaticMode && id === 'sample-test') {
+          // Si estamos en modo estático y es el test de ejemplo
+          console.log('Using sample test in static mode')
+          setTest({
+            id: 'sample-test',
+            name: 'Sample Test',
+            description: 'This is a sample test for editing.',
+            questions: [],
+            maxScore: 100,
+            minScore: 60,
+            passingMessage: 'Congratulations!',
+            failingMessage: 'Try again'
+          })
         } else {
-          // En modo normal, buscar en localStorage
-          const test = localTests.find(t => t.id === id)
-          if (test) {
-            setTest(test)
-          } else {
-            router.push('/tests')
-          }
+          console.error(`Test ${id} not found`)
+          setTest(null)
         }
+      } catch (error) {
+        console.error('Error loading test:', error)
+        setTest(null)
       } finally {
         setIsLoading(false)
       }
     }
 
-    loadTest()
-  }, [id, router, isStaticMode, getLocalTest, localTests])
+    fetchTest()
+  }, [id, isStaticMode])
 
   if (isLoading) {
     return (

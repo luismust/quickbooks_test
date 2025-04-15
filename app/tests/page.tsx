@@ -110,6 +110,7 @@ export default function TestsPage() {
 
   const handleEditTest = (e: React.MouseEvent, test: Test) => {
     e.stopPropagation()
+    // Navegación directa a /tests/{id} para editar
     router.push(`/tests/${test.id}`)
   }
 

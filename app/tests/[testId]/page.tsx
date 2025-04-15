@@ -7,6 +7,7 @@ export const metadata: Metadata = {
 }
 
 // Función para generar parámetros estáticos en build time
+// Esto es solo para la muestra, las demás rutas serán manejadas dinámicamente
 export function generateStaticParams() {
   return [
     { testId: 'sample-test' }
@@ -20,5 +21,8 @@ type TestPageProps = {
 
 // Componente de servidor que renderiza el componente cliente
 export default function TestPage({ params }: TestPageProps) {
+  // Utilizar el ID directamente sin validación previa
+  // El componente cliente TestClient se encargará de cargar el test si existe
+  // o mostrar un mensaje apropiado si no existe
   return <TestClient id={params.testId} />
 } 

@@ -145,14 +145,14 @@ export function ImageMap({
       return src;
     }
     
-    // Convertir URLs relativas de Airtable a absolutas
+        // Convertir URLs relativas de Airtable a absolutas
     if (typeof src === 'string' && src.startsWith('/v0/')) {
       const correctedUrl = `https://api.airtable.com${src}`;
-      return correctedUrl;
-    }
+        return correctedUrl;
+      }
     
     // Para cualquier otra URL o formato
-    return src;
+      return src;
   }, [src]);
 
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event> | null) => {
@@ -435,7 +435,7 @@ export function ImageMap({
     continueWithRetries();
     
     function continueWithRetries() {
-      // Aumentar el máximo de reintentos
+    // Aumentar el máximo de reintentos
       if (retryCount >= 2) {
         console.error('Error loading image after multiple attempts:', formattedSrc);
         
@@ -457,21 +457,21 @@ export function ImageMap({
       });
       
           onError?.();
-        }
-        return;
       }
-      
+        return;
+    }
+    
       setRetryCount(prev => prev + 1);
       console.error(`Error loading image (attempt ${retryCount + 1}):`, formattedSrc);
-      
-      // Si es una URL relativa de Airtable, intentar corregirla
-      if (formattedSrc?.includes('api.airtable.com') && !formattedSrc.startsWith('https://')) {
-        const correctedUrl = `https://api.airtable.com/${formattedSrc.replace(/^\/+/, '')}`;
-        console.log('Attempting with corrected Airtable URL:', correctedUrl);
+    
+    // Si es una URL relativa de Airtable, intentar corregirla
+    if (formattedSrc?.includes('api.airtable.com') && !formattedSrc.startsWith('https://')) {
+      const correctedUrl = `https://api.airtable.com/${formattedSrc.replace(/^\/+/, '')}`;
+      console.log('Attempting with corrected Airtable URL:', correctedUrl);
         
         if (imageRef.current) {
           imageRef.current.style.backgroundImage = `url(${correctedUrl})`;
-          return;
+      return;
         }
       }
       
@@ -492,7 +492,7 @@ export function ImageMap({
   useEffect(() => {
     if (formattedSrc) {
       setIsLoading(true);
-      setError(false);
+        setError(false);
       setErrorMessage("");
       
       // For blob URLs, first verify they're still valid
@@ -508,14 +508,14 @@ export function ImageMap({
               tempImg.onerror = () => handleError();
               tempImg.src = formattedSrc;
             }
-          } else {
+      } else {
             console.error('Blob URL is invalid, trying alternatives');
             setError(true);
             setErrorMessage("The image reference is no longer valid");
             tryAlternativeImage();
           }
         });
-      } else {
+    } else {
         // For regular URLs or data URIs
         if (imageRef.current) {
           imageRef.current.style.backgroundImage = `url(${formattedSrc})`;
@@ -1201,9 +1201,9 @@ export function ImageMap({
             : 'hover:bg-white/10'
         } ${mode === 'edit' ? 'hover:bg-primary/10' : ''} cursor-pointer`}
         style={{
-          left,
-          top,
-          width: finalWidth,
+      left,
+      top,
+      width: finalWidth,
           height: finalHeight,
           background: mode === 'edit' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
           border: mode === 'edit' ? '1px solid' : 'none',
@@ -1502,8 +1502,8 @@ export function ImageMap({
               src={formattedSrc} 
               alt={alt}
               className="opacity-0 absolute w-0 h-0 pointer-events-none"
-              onLoad={handleImageLoad}
-              onError={handleError}
+            onLoad={handleImageLoad}
+            onError={handleError}
             />
           </div>
       

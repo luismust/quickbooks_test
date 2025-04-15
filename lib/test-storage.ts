@@ -799,3 +799,148 @@ export const saveTestToLocalStorage = (test: Test): void => {
     console.error('Error guardando test en localStorage:', error);
   }
 };
+
+/**
+ * Edita un test existente utilizando el endpoint dedicado
+ */
+export async function editTest(test: Test): Promise<Test> {
+  try {
+    console.log('Starting editTest function')
+
+    // URL base del API
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://quickbooks-backend.vercel.app/api';
+
+    // Crear una copia del test para no modificar el original
+    let processedTest = { ...test };
+    
+    // Procesar todas las preguntas individualmente para asegurar que las imágenes estén gestionadas correctamente
+    console.log('Procesando imágenes de preguntas individualmente...');
+    const processedQuestions = await Promise.all(
+      processedTest.questions.map(async (question) => {
+        // Si es de tipo clickArea, procesarla con prepareQuestionWithImage
+        if (question.type === 'clickArea') {
+          let imageToProcess = null;
+          
+          // Determinar la fuente de la imagen a procesar
+          if (typeof question._localFile === 'string' && question._localFile.startsWith('data:')) {
+            console.log(`Pregunta ${question.id}: Usando _localFile como fuente de imagen`);
+            imageToProcess = question._localFile;
+          } else if (typeof question._imageData === 'string' && question._imageData.startsWith('data:')) {
+            console.log(`Pregunta ${question.id}: Usando _imageData como fuente de imagen`);
+            imageToProcess = question._imageData;
+          } else if (question.image && question.image.startsWith('blob:')) {
+            console.log(`Pregunta ${question.id}: Usando blob URL como fuente de imagen`);
+            // El procesamiento de blob URL se maneja dentro de prepareQuestionWithImage
+          }
+          
+          // Si no hay nueva imagen pero ya tiene imageId, mantener la pregunta como está
+          if (!imageToProcess && !question.image?.startsWith('blob:') && question.imageId) {
+            console.log(`Pregunta ${question.id}: Ya tiene imageId y no hay nueva imagen, manteniendo como está`);
+            return question;
+          }
+          
+          console.log(`Procesando pregunta de tipo clickArea (ID: ${question.id})`);
+          return await prepareQuestionWithImage(question);
+        }
+        
+        // Para otros tipos de preguntas, devolverlas sin cambios
+        return question;
+      })
+    );
+    
+    // Actualizar las preguntas procesadas en el test
+    processedTest.questions = processedQuestions;
+    
+    // Limpiar datos temporales o sensibles antes de enviar al servidor
+    processedTest.questions = processedTest.questions.map(question => {
+      const cleanedQuestion = { ...question };
+      
+      // Eliminar datos temporales o demasiado grandes para enviar
+      if (cleanedQuestion._localFile) delete cleanedQuestion._localFile;
+      if (cleanedQuestion._imageData) delete cleanedQuestion._imageData;
+      
+      return cleanedQuestion;
+    });
+    
+    console.log('Todas las imágenes procesadas, enviando test al servidor');
+    
+    // URL del endpoint específico para editar tests
+    const apiUrl = `${API_URL}/edit-test`;
+
+    console.log('Enviando test al servidor:', apiUrl);
+    console.log('Preguntas procesadas:', processedTest.questions.length);
+
+    // Enviar al backend usando el endpoint específico para edición
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': typeof window !== 'undefined' ? window.location.origin : 'https://tests-system.vercel.app'
+      },
+      body: JSON.stringify(processedTest)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Error in editTest:', response.status, errorText);
+      throw new Error(`Error ${response.status}: ${errorText || response.statusText}`);
+    }
+
+    const savedTest = await response.json();
+    console.log('Test editado correctamente:', savedTest.id);
+    
+    // Proceso opcional: actualizar en localStorage
+    try {
+      // Actualizar en localStorage para acceso offline
+      console.log('Actualizando copia en localStorage');
+      const tests = JSON.parse(localStorage.getItem('saved-tests') || '[]');
+      const index = tests.findIndex((t: Test) => t.id === savedTest.id);
+      if (index >= 0) {
+        tests[index] = savedTest;
+      } else {
+        tests.push(savedTest);
+      }
+      localStorage.setItem('saved-tests', JSON.stringify(tests));
+    } catch (error) {
+      console.error('Error actualizando en localStorage:', error);
+    }
+
+    // Actualizar las preguntas con campos adicionales antes de devolverlas
+    savedTest.questions = savedTest.questions.map((q: Question) => {
+      // Añadir URLs alternativas para acceso a imágenes
+      if (q.imageId) {
+        // Construir URLs alternativas para cargar la imagen si no existen
+        if (!q.blobUrl && q.imageId) {
+          q.blobUrl = `${API_URL}/images?id=${q.imageId}&redirect=blob`;
+        }
+        if (!q.imageApiUrl && q.imageId) {
+          q.imageApiUrl = `${API_URL}/images?id=${q.imageId}&redirect=data`;
+        }
+      }
+      return q;
+    });
+
+    return savedTest;
+  } catch (error) {
+    console.error('Error in editTest:', error);
+
+    // Si hay un error, intentar guardar en localStorage
+    try {
+      console.log('Saving test to localStorage as fallback');
+      const testToSave = {
+        ...test,
+        savedOffline: true,
+        lastSaved: new Date().toISOString()
+      };
+      
+      saveTestToLocalStorage(testToSave);
+      
+      return testToSave;
+    } catch (localStorageError) {
+      console.error('Error saving to localStorage:', localStorageError);
+    }
+
+    throw error;
+  }
+}
