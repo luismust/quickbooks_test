@@ -681,102 +681,142 @@ export function ImageMap({
     e.preventDefault();
   }, [isDrawingMode, onDrawStart, imageDimensions, setDrawingArea]);
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!imageRef.current || !containerRef.current || !isDragging || !drawingArea) return;
-
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const rect = imageRef.current.getBoundingClientRect();
-      
-      // Calcular las coordenadas relativas al contenedor
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      
-      // Verificar que tenemos dimensiones naturales válidas
-      if (!drawingArea.imageDimensions ||
-          drawingArea.imageDimensions.naturalWidth <= 0 || 
-          drawingArea.imageDimensions.naturalHeight <= 0) {
-        console.error('Error: Invalid image dimensions for coordinate calculation', 
-          drawingArea.imageDimensions);
-        return;
-      }
-
-      // Convertir a coordenadas naturales
-      const naturalWidth = drawingArea.imageDimensions.naturalWidth;
-      const naturalHeight = drawingArea.imageDimensions.naturalHeight;
-      const displayWidth = rect.width;
-      const displayHeight = rect.height;
-      
-      const scaleX = naturalWidth / displayWidth;
-      const scaleY = naturalHeight / displayHeight;
-      
-      const naturalX = Math.round(x * scaleX);
-      const naturalY = Math.round(y * scaleY);
-      
-      console.log(`Mouse move - Display: (${x}, ${y}), Natural: (${naturalX}, ${naturalY}), Scale: (${scaleX}, ${scaleY})`);
-      
-      // Continuar con el proceso de dibujo
-      if (setDrawingArea) {
-        const startX = drawingArea.x || 0;
-        const startY = drawingArea.y || 0;
-        const width = naturalX - startX;
-        const height = naturalY - startY;
-        
-        setDrawingArea({
-          ...drawingArea,
-          coords: [startX, startY, naturalX, naturalY],
-          width,
-          height,
-        });
-      }
-      
-      e.preventDefault();
-    },
-    [isDragging, drawingArea, setDrawingArea]
-  );
-  
-  const handleMouseUp = useCallback((e: React.MouseEvent) => {
-    if (!isDrawingMode || !isDragging || !containerRef.current || !drawingArea) return;
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDrawingMode || !containerRef.current || !isDragging || !drawingArea) return;
     
-    // Get container and image references
+    // Obtener referencias
     const container = containerRef.current;
     const image = imageRef.current;
     
     if (!image) return;
     
-    // Verificar que tenemos dimensiones naturales válidas
-    if (!drawingArea.imageDimensions ||
-        drawingArea.imageDimensions.naturalWidth <= 0 || 
-        drawingArea.imageDimensions.naturalHeight <= 0) {
-      console.error('Error: Invalid image dimensions for coordinate calculation', 
-        drawingArea.imageDimensions);
+    // Verificar dimensiones
+    if (!drawingArea.imageDimensions) {
+      console.error('Error: Missing image dimensions in drawing area - using current dimensions');
+      drawingArea.imageDimensions = {
+        naturalWidth: imageDimensions.naturalWidth,
+        naturalHeight: imageDimensions.naturalHeight
+      };
+    }
+    
+    // Verificar valores válidos
+    if (drawingArea.imageDimensions.naturalWidth <= 0 || drawingArea.imageDimensions.naturalHeight <= 0) {
+      console.error('Error: Invalid image dimensions for coordinate calculation', drawingArea.imageDimensions);
       return;
     }
     
-    const rect = image.getBoundingClientRect();
+    // Obtener dimensiones del contenedor
+    const containerRect = container.getBoundingClientRect();
     
-    // Calcular las coordenadas relativas a la imagen
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    // Calcular posición del clic
+    const clickX = e.clientX - containerRect.left;
+    const clickY = e.clientY - containerRect.top;
+    
+    // Obtener dimensiones naturales de la imagen
+    const naturalWidth = Math.max(drawingArea.imageDimensions.naturalWidth, 1);
+    const naturalHeight = Math.max(drawingArea.imageDimensions.naturalHeight, 1);
+    
+    // Calcular dimensiones renderizadas
+    const imageRatio = naturalWidth / naturalHeight;
+    const containerRatio = containerRect.width / containerRect.height;
+    
+    let renderedWidth, renderedHeight;
+    if (containerRatio > imageRatio) {
+      // Limitado por altura
+      renderedHeight = containerRect.height;
+      renderedWidth = renderedHeight * imageRatio;
+    } else {
+      // Limitado por ancho
+      renderedWidth = containerRect.width;
+      renderedHeight = renderedWidth / imageRatio;
+    }
+    
+    // Calcular márgenes para centrado
+    const marginLeft = (containerRect.width - renderedWidth) / 2;
+    const marginTop = (containerRect.height - renderedHeight) / 2;
+    
+    // Ajustar posición para considerar márgenes
+    const adjustedX = clickX - marginLeft;
+    const adjustedY = clickY - marginTop;
     
     // Convertir a coordenadas naturales
-    const naturalWidth = drawingArea.imageDimensions.naturalWidth;
-    const naturalHeight = drawingArea.imageDimensions.naturalHeight;
-    const displayWidth = rect.width;
-    const displayHeight = rect.height;
+    let naturalX = Math.round((adjustedX / renderedWidth) * naturalWidth);
+    let naturalY = Math.round((adjustedY / renderedHeight) * naturalHeight);
     
-    const scaleX = naturalWidth / displayWidth;
-    const scaleY = naturalHeight / displayHeight;
+    // Limitar a los límites de la imagen
+    naturalX = Math.max(0, Math.min(naturalWidth, naturalX));
+    naturalY = Math.max(0, Math.min(naturalHeight, naturalY));
     
-    const naturalX = Math.round(x * scaleX);
-    const naturalY = Math.round(y * scaleY);
+    // Solo mostrar cada cierto tiempo para no saturar la consola
+    if (Math.random() < 0.05) {
+      console.log('MouseMove:', {
+        click: { x: clickX, y: clickY },
+        adjusted: { x: adjustedX, y: adjustedY },
+        natural: { x: naturalX, y: naturalY }
+      });
+    }
     
-    console.log(`Mouse up - Display: (${x}, ${y}), Natural: (${naturalX}, ${naturalY}), Scale: (${scaleX}, ${scaleY})`);
+    // Continuar con el proceso de dibujo
+    const startX = drawingArea.x || 0;
+    const startY = drawingArea.y || 0;
     
+    // Actualizar el área de dibujo
+    if (setDrawingArea) {
+      setDrawingArea({
+        ...drawingArea,
+        coords: [startX, startY, naturalX, naturalY],
+        width: Math.abs(naturalX - startX),
+        height: Math.abs(naturalY - startY),
+      });
+    }
+    
+    if (onDrawMove) {
+      onDrawMove(naturalX, naturalY);
+    }
+    
+    // Prevenir comportamientos del navegador
+    e.preventDefault();
+  }, [isDrawingMode, isDragging, drawingArea, setDrawingArea, onDrawMove, imageDimensions]);
+  
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if (!isDrawingMode || !isDragging || !containerRef.current || !drawingArea) return;
+    
+    // Verificar que el área tiene dimensiones válidas
+    if (!drawingArea.coords || drawingArea.coords.length < 4) {
+      console.error('Invalid drawing area coordinates on mouse up');
+      setIsDragging(false);
+      return;
+    }
+    
+    // Calcular ancho y alto
+    const width = Math.abs(drawingArea.coords[2] - drawingArea.coords[0]);
+    const height = Math.abs(drawingArea.coords[3] - drawingArea.coords[1]);
+    
+    // Verificar si el área es demasiado pequeña
+    if (width < 5 || height < 5) {
+      console.log('Área demasiado pequeña, ignorando');
+      toast.error('El área seleccionada es demasiado pequeña. Intenta arrastrar más.');
+      
+      // Limpiar el área de dibujo si es demasiado pequeña
+      if (setDrawingArea) {
+        setDrawingArea(null);
+      }
+      
+      setIsDragging(false);
+      return;
+    }
+    
+    console.log('MouseUp: Finalizado dibujo de área', {
+      coords: drawingArea.coords,
+      width,
+      height
+    });
+    
+    // Mantener el área actual y notificar al componente padre
     setIsDragging(false);
     onDrawEnd?.();
     
-    // Prevent browser behaviors
+    // Prevenir comportamientos del navegador
     e.preventDefault();
     
     // Force a component redraw
@@ -790,7 +830,7 @@ export function ImageMap({
         }, 10);
       }
     }, 10);
-  }, [isDrawingMode, onDrawEnd, isDragging, drawingArea]);
+  }, [isDrawingMode, isDragging, drawingArea, setDrawingArea, onDrawEnd]);
   
   // Añadimos un manejador global para capturar cuando se suelta el botón del ratón fuera del componente
   useEffect(() => {
