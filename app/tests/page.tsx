@@ -110,7 +110,7 @@ export default function TestsPage() {
 
   const handleEditTest = (e: React.MouseEvent, test: Test) => {
     e.stopPropagation()
-    router.push(`/edit-test/${test.id}`)
+    router.push(`/tests/${test.id}`)
   }
 
   // Si hay un test seleccionado, mostrar el TestViewer
