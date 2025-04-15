@@ -707,6 +707,17 @@ export function ImageMap({
       const max = Math.max(start, end);
       const diff = max - min;
       
+      // Always log the calculations for debugging
+      console.log(`Test mode dimension calculation (${isXAxis ? 'width' : 'height'}):`, {
+        original: { min, max, diff },
+        image: { 
+          natural: isXAxis ? imageDimensions.naturalWidth : imageDimensions.naturalHeight,
+          rendered: isXAxis ? imgWidth : imgHeight
+        },
+        scale: isXAxis ? imgWidth / imageDimensions.naturalWidth : imgHeight / imageDimensions.naturalHeight,
+        mode: "test"
+      });
+      
       if (isXAxis) {
         // Calculate width proportionally
         const size = (diff / imageDimensions.naturalWidth) * imgWidth;
@@ -722,6 +733,106 @@ export function ImageMap({
       const size = Math.abs(end - start) * scale;
       return { size, min };
     }
+  };
+
+  // Add a special function for test mode rendering that uses exact pixel positioning
+  const renderTestModeArea = (area: Area) => {
+    // Make sure we have valid coordinates and references
+    if (!area.coords || area.coords.length < 4 || !containerRef.current || !imageRef.current) {
+      return null;
+    }
+    
+    // Get container and image dimensions for proper positioning
+    const container = containerRef.current;
+    const imageElement = imageRef.current;
+    const containerRect = container.getBoundingClientRect();
+    const imgStyle = window.getComputedStyle(imageElement);
+    
+    // Get image dimensions
+    const imgWidth = parseFloat(imgStyle.width) || containerRect.width;
+    const imgHeight = parseFloat(imgStyle.height) || containerRect.height;
+    
+    // Calculate image offset for centering
+    const imgLeft = (containerRect.width - imgWidth) / 2;
+    const imgTop = (containerRect.height - imgHeight) / 2;
+    
+    // Get normalized coordinates from the area
+    const x1 = Math.min(area.coords[0], area.coords[2]);
+    const y1 = Math.min(area.coords[1], area.coords[3]);
+    const x2 = Math.max(area.coords[0], area.coords[2]);
+    const y2 = Math.max(area.coords[1], area.coords[3]);
+    
+    // Calculate exact pixel positions based on the image's natural dimensions
+    const pixelLeft = imgLeft + (x1 / imageDimensions.naturalWidth) * imgWidth;
+    const pixelTop = imgTop + (y1 / imageDimensions.naturalHeight) * imgHeight;
+    const pixelWidth = ((x2 - x1) / imageDimensions.naturalWidth) * imgWidth;
+    const pixelHeight = ((y2 - y1) / imageDimensions.naturalHeight) * imgHeight;
+    
+    // Ensure minimum dimensions for clickability
+    const minDimension = 12;
+    const finalWidth = Math.max(pixelWidth, minDimension);
+    const finalHeight = Math.max(pixelHeight, minDimension);
+    
+    // Log all calculations for this area
+    console.log('Area rendering details:', {
+      id: area.id,
+      isCorrect: area.isCorrect,
+      originalCoords: `(${x1},${y1}) to (${x2},${y2})`,
+      naturalDimensions: {
+        width: imageDimensions.naturalWidth,
+        height: imageDimensions.naturalHeight
+      },
+      renderedDimensions: {
+        width: imgWidth,
+        height: imgHeight
+      },
+      calculatedPosition: {
+        left: pixelLeft,
+        top: pixelTop,
+        width: pixelWidth,
+        height: pixelHeight
+      },
+      finalPosition: {
+        left: pixelLeft,
+        top: pixelTop,
+        width: finalWidth,
+        height: finalHeight
+      },
+      scale,
+      mode: "test-render"
+    });
+    
+    const debugInfo = process.env.NODE_ENV === 'development' ? {
+      // Add more visible debugging in dev mode
+      outline: '1px solid rgba(255,0,0,0.7)',
+      // Add area ID as data attribute for easier debugging
+      'data-debug-coords': `${area.coords.join(',')}`,
+      'data-debug-dimensions': `${Math.round(finalWidth)}x${Math.round(finalHeight)}`,
+      'data-debug-position': `@${Math.round(pixelLeft)},${Math.round(pixelTop)}`,
+      'data-debug-scale': (imgWidth / imageDimensions.naturalWidth).toFixed(3)
+    } : {};
+    
+    return (
+      <div
+        key={area.id}
+        data-area-id={area.id}
+        data-is-correct={area.isCorrect ? "true" : "false"}
+        className={`absolute transition-colors hover:bg-white/10 cursor-pointer`}
+        style={{
+          left: pixelLeft,
+          top: pixelTop,
+          width: finalWidth,
+          height: finalHeight,
+          background: 'rgba(255,255,255,0.03)',
+          border: 'none',
+          ...(process.env.NODE_ENV === 'development' ? {
+            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)',
+            outline: '1px dashed rgba(255,0,0,0.5)',
+            ...debugInfo
+          } : {})
+        }}
+      />
+    );
   };
 
   // Restore the getConsistentAreaPosition function that was removed
@@ -781,9 +892,31 @@ export function ImageMap({
   // Update the mapping for area rendering
   {!isLoading && areas.filter(area => {
     // Filtering logic remains the same...
+    if (!area.coords || area.coords.length < 4) {
+      console.error('Skipping area with invalid coords:', area.id);
+      return false;
+    }
+    
+    // Verify that no coords contain Infinity or NaN
+    const hasInvalidCoords = area.coords.some(coord => 
+      !Number.isFinite(coord) || Number.isNaN(coord)
+    );
+    
+    if (hasInvalidCoords) {
+      console.error('Skipping area with invalid coordinate values:', area.id, area.coords);
+      return false;
+    }
+    
     return true;
   }).map((area) => {
-    // Use the helper function to calculate dimensions
+    // For test mode, use a completely separate rendering approach
+    const isTestMode = !isDrawingMode && !isEditMode;
+    
+    if (isTestMode && imageDimensions.naturalWidth > 0 && imageDimensions.naturalHeight > 0) {
+      return renderTestModeArea(area);
+    }
+    
+    // For edit/drawing mode, use the existing approach
     const { size: width } = calculateDimension(area.coords[0], area.coords[2], true);
     const { size: height } = calculateDimension(area.coords[1], area.coords[3], false);
     
@@ -805,7 +938,7 @@ export function ImageMap({
       return null;
     }
     
-    // Rest of the rendering code remains the same...
+    // Rest of the rendering remains the same for edit/drawing mode
     return (
       <div
         key={area.id}
@@ -821,7 +954,15 @@ export function ImageMap({
           top,
           width: finalWidth,
           height: finalHeight,
-          // Rest of styling remains the same...
+          background: isEditMode ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
+          border: isEditMode ? '1px solid' : 'none',
+          ...(process.env.NODE_ENV === 'development' ? {
+            boxShadow: isEditMode ? 'none' : 'inset 0 0 0 1px rgba(255,255,255,0.2)',
+            outline: !isEditMode ? '1px dashed rgba(255,0,0,0.5)' : 'none',
+            'data-debug-coords': `${area.coords.join(',')}`,
+            'data-debug-dimensions': `${Math.round(finalWidth)}x${Math.round(finalHeight)}`,
+            'data-debug-position': `@${Math.round(left)},${Math.round(top)}`,
+          } : {})
         }}
       />
     );
@@ -868,38 +1009,49 @@ export function ImageMap({
     
     // In test mode with valid image dimensions, use direct proportional mapping
     if (isTestMode && imageDimensions.naturalWidth > 0 && imageDimensions.naturalHeight > 0) {
-      // Click coordinates relative to the image (remove container offset)
-      const relativeClickX = x - imgLeft;
-      const relativeClickY = y - imgTop;
+      // Calculate pixel positions exactly as in renderTestModeArea
+      const pixelLeft = imgLeft + (areaX1 / imageDimensions.naturalWidth) * imgWidth;
+      const pixelTop = imgTop + (areaY1 / imageDimensions.naturalHeight) * imgHeight;
+      const pixelWidth = ((areaX2 - areaX1) / imageDimensions.naturalWidth) * imgWidth;
+      const pixelHeight = ((areaY2 - areaY1) / imageDimensions.naturalHeight) * imgHeight;
       
-      // Map click coordinates to the original image space
-      const mappedClickX = (relativeClickX / imgWidth) * imageDimensions.naturalWidth;
-      const mappedClickY = (relativeClickY / imgHeight) * imageDimensions.naturalHeight;
+      // Ensure minimum clickable area
+      const minDimension = 12;
+      const finalWidth = Math.max(pixelWidth, minDimension);
+      const finalHeight = Math.max(pixelHeight, minDimension);
       
-      // Error margin in original image space
-      const errorMargin = 10; // pixels
+      // Calculate area boundaries with possible expansion for minimum size
+      const areaLeft = pixelLeft;
+      const areaTop = pixelTop;
+      const areaRight = areaLeft + finalWidth;
+      const areaBottom = areaTop + finalHeight;
       
-      // Check if click is within the area bounds
+      // Error margin in pixels (small tolerance for clicking)
+      const errorMargin = 5;
+      
+      // Simply check if click is within the calculated pixel boundaries
       const isInside = 
-        mappedClickX >= (areaX1 - errorMargin) && 
-        mappedClickX <= (areaX2 + errorMargin) && 
-        mappedClickY >= (areaY1 - errorMargin) && 
-        mappedClickY <= (areaY2 + errorMargin);
+        x >= (areaLeft - errorMargin) && 
+        x <= (areaRight + errorMargin) && 
+        y >= (areaTop - errorMargin) && 
+        y <= (areaBottom + errorMargin);
       
-      // Log for debugging
+      // Log for debugging - matching the rendering calculations exactly
       console.log('Test mode click check:', { 
         clickRaw: { x, y },
-        relativeToImage: { x: relativeClickX, y: relativeClickY },
-        mappedToOriginal: { x: mappedClickX, y: mappedClickY },
         area: {
           id: area.id,
           isCorrect: area.isCorrect,
-          coords: `(${areaX1},${areaY1}) to (${areaX2},${areaY2})`
+          originalCoords: `(${areaX1},${areaY1}) to (${areaX2},${areaY2})`,
+          pixelCoords: `(${areaLeft},${areaTop}) to (${areaRight},${areaBottom})`,
+          width: finalWidth,
+          height: finalHeight
         },
         imgDimensions: {
           natural: { width: imageDimensions.naturalWidth, height: imageDimensions.naturalHeight },
           rendered: { width: imgWidth, height: imgHeight }
         },
+        scale: imgWidth / imageDimensions.naturalWidth,
         result: isInside
       });
       
@@ -1118,7 +1270,14 @@ export function ImageMap({
             
             return true;
           }).map((area) => {
-            // Use the helper function to calculate dimensions
+            // For test mode, use a completely separate rendering approach
+            const isTestMode = !isDrawingMode && !isEditMode;
+            
+            if (isTestMode && imageDimensions.naturalWidth > 0 && imageDimensions.naturalHeight > 0) {
+              return renderTestModeArea(area);
+            }
+            
+            // For edit/drawing mode, use the existing approach
             const { size: width } = calculateDimension(area.coords[0], area.coords[2], true);
             const { size: height } = calculateDimension(area.coords[1], area.coords[3], false);
             
@@ -1140,28 +1299,7 @@ export function ImageMap({
               return null;
             }
             
-            // Log a sample of dimensions for debugging
-            if (Math.random() < 0.05) {
-              console.log('Area rendering:', {
-                id: area.id,
-                isCorrect: area.isCorrect,
-                coords: `(${area.coords[0]},${area.coords[1]}) to (${area.coords[2]},${area.coords[3]})`,
-                calculatedPosition: {left, top, width: finalWidth, height: finalHeight},
-                scale,
-                mode: isDrawingMode ? "drawing" : isEditMode ? "edit" : "test"
-              });
-            }
-            
-            const debugInfo = process.env.NODE_ENV === 'development' ? {
-              // Add more visible debugging in dev mode
-              outline: '1px solid rgba(255,0,0,0.7)',
-              // Add area ID as data attribute for easier debugging
-              'data-debug-coords': `${area.coords.join(',')}`,
-              'data-debug-dimensions': `${Math.round(finalWidth)}x${Math.round(finalHeight)}`,
-              'data-debug-position': `@${Math.round(left)},${Math.round(top)}`,
-              'data-debug-scale': scale.toFixed(3)
-            } : {};
-            
+            // Rest of the rendering remains the same for edit/drawing mode
             return (
               <div
                 key={area.id}
@@ -1177,14 +1315,14 @@ export function ImageMap({
                   top,
                   width: finalWidth,
                   height: finalHeight,
-                  // En modo test las áreas deben ser casi invisibles pero receptivas a clics
                   background: isEditMode ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
                   border: isEditMode ? '1px solid' : 'none',
-                  // Para propósitos de desarrollo, hacer las áreas más visibles
                   ...(process.env.NODE_ENV === 'development' ? {
                     boxShadow: isEditMode ? 'none' : 'inset 0 0 0 1px rgba(255,255,255,0.2)',
                     outline: !isEditMode ? '1px dashed rgba(255,0,0,0.5)' : 'none',
-                    ...debugInfo
+                    'data-debug-coords': `${area.coords.join(',')}`,
+                    'data-debug-dimensions': `${Math.round(finalWidth)}x${Math.round(finalHeight)}`,
+                    'data-debug-position': `@${Math.round(left)},${Math.round(top)}`,
                   } : {})
                 }}
               />
