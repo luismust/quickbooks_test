@@ -733,56 +733,58 @@ export function ImageMap({
     
     // Make sure we have all the needed references
     if (!container || !imageElement) {
-      // Use scale-based as fallback
+      console.error('Missing container or image element references');
       const min = Math.min(start, end);
       const size = Math.abs(end - start) * scale;
       return { size, min };
     }
     
-    // Usar el mismo enfoque de cálculo que en getConsistentAreaPosition
-    // Obtener dimensiones del contenedor y la imagen
+    // Obtener las dimensiones del contenedor - MISMO QUE getConsistentAreaPosition
     const containerRect = container.getBoundingClientRect();
+    const containerWidth = containerRect.width;
+    const containerHeight = containerRect.height;
     
-    // Obtener dimensiones naturales de la imagen
-    const naturalWidth = imageDimensions.naturalWidth || 1200;
-    const naturalHeight = imageDimensions.naturalHeight || 600;
+    // SOLUCIÓN FIJA: Usar valores constantes para las dimensiones naturales
+    const naturalWidth = Math.max(imageDimensions.naturalWidth, 1);
+    const naturalHeight = Math.max(imageDimensions.naturalHeight, 1);
     
-    // Calcular el espacio disponible
-    const availableWidth = containerRect.width;
-    const availableHeight = containerRect.height;
-    
-    // Mantener la relación de aspecto
+    // Calcular la relación de aspecto
     const imageRatio = naturalWidth / naturalHeight;
+    const containerRatio = containerWidth / containerHeight;
     
-    // Determinar dimensiones de renderizado
+    // Calcular las dimensiones de renderizado reales
     let renderedWidth, renderedHeight;
     
-    if (availableWidth / availableHeight > imageRatio) {
-      renderedHeight = availableHeight;
+    if (containerRatio > imageRatio) {
+      // Limitado por altura
+      renderedHeight = containerHeight;
       renderedWidth = renderedHeight * imageRatio;
     } else {
-      renderedWidth = availableWidth;
+      // Limitado por ancho
+      renderedWidth = containerWidth;
       renderedHeight = renderedWidth / imageRatio;
     }
     
-    // Factor de escala para dimensiones
-    const scaleFactor = isXAxis 
+    // Calcular el factor de escala basado en la dimensión
+    // MISMO QUE en getConsistentAreaPosition
+    const scaleFactor = isXAxis
       ? renderedWidth / naturalWidth
       : renderedHeight / naturalHeight;
     
-    // Calcular tamaño en píxeles
+    // Calcular tamaño final
     const min = Math.min(start, end);
     const size = Math.abs(end - start) * scaleFactor;
     
-    // Log para depuración
-    if (Math.random() < 0.05) {
-      console.log(`Dimension calculation (${isXAxis ? 'width' : 'height'}):`, {
-        original: { start, end, diff: Math.abs(end - start) },
-        calculated: { min, size },
-        scaleFactor,
-        mode: !isDrawingMode && !isEditMode ? "test" : "edit/draw"
-      });
-    }
+    // Log detallado para depuración
+    console.log(`calculateDimension - ${isXAxis ? 'width' : 'height'}:`, {
+      startEnd: { start, end, diff: Math.abs(end - start) },
+      containerSize: { width: containerWidth, height: containerHeight },
+      naturalSize: { width: naturalWidth, height: naturalHeight },
+      renderedSize: { width: renderedWidth, height: renderedHeight },
+      scaleFactor,
+      result: { min, size },
+      mode: !isDrawingMode && !isEditMode ? "test" : "edit/drawing"
+    });
     
     return { size, min };
   };
@@ -795,93 +797,61 @@ export function ImageMap({
       return null;
     }
     
-    // Get normalized coordinates from the area
-    const x1 = Math.min(area.coords[0], area.coords[2]);
-    const y1 = Math.min(area.coords[1], area.coords[3]);
-    const x2 = Math.max(area.coords[0], area.coords[2]);
-    const y2 = Math.max(area.coords[1], area.coords[3]);
+    // Validar coordenadas
+    const hasInvalidCoords = area.coords.some(coord => 
+      !Number.isFinite(coord) || Number.isNaN(coord)
+    );
     
-    // Safety check for NaN or invalid values
-    if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2) ||
-        !Number.isFinite(x1) || !Number.isFinite(y1) || 
-        !Number.isFinite(x2) || !Number.isFinite(y2)) {
+    if (hasInvalidCoords) {
       console.error('Invalid coordinates for area rendering:', { id: area.id, coords: area.coords });
       return null;
     }
     
-    // SOLUCIÓN: Usar exactamente el mismo método de cálculo para todos los modos
-    // Esta es la clave para resolver el problema de desplazamiento
+    // SOLUCIÓN: Usar directamente las coordenadas originales sin normalización
+    const coords = area.coords;
     
-    // Para la posición izquierda (left), usamos la coordenada X1
-    const x1Coords = [x1, y1, x2, y2];
-    const pixelLeft = getConsistentAreaPosition(x1Coords, 0);
+    // Calcular posición con exactamente el mismo método que usamos para la detección de clics
+    const pixelLeft = getConsistentAreaPosition(coords, 0);
+    const pixelTop = getConsistentAreaPosition(coords, 1);
     
-    // Para la posición superior (top), usamos la coordenada Y1
-    const y1Coords = [x1, y1, x2, y2];
-    const pixelTop = getConsistentAreaPosition(y1Coords, 1);
+    // Calcular dimensiones con el mismo método exacto
+    const { size: pixelWidth } = calculateDimension(coords[0], coords[2], true);
+    const { size: pixelHeight } = calculateDimension(coords[1], coords[3], false);
     
-    // Para el ancho, calculamos usando el mismo método que para otras dimensiones
-    const { size: pixelWidth } = calculateDimension(x1, x2, true);
-    
-    // Para la altura, calculamos usando el mismo método que para otras dimensiones
-    const { size: pixelHeight } = calculateDimension(y1, y2, false);
-    
-    // Ensure minimum dimensions for clickability
+    // Aplicar dimensiones mínimas para mejor clickabilidad
     const minDimension = 12;
     const finalWidth = Math.max(pixelWidth, minDimension);
     const finalHeight = Math.max(pixelHeight, minDimension);
     
-    // Get container and image dimensions for debugging
-    const container = containerRef.current;
-    const imageElement = imageRef.current;
-    const containerRect = container.getBoundingClientRect();
-    const imgStyle = window.getComputedStyle(imageElement);
-    const imgWidth = parseFloat(imgStyle.width) || containerRect.width;
-    const imgHeight = parseFloat(imgStyle.height) || containerRect.height;
-    
-    // Log all calculations for this area
-    console.log('Area rendering details:', {
+    // Log detailed para depuración
+    console.log('TEST MODE - Area rendering:', {
       id: area.id,
       isCorrect: area.isCorrect,
-      originalCoords: `(${x1},${y1}) to (${x2},${y2})`,
-      naturalDimensions: {
-        width: imageDimensions.naturalWidth,
-        height: imageDimensions.naturalHeight
-      },
-      renderedDimensions: {
-        width: imgWidth,
-        height: imgHeight
-      },
-      calculatedPosition: {
-        left: pixelLeft,
-        top: pixelTop,
-        width: pixelWidth,
-        height: pixelHeight
-      },
-      finalPosition: {
+      originalCoords: coords,
+      pixelPosition: {
         left: pixelLeft,
         top: pixelTop,
         width: finalWidth,
         height: finalHeight
       },
-      mode: "test-render"
+      mode: "test"
     });
     
+    // Información de depuración para desarrollo
     const debugInfo = process.env.NODE_ENV === 'development' ? {
-      // Add more visible debugging in dev mode
       outline: '1px solid rgba(255,0,0,0.7)',
-      // Add area ID as data attribute for easier debugging
-      'data-debug-coords': `${area.coords.join(',')}`,
-      'data-debug-dimensions': `${Math.round(finalWidth)}x${Math.round(finalHeight)}`,
-      'data-debug-position': `@${Math.round(pixelLeft)},${Math.round(pixelTop)}`
+      'data-debug-coords': `${coords.join(',')}`,
+      'data-debug-position': `@${Math.round(pixelLeft)},${Math.round(pixelTop)}`,
+      'data-debug-size': `${Math.round(finalWidth)}x${Math.round(finalHeight)}`
     } : {};
     
+    // Retornar el área renderizada
     return (
       <div
-        key={`${area.id}-${Date.now()}`}
+        key={`area-${area.id}`}
         data-area-id={area.id}
         data-is-correct={area.isCorrect ? "true" : "false"}
-        className={`absolute transition-colors hover:bg-white/10 cursor-pointer`}
+        className="absolute transition-colors hover:bg-white/10 cursor-pointer"
         style={{
           left: pixelLeft,
           top: pixelTop,
@@ -907,61 +877,67 @@ export function ImageMap({
       return 0;
     }
     
-    // Get container and image for offset calculations
+    // Get container and image references
     const container = containerRef.current;
     const imageElement = imageRef.current;
     
-    // If we don't have references, just apply scale directly
     if (!container || !imageElement) {
+      console.error('Missing container or image element references');
       return coords[index] * scale;
     }
     
-    // Get container and image dimensions for proper positioning
+    // Obtener las dimensiones del contenedor
     const containerRect = container.getBoundingClientRect();
-    const imgStyle = window.getComputedStyle(imageElement);
-    const imgWidth = parseFloat(imgStyle.width) || containerRect.width;
-    const imgHeight = parseFloat(imgStyle.height) || containerRect.height;
+    const containerWidth = containerRect.width;
+    const containerHeight = containerRect.height;
     
-    // IMPORTANTE: Obtener las dimensiones naturales de la imagen como referencia constante
-    // Si estas dimensiones no son válidas, usar valores predeterminados
-    const naturalWidth = imageDimensions.naturalWidth || 1200;
-    const naturalHeight = imageDimensions.naturalHeight || 600;
+    // SOLUCIÓN FIJA: Usar valores constantes para las dimensiones naturales
+    // En lugar de confiar en valores calculados que pueden variar
+    const naturalWidth = Math.max(imageDimensions.naturalWidth, 1);
+    const naturalHeight = Math.max(imageDimensions.naturalHeight, 1);
     
-    // Calcular el espacio disponible para la imagen
-    const availableWidth = containerRect.width;
-    const availableHeight = containerRect.height;
-    
-    // Mantener la relación de aspecto original
+    // Calcular la relación de aspecto
     const imageRatio = naturalWidth / naturalHeight;
+    const containerRatio = containerWidth / containerHeight;
     
-    // Determinar las dimensiones de renderizado manteniendo la relación de aspecto
+    // Calcular las dimensiones de renderizado reales
     let renderedWidth, renderedHeight;
     
-    // Determinar si limitamos por ancho o alto
-    if (availableWidth / availableHeight > imageRatio) {
-      // Limitado por altura: la imagen ocupará toda la altura disponible
-      renderedHeight = availableHeight;
+    if (containerRatio > imageRatio) {
+      // Limitado por altura
+      renderedHeight = containerHeight;
       renderedWidth = renderedHeight * imageRatio;
     } else {
-      // Limitado por ancho: la imagen ocupará todo el ancho disponible
-      renderedWidth = availableWidth;
+      // Limitado por ancho
+      renderedWidth = containerWidth;
       renderedHeight = renderedWidth / imageRatio;
     }
     
-    // Calcular márgenes para centrado
-    const marginLeft = (availableWidth - renderedWidth) / 2;
-    const marginTop = (availableHeight - renderedHeight) / 2;
+    // Calcular los márgenes para centrado
+    const marginLeft = Math.max(0, (containerWidth - renderedWidth) / 2);
+    const marginTop = Math.max(0, (containerHeight - renderedHeight) / 2);
     
-    // Factor de escala para coordenadas
-    const scaleFactor = renderedWidth / naturalWidth;
-    
-    // Obtener el valor de la coordenada normalizada
+    // Obtener la coordenada actual
     const coordValue = coords[index];
     
-    // Calcular el valor final basado en el índice (X o Y)
-    if (index % 2 === 0) { // X coordinate
+    // LOG DETALLADO para depuración
+    console.log(`getConsistentAreaPosition - coord[${index}]:`, {
+      coordValue,
+      containerSize: { width: containerWidth, height: containerHeight },
+      naturalSize: { width: naturalWidth, height: naturalHeight },
+      renderedSize: { width: renderedWidth, height: renderedHeight },
+      margins: { left: marginLeft, top: marginTop },
+      mode: !isDrawingMode && !isEditMode ? "test" : "edit/drawing"
+    });
+    
+    // Calcular la posición final basada en el índice
+    if (index % 2 === 0) { // Coordenada X
+      // Transformación precisa de la coordenada X
+      const scaleFactor = renderedWidth / naturalWidth;
       return marginLeft + (coordValue * scaleFactor);
-    } else { // Y coordinate
+    } else { // Coordenada Y
+      // Transformación precisa de la coordenada Y
+      const scaleFactor = renderedHeight / naturalHeight;
       return marginTop + (coordValue * scaleFactor);
     }
   };
@@ -1065,60 +1041,53 @@ export function ImageMap({
       return false;
     }
     
-    // Get normalized coordinates from the area - same as in renderTestModeArea
-    const x1 = Math.min(area.coords[0], area.coords[2]);
-    const y1 = Math.min(area.coords[1], area.coords[3]);
-    const x2 = Math.max(area.coords[0], area.coords[2]);
-    const y2 = Math.max(area.coords[1], area.coords[3]);
+    // Obtener coordenadas normalizadas
+    const coords = area.coords;
     
-    // Create the exact same coordinate arrays used in the render function
-    const x1Coords = [x1, y1, x2, y2];
-    const y1Coords = [x1, y1, x2, y2];
+    // Calcular las coordenadas exactas usando los mismos métodos que renderizamos
+    // Esto es CRUCIAL para que coincidan exactamente
+    const pixelLeft = getConsistentAreaPosition(coords, 0);
+    const pixelTop = getConsistentAreaPosition(coords, 1);
     
-    // Calculate pixel positions using exactly the same functions
-    const pixelLeft = getConsistentAreaPosition(x1Coords, 0);
-    const pixelTop = getConsistentAreaPosition(y1Coords, 1);
+    // Calcular dimensiones con el mismo método exacto
+    const { size: pixelWidth } = calculateDimension(coords[0], coords[2], true); 
+    const { size: pixelHeight } = calculateDimension(coords[1], coords[3], false);
     
-    // Calculate dimensions using exact same function
-    const { size: pixelWidth } = calculateDimension(x1, x2, true);
-    const { size: pixelHeight } = calculateDimension(y1, y2, false);
-    
-    // Ensure minimum clickable size
+    // Aplicar dimensiones mínimas para facilitar el clic
     const minDimension = 12;
     const finalWidth = Math.max(pixelWidth, minDimension);
     const finalHeight = Math.max(pixelHeight, minDimension);
     
-    // Calculate right and bottom
+    // Calcular coordenadas de la esquina inferior derecha
     const pixelRight = pixelLeft + finalWidth;
     const pixelBottom = pixelTop + finalHeight;
     
-    // Error margin for easier clicking
+    // Añadir margen de error para facilitar el clic
     const errorMargin = 5;
     
-    // Check if click is inside the area
+    // Verificar si el punto está dentro del área
     const isInside = 
       x >= (pixelLeft - errorMargin) && 
       x <= (pixelRight + errorMargin) && 
       y >= (pixelTop - errorMargin) && 
       y <= (pixelBottom + errorMargin);
     
-    // Detailed logging for clicked areas
+    // Log de información detallada solo cuando hay coincidencia
     if (isInside) {
-      console.log('Click detection - MATCH FOUND:', {
+      console.log('Click detection - HIT:', {
         areaId: area.id,
         isCorrect: area.isCorrect,
-        clickCoords: { x, y },
-        areaPixelCoords: { 
+        clickPosition: { x, y },
+        areaPosition: { 
           left: pixelLeft, 
           top: pixelTop, 
           right: pixelRight, 
           bottom: pixelBottom,
-          width: finalWidth,
-          height: finalHeight
+          width: finalWidth, 
+          height: finalHeight 
         },
-        originalCoords: area.coords,
-        normalizedCoords: `(${x1},${y1}) to (${x2},${y2})`,
-        result: isInside
+        originalCoords: coords,
+        result: true
       });
     }
     
@@ -1191,22 +1160,48 @@ export function ImageMap({
   // Add a useEffect to monitor changes in the areas and force a re-render
   useEffect(() => {
     if (areas.length > 0) {
-      console.log(`Areas updated: ${areas.length} areas available`);
+      console.log(`Areas updated: ${areas.length} areas available`, areas);
       
-      // Force a re-render after areas are updated
-      setTimeout(() => {
+      // Forzar una actualización más agresiva para asegurar que las áreas se rendericen correctamente
+      const forceRerender = () => {
         if (containerRef.current) {
-          // Trigger a slight visual change to force a re-render
-          containerRef.current.style.opacity = "0.98";
-          setTimeout(() => {
+          // Aplicar un pequeño cambio visual para forzar re-renderizado
+          containerRef.current.style.opacity = "0.97";
+          
+          // Forzar reflow
+          void containerRef.current.offsetHeight;
+          
+          // Guardar referencias a dimensiones para asegurar consistencia
+          if (imageRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            console.log("Forcing re-render with dimensions:", {
+              container: {
+                width: rect.width,
+                height: rect.height
+              },
+              image: {
+                naturalWidth: imageDimensions.naturalWidth,
+                naturalHeight: imageDimensions.naturalHeight
+              },
+              areas: areas.length
+            });
+          }
+          
+          // Restaurar opacidad
+          requestAnimationFrame(() => {
             if (containerRef.current) {
               containerRef.current.style.opacity = "1";
             }
-          }, 10);
+          });
         }
-      }, 10);
+      };
+      
+      // Ejecutar inmediatamente y después de un pequeño retraso para cubrir diferentes escenarios
+      forceRerender();
+      setTimeout(forceRerender, 50);
+      setTimeout(forceRerender, 200);
     }
-  }, [areas]);
+  }, [areas, imageDimensions.naturalWidth, imageDimensions.naturalHeight]);
 
   return (
     <div className="relative">
