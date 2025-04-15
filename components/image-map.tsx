@@ -175,22 +175,44 @@ export function ImageMap({
         
         let renderedWidth, renderedHeight;
         
-        if (containerRatio > imageRatio) {
-          // Container is wider than the image ratio, so height is the limiting factor
-          renderedHeight = containerHeight;
-          renderedWidth = renderedHeight * imageRatio;
+        // Determine if we're in test mode (not drawing or edit mode)
+        const isTestMode = !isDrawingMode && !isEditMode;
+        
+        // In test mode, use a more stable calculation that's less affected by container dimensions
+        if (isTestMode) {
+          // Force aspect ratio preservation and calculate consistent scale
+          if (containerRatio > imageRatio) {
+            // Height-constrained (container is wider than image ratio)
+            renderedHeight = containerHeight;
+            renderedWidth = renderedHeight * imageRatio;
+          } else {
+            // Width-constrained (container is taller than image ratio)
+            renderedWidth = containerWidth;
+            renderedHeight = renderedWidth / imageRatio;
+          }
+          
+          // Store calculated dimensions for styling the image precisely
+          if (imgContainer) {
+            // Set explicit width and height to ensure consistent rendering
+            imgContainer.style.width = `${renderedWidth}px`;
+            imgContainer.style.height = `${renderedHeight}px`;
+          }
         } else {
-          // Container is taller than the image ratio, so width is the limiting factor
-          renderedWidth = containerWidth;
-          renderedHeight = renderedWidth / imageRatio;
+          // In edit/drawing mode, use the existing approach
+          if (containerRatio > imageRatio) {
+            renderedHeight = containerHeight;
+            renderedWidth = renderedHeight * imageRatio;
+          } else {
+            renderedWidth = containerWidth;
+            renderedHeight = renderedWidth / imageRatio;
+          }
         }
         
         // Calculate scale factors
         const scaleX = renderedWidth / naturalWidth;
         const scaleY = renderedHeight / naturalHeight;
         
-        // Use the same scale for both dimensions to avoid distortion
-        // In test-viewer mode, we want to use the same consistent scale calculation
+        // Force identical scales for both modes to ensure consistency
         const effectiveScale = Math.min(scaleX, scaleY);
         
         console.log("Image dimensions calculated:", {
@@ -732,7 +754,7 @@ export function ImageMap({
     };
   };
   
-  // Update isPointInArea to handle centered images
+  // Update isPointInArea to use our consistent position calculation
   const isPointInArea = (x: number, y: number, area: Area): boolean => {
     if (!area.coords || area.coords.length < 4) return false;
     
@@ -791,7 +813,7 @@ export function ImageMap({
       clickY >= (top - errorMargin / scale) && 
       clickY <= (bottom + errorMargin / scale);
     
-    // Log click checks to help with debugging
+    // Always log click checks for debugging
     console.log('Click check:', { 
       clickRaw: { x, y },
       adjusted: { x: adjustedX, y: adjustedY },
@@ -803,7 +825,8 @@ export function ImageMap({
         coords: `(${left},${top}) to (${right},${bottom})`
       },
       scale,
-      result: isInside
+      result: isInside,
+      mode: isDrawingMode ? "drawing" : isEditMode ? "edit" : "test"
     });
     
     return isInside;
@@ -872,6 +895,41 @@ export function ImageMap({
     return false;
   }, [isDrawingMode, areas, isEditMode, onAreaClick, onClick, isPointInArea]);
 
+  // Add a function to consistently handle area positioning regardless of mode
+  const getConsistentAreaPosition = (coords: number[], index: number): number => {
+    // Make sure we have valid coordinates
+    if (!coords || coords.length < 4 || !Number.isFinite(coords[index])) {
+      console.error('Invalid coordinate at index', index);
+      return 0;
+    }
+    
+    // Get container and image for offset calculations
+    const container = containerRef.current;
+    const imageElement = imageRef.current;
+    
+    // If we don't have references, just apply scale directly
+    if (!container || !imageElement) {
+      return coords[index] * scale;
+    }
+    
+    // Get container and image dimensions for proper positioning
+    const containerRect = container.getBoundingClientRect();
+    const imgStyle = window.getComputedStyle(imageElement);
+    const imgWidth = parseFloat(imgStyle.width) || containerRect.width;
+    const imgHeight = parseFloat(imgStyle.height) || containerRect.height;
+    
+    // Calculate image offset for centering
+    const imgLeft = (containerRect.width - imgWidth) / 2;
+    const imgTop = (containerRect.height - imgHeight) / 2;
+    
+    // Apply offset based on which coordinate we're calculating
+    if (index % 2 === 0) { // X coordinate (0, 2)
+      return coords[index] * scale + imgLeft;
+    } else { // Y coordinate (1, 3)
+      return coords[index] * scale + imgTop;
+    }
+  };
+
   return (
     <div className="relative">
       {isLoading && (
@@ -892,7 +950,11 @@ export function ImageMap({
       {!error && src && (
         <div 
           ref={containerRef}
-          className={cn("relative border border-border rounded-md overflow-hidden image-map-container", getCursorClass(isDrawingMode, isEditMode))}
+          className={cn(
+            "relative border border-border rounded-md overflow-hidden image-map-container", 
+            getCursorClass(isDrawingMode, isEditMode),
+            !isDrawingMode && !isEditMode ? "image-map-test-mode" : ""
+          )}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -913,8 +975,11 @@ export function ImageMap({
             minHeight: "300px",
             // Asegurar contenedor dimensionado
             position: "relative",
-            // Preservar ratio
-            aspectRatio: "1200/572" // Establecer relación de aspecto fija para coherencia
+            // In test mode, we want a fixed aspect ratio to ensure consistent rendering
+            aspectRatio: "1200/572", // Establecer relación de aspecto fija para coherencia
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center"
           }}
         >
           {isLoading && (
@@ -931,11 +996,11 @@ export function ImageMap({
               backgroundSize: 'contain',
               backgroundPosition: 'center',
               backgroundRepeat: 'no-repeat',
-              width: '100%',
-              height: '100%', // Usar 100% en lugar de altura fija
+              width: !isDrawingMode && !isEditMode ? undefined : '100%', // In test mode, width will be set dynamically
+              height: !isDrawingMode && !isEditMode ? undefined : '100%', // In test mode, height will be set dynamically
               minHeight: "300px", // Altura mínima
-              // No limitar la altura en diferentes tipos - usar contención
-              maxHeight: "none"
+              maxHeight: "none", // No limitar la altura en diferentes tipos - usar contención
+              position: "relative" // Ensure position relative for area placement
             }}
             className={cn(
               "transition-opacity duration-200 image-map-image",
@@ -973,41 +1038,69 @@ export function ImageMap({
             
             return true;
           }).map((area) => {
-            const dimensions = getAreaDimensions(area);
-            // Verificar que las dimensiones calculadas son válidas
-            if (!Number.isFinite(dimensions.left) || 
-                !Number.isFinite(dimensions.top) ||
-                !Number.isFinite(dimensions.width) ||
-                !Number.isFinite(dimensions.height)) {
-              console.error('Skipping area with invalid dimensions:', area.id, dimensions);
+            // Calculate the position and dimensions for this area
+            const x1 = Math.min(area.coords[0], area.coords[2]);
+            const y1 = Math.min(area.coords[1], area.coords[3]);
+            const x2 = Math.max(area.coords[0], area.coords[2]);
+            const y2 = Math.max(area.coords[1], area.coords[3]);
+            
+            // Use our consistent positioning function
+            const left = getConsistentAreaPosition(area.coords, 0);
+            const top = getConsistentAreaPosition(area.coords, 1);
+            const width = Math.abs(area.coords[2] - area.coords[0]) * scale;
+            const height = Math.abs(area.coords[3] - area.coords[1]) * scale;
+            
+            // Ensure minimum dimensions for clickability
+            const minDimension = 12;
+            const finalWidth = Math.max(width, minDimension);
+            const finalHeight = Math.max(height, minDimension);
+            
+            // Verify that the calculated dimensions are valid
+            if (!Number.isFinite(left) || 
+                !Number.isFinite(top) ||
+                !Number.isFinite(finalWidth) ||
+                !Number.isFinite(finalHeight)) {
+              console.error('Skipping area with invalid calculated dimensions:', area.id, {left, top, width: finalWidth, height: finalHeight});
               return null;
             }
             
+            // Log a sample of dimensions for debugging
+            if (Math.random() < 0.05) {
+              console.log('Area rendering:', {
+                id: area.id,
+                isCorrect: area.isCorrect,
+                coords: `(${x1},${y1}) to (${x2},${y2})`,
+                calculatedPosition: {left, top, width: finalWidth, height: finalHeight},
+                scale,
+                mode: isDrawingMode ? "drawing" : isEditMode ? "edit" : "test"
+              });
+            }
+            
             return (
-            <div
-              key={area.id}
-              data-area-id={area.id}
-              data-is-correct={area.isCorrect ? "true" : "false"}
-              className={`absolute transition-colors ${
-                getAreaStyle(area)
-              } ${isDrawingMode ? 'pointer-events-none' : ''} ${
-                  !isEditMode ? 'cursor-pointer' : 'cursor-pointer hover:bg-primary/10'
-                }`}
-              style={{
-                left: dimensions.left,
-                top: dimensions.top,
-                width: dimensions.width,
-                height: dimensions.height,
-                // En modo test las áreas deben ser casi invisibles pero receptivas a clics
-                background: isEditMode ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
-                border: isEditMode ? '1px solid' : 'none',
-                // Para propósitos de desarrollo, hacer las áreas más visibles
-                ...(process.env.NODE_ENV === 'development' ? {
-                  boxShadow: isEditMode ? 'none' : 'inset 0 0 0 1px rgba(255,255,255,0.2)',
-                  outline: !isEditMode ? '1px dashed rgba(255,0,0,0.3)' : 'none'
-                } : {})
-              }}
-            />
+              <div
+                key={area.id}
+                data-area-id={area.id}
+                data-is-correct={area.isCorrect ? "true" : "false"}
+                className={`absolute transition-colors ${
+                  getAreaStyle(area)
+                } ${isDrawingMode ? 'pointer-events-none' : ''} ${
+                    !isEditMode ? 'cursor-pointer' : 'cursor-pointer hover:bg-primary/10'
+                  }`}
+                style={{
+                  left,
+                  top,
+                  width: finalWidth,
+                  height: finalHeight,
+                  // En modo test las áreas deben ser casi invisibles pero receptivas a clics
+                  background: isEditMode ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
+                  border: isEditMode ? '1px solid' : 'none',
+                  // Para propósitos de desarrollo, hacer las áreas más visibles
+                  ...(process.env.NODE_ENV === 'development' ? {
+                    boxShadow: isEditMode ? 'none' : 'inset 0 0 0 1px rgba(255,255,255,0.2)',
+                    outline: !isEditMode ? '1px dashed rgba(255,0,0,0.3)' : 'none'
+                  } : {})
+                }}
+              />
             );
           })}
 
@@ -1018,32 +1111,8 @@ export function ImageMap({
               key="drawing-area"
               className="absolute border-2 border-blue-500 bg-blue-500/20 z-10"
               style={{
-                left: (() => {
-                  const container = containerRef.current;
-                  const imageElement = imageRef.current;
-                  
-                  if (container && imageElement) {
-                    const containerRect = container.getBoundingClientRect();
-                    const imgStyle = window.getComputedStyle(imageElement);
-                    const imgWidth = parseFloat(imgStyle.width) || containerRect.width;
-                    const imgLeft = (containerRect.width - imgWidth) / 2;
-                    return Math.min(drawingArea.coords[0], drawingArea.coords[2]) * scale + imgLeft;
-                  }
-                  return Math.min(drawingArea.coords[0], drawingArea.coords[2]) * scale;
-                })(),
-                top: (() => {
-                  const container = containerRef.current;
-                  const imageElement = imageRef.current;
-                  
-                  if (container && imageElement) {
-                    const containerRect = container.getBoundingClientRect();
-                    const imgStyle = window.getComputedStyle(imageElement);
-                    const imgHeight = parseFloat(imgStyle.height) || containerRect.height;
-                    const imgTop = (containerRect.height - imgHeight) / 2;
-                    return Math.min(drawingArea.coords[1], drawingArea.coords[3]) * scale + imgTop;
-                  }
-                  return Math.min(drawingArea.coords[1], drawingArea.coords[3]) * scale;
-                })(),
+                left: getConsistentAreaPosition(drawingArea.coords, 0),
+                top: getConsistentAreaPosition(drawingArea.coords, 1),
                 width: Math.abs(drawingArea.coords[2] - drawingArea.coords[0]) * scale,
                 height: Math.abs(drawingArea.coords[3] - drawingArea.coords[1]) * scale,
                 pointerEvents: 'none'
