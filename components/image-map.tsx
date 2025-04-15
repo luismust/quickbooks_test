@@ -88,91 +88,72 @@ export function ImageMap({
   // Placeholder constante para imágenes que fallan
   const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
   
-  // Función para verificar si una blob URL sigue siendo válida
-  const checkBlobValidity = useCallback(async (blobUrl: string): Promise<boolean> => {
-    if (!blobUrl || !blobUrl.startsWith('blob:')) return false;
+  // Función que verifica si una URL de blob es válida
+  const checkBlobValidity = async (blobUrl: string): Promise<boolean> => {
+    if (!blobUrl || typeof blobUrl !== 'string' || !blobUrl.startsWith('blob:')) {
+      return false;
+    }
     
     try {
-      // En lugar de usar fetch HEAD (que está fallando con ERR_METHOD_NOT_SUPPORTED),
-      // probamos a crear una imagen y cargar la URL directamente
-      return new Promise((resolve) => {
-        const testImg = new Image();
-        testImg.onload = () => {
-          console.log('Blob URL is valid (loaded successfully):', blobUrl.substring(0, 40) + '...');
+      return new Promise<boolean>((resolve) => {
+        const img = new Image();
+        
+        // Establecer un timeout para evitar esperas infinitas
+        const timeoutId = setTimeout(() => {
+          console.error('Blob URL validation timed out');
+          resolve(false);
+        }, 5000);
+        
+        // Limpiar timeout si la imagen carga o falla
+        img.onload = () => {
+          clearTimeout(timeoutId);
           resolve(true);
         };
-        testImg.onerror = () => {
+        
+        img.onerror = () => {
+          clearTimeout(timeoutId);
           console.error('Blob URL is invalid (failed to load)');
           resolve(false);
         };
-        testImg.src = blobUrl;
         
-        // Añadir un timeout para evitar esperas indefinidas
-        setTimeout(() => {
-          if (!testImg.complete) {
-            console.log('Blob URL validation timed out');
-            resolve(false);
-          }
-        }, 3000);
+        img.src = blobUrl;
       });
     } catch (error) {
       console.error('Error checking blob URL:', error);
       return false;
     }
-  }, []);
-  
+  };
+
+  // Función para formatear la URL de la imagen según su tipo
   const formattedSrc = useMemo(() => {
-    // Si no hay imagen, devolver vacío
     if (!src) {
-      console.log('ImageMap: No source provided');
       return '';
     }
     
-    // Si ya es una URL de imagen base64, devolverla directamente
-    if (src.startsWith('data:image/')) {
-      console.log('ImageMap: Using base64 image directly');
+    // Si es una referencia, devolverla sin cambios
+    if (typeof src === 'string' && src.startsWith('image_reference_')) {
       return src;
     }
     
-    // Si es una referencia a imagen (formato especial usado en Airtable)
-    if (src.startsWith('image_reference_')) {
-      console.log('ImageMap: Found image reference:', src);
-      // NO intentar cargar la referencia, usar un placeholder
-      return placeholderImage;
-    }
-    
-    // Manejar strings vacíos explícitamente (que podrían no ser capturados por !src)
-    if (src.trim() === '') {
-      console.log('ImageMap: Empty string source');
+    // Si es una cadena vacía, devolver vacío
+    if (src === '') {
       return '';
     }
     
-    // Manejo de URLs blob (que pueden expirar)
-    if (src.startsWith('blob:')) {
-      console.log('ImageMap: Detected blob URL:', src.substring(0, 40) + '...');
+    // Si ya es un blob URL, devolverlo como está
+    if (typeof src === 'string' && src.startsWith('blob:')) {
       return src;
     }
     
-    // Para URLs de Airtable, asegurarse de que tengan el formato correcto
-    if (src.includes('api.airtable.com')) {
-      if (!src.startsWith('http')) {
-        // Convertir URLs relativas de Airtable a absolutas
-        const correctedUrl = `https://api.airtable.com/${src.replace(/^\/+/, '')}`;
-        console.log('ImageMap: Converting Airtable URL:', correctedUrl);
-        return correctedUrl;
-      }
-      return src;
+    // Convertir URLs relativas de Airtable a absolutas
+    if (typeof src === 'string' && src.startsWith('/v0/')) {
+      const correctedUrl = `https://api.airtable.com${src}`;
+      return correctedUrl;
     }
     
-    // Para otras URLs HTTP normales
-    if (src.startsWith('http')) {
-      return src;
-    }
-    
-    // Para otros casos desconocidos, loguear y usar placeholder
-    console.log('ImageMap: Unknown image source format:', src);
-    return placeholderImage;
-  }, [src])
+    // Para cualquier otra URL o formato
+    return src;
+  }, [src]);
 
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event> | null) => {
     console.log("Image load event triggered in ImageMap:", src.substring(0, 30) + "...");

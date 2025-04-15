@@ -68,34 +68,31 @@ export function createProxyImage(imageUrl: string | null | undefined): HTMLImage
  * @param timeout Tiempo máximo de espera en ms (por defecto 3000)
  * @returns Promesa que resuelve a true si el blob es válido, false si no
  */
-export async function checkBlobValidity(blobUrl: string | null | undefined, timeout = 3000): Promise<boolean> {
+export async function checkBlobValidity(blobUrl: string): Promise<boolean> {
   if (!blobUrl || typeof blobUrl !== 'string' || !blobUrl.startsWith('blob:')) return false;
   
   try {
-    // En lugar de usar fetch HEAD (que puede fallar con ERR_METHOD_NOT_SUPPORTED),
-    // probamos a crear una imagen y cargar la URL directamente
-    return new Promise((resolve) => {
-      const testImg = new Image();
+    return new Promise<boolean>((resolve) => {
+      const img = new Image();
       
-      testImg.onload = () => {
-        console.log('Blob URL is valid (loaded successfully):', blobUrl.substring(0, 40) + '...');
+      // Configurar un timeout para evitar esperas indefinidas
+      const timeoutId = setTimeout(() => {
+        console.error('Blob URL validation timed out');
+        resolve(false);
+      }, 3000);
+      
+      img.onload = () => {
+        clearTimeout(timeoutId);
         resolve(true);
       };
       
-      testImg.onerror = () => {
+      img.onerror = () => {
+        clearTimeout(timeoutId);
         console.error('Blob URL is invalid (failed to load)');
         resolve(false);
       };
       
-      testImg.src = blobUrl;
-      
-      // Añadir un timeout para evitar esperas indefinidas
-      setTimeout(() => {
-        if (!testImg.complete) {
-          console.log('Blob URL validation timed out');
-          resolve(false);
-        }
-      }, timeout);
+      img.src = blobUrl;
     });
   } catch (error) {
     console.error('Error checking blob URL:', error);
@@ -138,44 +135,40 @@ export function getBestImageUrl(question: Question): string | null {
  * Función para precargar imágenes de un conjunto de preguntas
  * @returns Un objeto con las imágenes precargadas, usando el ID de la pregunta como clave
  */
-export async function preloadQuestionImages(questions: Question[]): Promise<Record<string, HTMLImageElement>> {
-  const preloadedImages: Record<string, HTMLImageElement> = {};
+export async function preloadQuestionImages(questions: any[]): Promise<Record<string, HTMLImageElement>> {
+  const images: Record<string, HTMLImageElement> = {};
+  const promises: Promise<void>[] = [];
   
-  // Crear un array de promesas para cargar todas las imágenes en paralelo
-  const loadPromises = questions.map((question) => {
-    return new Promise<void>((resolve) => {
-      const imageUrl = getBestImageUrl(question);
-      
-      if (!imageUrl) {
-        console.warn(`No valid image URL found for question ${question.id}`);
-        resolve();
-        return;
-      }
-      
+  // Para cada pregunta, crear una promesa para cargar su imagen
+  for (const question of questions) {
+    if (!question.id) continue;
+    
+    // Obtener la mejor URL disponible
+    const imageUrl = getBestImageUrl(question);
+    if (!imageUrl) continue;
+
+    // Crear una promesa para cargar la imagen
+    const promise = new Promise<void>((resolve) => {
       const img = createProxyImage(imageUrl);
       
-      // Guardar la función de callback original
-      img._onloadCallback = img.onload as ((e: Event) => void) | undefined;
-      
-      // Cuando la imagen se cargue, guardarla en el objeto
       img.onload = () => {
-        preloadedImages[question.id] = img;
-        console.log(`Image for question ${question.id} preloaded successfully`);
+        // Almacenar la imagen cargada usando el ID de la pregunta como clave
+        images[question.id] = img;
         resolve();
       };
       
-      // Si hay error, resolver de todos modos para no bloquear
       img.onerror = () => {
         console.error(`Failed to preload image for question ${question.id}`);
         resolve();
       };
     });
-  });
+    
+    promises.push(promise);
+  }
   
-  // Esperar a que todas las imágenes se carguen (o fallen)
-  await Promise.all(loadPromises);
-  
-  return preloadedImages;
+  // Cargar todas las imágenes en paralelo
+  await Promise.all(promises);
+  return images;
 }
 
 /**

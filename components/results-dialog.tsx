@@ -51,8 +51,6 @@ export function ResultsDialog({
         date: new Date().toISOString()
       };
       
-      console.log('Saving test result to backend:', resultData);
-      
       // Enviar a la API del backend existente
       const response = await fetch(`${API_URL}/test-results`, {
         method: 'POST',
@@ -69,8 +67,7 @@ export function ResultsDialog({
         throw new Error(`Failed to save result: ${errorData.error || response.statusText}`);
       }
       
-      const result = await response.json();
-      console.log('Test result saved successfully:', result);
+      await response.json();
       toast.success("El resultado del test ha sido guardado");
       
       // Cerrar el diálogo después de guardar

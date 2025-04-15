@@ -102,11 +102,17 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
   // Placeholder constante para imágenes que fallan o referencias
   const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
 
+  // Asegurarse de que se muestre el diálogo de nombre de usuario
+  useEffect(() => {
+    // Si no hay nombre de usuario, asegurarse de que el diálogo esté visible
+    if (!userName.trim() && !showUserNameDialog) {
+      setShowUserNameDialog(true);
+    }
+  }, [userName, showUserNameDialog]);
+
   // Función mejorada para cargar y procesar la imagen desde URL externa
   const loadAndProcessImage = useCallback(async (url: string): Promise<string> => {
     try {
-      console.log('Fetching and processing image from URL:', url);
-      
       // Intentar cargar la imagen como un blob
       const response = await fetch(url, {
         headers: {
@@ -129,7 +135,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       // Optimizar la imagen para mejor rendimiento
       const optimizedImage = await optimizeImage(base64Data);
       
-      console.log('Successfully processed and optimized image');
       return optimizedImage;
       
     } catch (error) {
@@ -141,8 +146,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
   // Función mejorada para cargar la imagen real a partir de la referencia
   const loadImageFromReference = useCallback(async (reference: string) => {
     try {
-      console.log('Attempting to load image from reference:', reference);
-      
       // Extraer el ID de la referencia o usar directamente el imageId
       let imageId;
       if (typeof reference === 'string' && reference.startsWith('image_reference_')) {
@@ -150,8 +153,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       } else {
         imageId = reference;
       }
-      
-      console.log('Using image ID:', imageId);
       
       if (!imageId) {
         console.error('Could not extract image ID from reference:', reference);
@@ -169,27 +170,21 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         const img = createProxyImage(imageUrl);
         
         img.onload = () => {
-          console.log('Image loaded successfully via createProxyImage');
           // Si la imagen se cargó con éxito, devolver la URL
           resolve(imageUrl);
         };
         
         img.onerror = () => {
-          console.error('Error loading image via createProxyImage');
-          
           // Intentar con otra URL como último recurso
           const fallbackUrl = `${API_URL}/images?id=${imageId}&redirect=data`;
-          console.log('Trying fallback URL:', fallbackUrl);
           
           const fallbackImg = createProxyImage(fallbackUrl);
           
           fallbackImg.onload = () => {
-            console.log('Fallback image loaded successfully');
             resolve(fallbackUrl);
           };
           
           fallbackImg.onerror = () => {
-            console.error('Fallback image also failed to load');
             reject(new Error('Failed to load image'));
           };
         };
@@ -215,7 +210,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         // Priorizar las diferentes fuentes de imágenes
         // 1. Primero blobUrl (URL directa a Vercel Blob)
         if (q.blobUrl && typeof q.blobUrl === 'string' && q.blobUrl.startsWith('http')) {
-          console.log('TestViewer: Using blobUrl:', q.blobUrl.substring(0, 40) + '...');
           return {
             ...q,
             image: q.blobUrl,
@@ -226,7 +220,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
 
         // 2. Luego imageApiUrl (URL a través de API)
         if (q.imageApiUrl && typeof q.imageApiUrl === 'string' && q.imageApiUrl.startsWith('http')) {
-          console.log('TestViewer: Using imageApiUrl:', q.imageApiUrl.substring(0, 40) + '...');
           return {
             ...q,
             image: q.imageApiUrl,
@@ -237,7 +230,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
 
         // 3. Si tenemos imageId, usarlo como referencia
         if (q.imageId) {
-          console.log('TestViewer: Using imageId as reference:', q.imageId);
           return {
             ...q,
             _imageType: 'reference' as const,
@@ -250,17 +242,13 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         
         // 4. Si la imagen ya es base64, usarla directamente
         if (typeof q.image === 'string' && q.image.startsWith('data:image/')) {
-          console.log('TestViewer: Using base64 image directly');
           return { ...q, image: q.image, _imageKey: imageKey, _imageType: 'base64' as const };
         }
         
         // 5. Si es una URL blob, conservarla 
         if (typeof q.image === 'string' && q.image.startsWith('blob:')) {
-          console.log('TestViewer: Using blob URL directly:', q.image.substring(0, 40) + '...');
-          
           // Si tenemos datos de imagen en _imageData, son preferibles a la URL blob
           if (q._imageData && typeof q._imageData === 'string' && q._imageData.startsWith('data:')) {
-            console.log('TestViewer: Using _imageData instead of blob URL');
             return {
               ...q,
               image: q._imageData,
@@ -279,7 +267,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         
         // 6. Si tenemos _imageData o _localFile, usarlo con prioridad sobre otras URLs
         if (q._imageData && typeof q._imageData === 'string' && q._imageData.startsWith('data:')) {
-          console.log('TestViewer: Using _imageData');
           return {
             ...q,
             image: q._imageData,
@@ -289,7 +276,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         }
 
         if (q._localFile && typeof q._localFile === 'string' && q._localFile.startsWith('data:')) {
-          console.log('TestViewer: Using _localFile');
           return {
             ...q,
             image: q._localFile,
@@ -332,22 +318,15 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       
       // Verificar si ya tenemos esta imagen cargada
       if (!loadedImages[imageRef]) {
-        console.log('Loading image from reference:', imageRef);
-        
         // Cargar la imagen
         loadImageFromReference(imageRef).then(imageData => {
           if (imageData) {
-            console.log('Successfully loaded image from reference');
             setLoadedImages(prev => ({
               ...prev,
               [imageRef]: imageData
             }));
-          } else {
-            console.error('Failed to load image from reference');
           }
         });
-      } else {
-        console.log('Image already loaded from reference:', imageRef);
       }
     }
   }, [currentQuestion, processedQuestions, loadedImages, loadImageFromReference]);
@@ -357,11 +336,8 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
     const preloadImages = async () => {
       if (processedQuestions.length === 0) return;
       
-      console.log('Preloading images for all questions...');
-      
       try {
         const preloadedImgs = await preloadQuestionImages(processedQuestions);
-        console.log(`Successfully preloaded ${Object.keys(preloadedImgs).length} images`);
         
         // Almacenar las imágenes precargadas
         const newLoadedImages: {[key: string]: string} = {};
@@ -396,8 +372,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
     
     const question = processedQuestions.find(q => q.id === questionId)
     if (!question) return
-    
-    console.log('handleAnswer called with:', { isCorrect, questionId });
     
     const points = isCorrect ? question.scoring?.correct || 1 : -(question.scoring?.incorrect || 0)
     setScore(prev => Math.max(0, prev + points))
@@ -519,7 +493,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                     areas={question.areas?.filter(a => {
                       // Filtrar áreas con coordenadas válidas
                       if (!a.coords || a.coords.length < 4) {
-                        console.error('Invalid area coords, skipping:', a.id);
                         return false;
                       }
                       
@@ -529,7 +502,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                       );
                       
                       if (hasInvalidCoords) {
-                        console.error('Area has invalid coordinate values, skipping:', a.id, a.coords);
                         return false;
                       }
                       
@@ -542,23 +514,11 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                       // Buscar el área correcta por ID y obtener su propiedad isCorrect
                       const area = question.areas?.find(a => a.id === areaId);
                       
-                      console.log('Area clicked in TestViewer:', areaId);
-                      console.log('Areas available:', question.areas?.map(a => ({ 
-                        id: a.id, 
-                        isCorrect: a.isCorrect,
-                        coords: a.coords
-                      })));
-                      console.log('Found area:', area ? 
-                        { id: area.id, isCorrect: area.isCorrect, coords: area.coords } : 
-                        'Area not found');
-                      
                       if (area) {
                         // Usar específicamente el valor isCorrect del área para determinar si es correcta
                         const isCorrect = area.isCorrect === true;
-                        console.log('Is this answer correct?', isCorrect);
                         handleAnswer(isCorrect, question.id);
                       } else {
-                        console.error('Area with ID not found:', areaId);
                         handleAnswer(false, question.id);
                       }
                     }}
@@ -596,8 +556,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                     // Manejar clics fuera de las áreas definidas
                     onClick={(e) => {
                       if (isAnswered) return;
-                      
-                      console.log('Click outside defined areas, marking as incorrect');
                       handleAnswer(false, question.id);
                     }}
                   />
@@ -684,12 +642,14 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
 
   return (
     <div className="container mx-auto py-8">
-      {/* Diálogo para solicitar el nombre del usuario */}
-      <UserNameDialog 
-        isOpen={showUserNameDialog}
-        onSubmit={handleUserNameSubmit}
-        testName={test.name}
-      />
+      {/* Diálogo para solicitar el nombre del usuario - asegurar que siempre se muestre al inicio */}
+      {showUserNameDialog && (
+        <UserNameDialog 
+          isOpen={showUserNameDialog}
+          onSubmit={handleUserNameSubmit}
+          testName={test.name}
+        />
+      )}
 
       {!showUserNameDialog && (
         <Card className="w-full max-w-4xl mx-auto">
