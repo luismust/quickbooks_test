@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { ChevronLeft, ChevronRight, Info, Edit, Play, Link, Download, Save, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Info, Edit, Play, Link, Download, Save, Loader2, Lock } from "lucide-react"
 import { ImageMap } from "@/components/image-map"
 import { questionTemplates } from "@/lib/templates"
 import { saveTest, getTests, editTest, generateId } from "@/lib/test-storage"
@@ -123,6 +123,18 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
   // Añadimos useLocalStorage al componente
   const { isStaticMode, saveLocalTest } = useLocalStorage()
+
+  // Array de tipos de preguntas premium
+  const premiumQuestionTypes = [
+    'imageDescription', 
+    'imageComparison', 
+    'imageError', 
+    'imageHotspots', 
+    'imageSequence'
+  ];
+  
+  // Verificar si un tipo de pregunta es premium
+  const isPremiumQuestionType = (type: string) => premiumQuestionTypes.includes(type);
 
   const handleToggleMode = () => {
     setIsEditMode(!isEditMode)
@@ -959,7 +971,19 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       </label>
                     <Select
                       value={currentTestScreen.type}
-                      onValueChange={(value) => handleScreenUpdate(currentScreen, { type: value })}
+                      onValueChange={(value) => {
+                        if (isPremiumQuestionType(value)) {
+                          // Si es un tipo premium, mostrar toast y no cambiar
+                          toast({
+                            title: "Premium Feature",
+                            description: "This question type is only available for paying users.",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        // Si no es premium, permitir el cambio
+                        handleScreenUpdate(currentScreen, { type: value });
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select question type" />
@@ -976,15 +1000,40 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         <SelectItem value="phraseComplete">Phrase Complete</SelectItem>
                         <SelectItem value="trueOrFalse">True or False</SelectItem>
                         
-                        {/* Preguntas basadas en imágenes */}
-                        <SelectItem value="imageDescription">Image Description</SelectItem>
-                        <SelectItem value="imageComparison">Image Comparison</SelectItem>
-                        <SelectItem value="imageError">Image Error</SelectItem>
-                        <SelectItem value="imageHotspots">Image Hotspots</SelectItem>
-                        <SelectItem value="imageSequence">Image Sequence</SelectItem>
+                        {/* Preguntas basadas en imágenes (premium) */}
+                        <SelectItem value="imageDescription">
+                          <div className="flex items-center">
+                            <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
+                            Image Description
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="imageComparison">
+                          <div className="flex items-center">
+                            <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
+                            Image Comparison
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="imageError">
+                          <div className="flex items-center">
+                            <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
+                            Image Error
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="imageHotspots">
+                          <div className="flex items-center">
+                            <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
+                            Image Hotspots
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="imageSequence">
+                          <div className="flex items-center">
+                            <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
+                            Image Sequence
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
-                      </div>
+                  </div>
 
                   {/* Renderizar el editor específico según el tipo */}
                   {currentTestScreen.type === 'clickArea' && (
@@ -1011,7 +1060,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         isEditMode={isEditMode}
                         onImageUpload={handleImageUpload}
                       />
-                      </div>
+                    </div>
                   )}
 
                   {currentTestScreen.type === 'multipleChoice' && (
@@ -1089,55 +1138,19 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       />
                     </div>
                   )}
-                  {currentTestScreen.type === 'imageDescription' && (
+                  {/* Para tipos premium, mostrar mensaje de bloqueo en lugar del editor */}
+                  {isPremiumQuestionType(currentTestScreen.type) && (
                     <div className="border-t pt-6">
-                      <ImageDescriptionEditor
-                        imageUrl={currentTestScreen.image || ''}
-                        question={currentTestScreen.question}
-                        correctDescription={currentTestScreen.correctDescription || ''}
-                        keywords={currentTestScreen.keywords || []}
-                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                      />
-                    </div>
-                  )}
-                  {currentTestScreen.type === 'imageComparison' && (
-                    <div className="border-t pt-6">
-                      <ImageComparisonEditor
-                        imageUrl1={currentTestScreen.image || ''}
-                        imageUrl2={currentTestScreen.secondImage || ''}
-                        question={currentTestScreen.question}
-                        differences={currentTestScreen.differences || []}
-                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                      />
-                    </div>
-                  )}
-                  {currentTestScreen.type === 'imageError' && (
-                    <div className="border-t pt-6">
-                      <ImageErrorEditor
-                        imageUrl={currentTestScreen.image || ''}
-                        question={currentTestScreen.question}
-                        errors={currentTestScreen.errors || []}
-                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                      />
-                    </div>
-                  )}
-                  {currentTestScreen.type === 'imageHotspots' && (
-                    <div className="border-t pt-6">
-                      <ImageHotspotsEditor
-                        imageUrl={currentTestScreen.image || ''}
-                        question={currentTestScreen.question}
-                        hotspots={currentTestScreen.hotspots || []}
-                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                      />
-                    </div>
-                  )}
-                  {currentTestScreen.type === 'imageSequence' && (
-                    <div className="border-t pt-6">
-                      <ImageSequenceEditor
-                        images={currentTestScreen.sequence || []}
-                        question={currentTestScreen.question}
-                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                      />
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 text-center">
+                        <Lock className="h-10 w-10 mx-auto mb-4 text-amber-500" />
+                        <h3 className="text-lg font-medium text-amber-700 mb-2">Premium Feature</h3>
+                        <p className="text-amber-600 mb-4">
+                          This question type is only available for paying users.
+                        </p>
+                        <Button variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100">
+                          Upgrade Now
+                        </Button>
+                      </div>
                     </div>
                   )}
                   {/* Configuración de puntuación */}
