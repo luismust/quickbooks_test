@@ -147,7 +147,7 @@ export function ImageMap({
   }, [src])
 
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event> | null) => {
-    console.log("Image load event triggered in ImageMap:", src);
+    console.log("Image load event triggered in ImageMap:", src.substring(0, 30) + "...");
     
     // For the div background approach, we need to use a different method to get natural dimensions
     // Create a temporary image to get the natural dimensions
@@ -158,30 +158,52 @@ export function ImageMap({
       
       // Get a reference to the div container with background image
       const imgContainer = imageRef.current;
+      const container = containerRef.current;
       
-      if (imgContainer) {
-        console.log("Image loaded in ImageMap:", src);
+      if (imgContainer && container) {
+        console.log("Image loaded in ImageMap:", src.substring(0, 30) + "...");
         
         // Use getBoundingClientRect for more accurate dimensions
-        const rect = imgContainer.getBoundingClientRect();
-        const renderedWidth = rect.width;
-        const renderedHeight = rect.height;
+        const rect = container.getBoundingClientRect();
+        const containerWidth = rect.width;
+        const containerHeight = rect.height;
         
         // Calculate the scale factor between natural and rendered dimensions
+        // We need to maintain aspect ratio while fitting in the container
+        const containerRatio = containerWidth / containerHeight;
+        const imageRatio = naturalWidth / naturalHeight;
+        
+        let renderedWidth, renderedHeight;
+        
+        if (containerRatio > imageRatio) {
+          // Container is wider than the image ratio, so height is the limiting factor
+          renderedHeight = containerHeight;
+          renderedWidth = renderedHeight * imageRatio;
+        } else {
+          // Container is taller than the image ratio, so width is the limiting factor
+          renderedWidth = containerWidth;
+          renderedHeight = renderedWidth / imageRatio;
+        }
+        
+        // Calculate scale factors
         const scaleX = renderedWidth / naturalWidth;
         const scaleY = renderedHeight / naturalHeight;
         
-        // Use the smallest scale to ensure the entire image is visible
+        // Use the same scale for both dimensions to avoid distortion
+        // In test-viewer mode, we want to use the same consistent scale calculation
         const effectiveScale = Math.min(scaleX, scaleY);
         
         console.log("Image dimensions calculated:", {
           naturalWidth,
           naturalHeight,
+          containerWidth,
+          containerHeight,
           renderedWidth,
           renderedHeight,
           scaleX,
           scaleY,
-          effectiveScale
+          effectiveScale,
+          mode: isDrawingMode ? "drawing" : isEditMode ? "edit" : "test"
         });
         
         // Only update if we have valid scale values
@@ -198,7 +220,7 @@ export function ImageMap({
         setUsedFallback(false);
         setRetryCount(0);
         
-        // Force a redraw
+        // Force a redraw to ensure areas are positioned correctly
         setTimeout(() => {
           if (containerRef.current) {
             containerRef.current.style.opacity = "0.99";
@@ -220,7 +242,7 @@ export function ImageMap({
     };
     
     tempImg.src = formattedSrc;
-  }, [src, formattedSrc]);
+  }, [src, formattedSrc, isDrawingMode, isEditMode]);
 
   // Handler for div container's onLoad event
   const handleDivLoad = useCallback((e: React.SyntheticEvent<HTMLDivElement, Event>) => {
@@ -615,81 +637,90 @@ export function ImageMap({
     return "cursor-pointer"; // cursor pointer en modo test para indicar que es clicable
   }
 
-  // Asegurar que las áreas sean lo suficientemente grandes para que se puedan clickear
+  // Update the getAreaDimensions function for more accurate area positioning
   const getAreaDimensions = (area: Area) => {
     if (!area.coords || area.coords.length < 4) {
       console.error('Invalid area coordinates:', area);
       return { left: 0, top: 0, width: 20, height: 20 };
     }
     
-    // Verificar que las coordenadas son válidas (no Infinity, NaN, etc.)
+    // Verify that the coordinates are valid (not Infinity, NaN, etc.)
     const hasInvalidCoords = area.coords.some(coord => !Number.isFinite(coord) || Number.isNaN(coord));
     if (hasInvalidCoords) {
       console.error('Invalid coordinates in area. Using fallback:', area.id, area.coords);
       return { left: 0, top: 0, width: 30, height: 30 };
     }
     
-    // Primero normalizar las coordenadas para asegurar que x1,y1 sea la esquina superior izquierda
-    // y x2,y2 sea la esquina inferior derecha
+    // First normalize the coordinates to ensure that x1,y1 is the top-left corner
+    // and x2,y2 is the bottom-right corner
     const x1 = Math.min(area.coords[0], area.coords[2]);
     const y1 = Math.min(area.coords[1], area.coords[3]);
     const x2 = Math.max(area.coords[0], area.coords[2]);
     const y2 = Math.max(area.coords[1], area.coords[3]);
     
-    // Obtener una referencia al contenedor para usar sus dimensiones actuales
+    // Get a reference to the container and image for their current dimensions
     const container = containerRef.current;
-    let containerWidth = 0;
-    let containerHeight = 0;
-    
-    if (container) {
-      containerWidth = container.clientWidth;
-      containerHeight = container.clientHeight;
-    }
-    
-    // Si tenemos la imagen en el DOM, usemos sus dimensiones actuales 
     const imageElement = imageRef.current;
-    let imageWidth = 0;
-    let imageHeight = 0;
     
-    if (imageElement) {
-      const computedStyle = window.getComputedStyle(imageElement as HTMLElement);
-      imageWidth = parseInt(computedStyle.width) || containerWidth;
-      imageHeight = parseInt(computedStyle.height) || containerHeight;
+    if (!container || !imageElement) {
+      console.warn('Container or image reference not available for area dimension calculation');
+      // Apply scale directly as a fallback
+      const scaledLeft = x1 * scale;
+      const scaledTop = y1 * scale;
+      const scaledWidth = (x2 - x1) * scale;
+      const scaledHeight = (y2 - y1) * scale;
+      
+      return {
+        left: scaledLeft,
+        top: scaledTop,
+        width: Math.max(scaledWidth, 12), // Minimum clickable size
+        height: Math.max(scaledHeight, 12) // Minimum clickable size
+      };
     }
     
-    // Calcular proporción basada en las dimensiones actuales
-    // Verificar que la escala es válida y usar un valor por defecto seguro si no lo es
+    // Get the container dimensions
+    const containerRect = container.getBoundingClientRect();
+    const containerWidth = containerRect.width;
+    const containerHeight = containerRect.height;
+    
+    // Get the computed style of the image element to determine its size
+    const imgStyle = window.getComputedStyle(imageElement);
+    const imgWidth = parseFloat(imgStyle.width) || containerWidth;
+    const imgHeight = parseFloat(imgStyle.height) || containerHeight;
+    
+    // Get the positioning of the image within the container (for centering)
+    const imgLeft = (containerWidth - imgWidth) / 2;
+    const imgTop = (containerHeight - imgHeight) / 2;
+    
+    // Verify that we have a valid scale value
     let effectiveScale = scale;
     if (!Number.isFinite(effectiveScale) || effectiveScale <= 0) {
       console.error('Invalid scale:', scale, 'Using default scale 1');
       effectiveScale = 1;
     }
     
-    // Aplicar escala a las coordenadas normalizadas
-    const left = x1 * effectiveScale;
-    const top = y1 * effectiveScale;
+    // Calculate the position of the area in pixels
+    const left = x1 * effectiveScale + imgLeft;
+    const top = y1 * effectiveScale + imgTop;
     const width = (x2 - x1) * effectiveScale;
     const height = (y2 - y1) * effectiveScale;
     
-    // Asegurar dimensiones mínimas en píxeles para interacción
-    const minDimension = 12; // Reducido para permitir áreas más pequeñas
+    // Ensure minimum dimensions for clickability
+    const minDimension = 12;
+    const finalWidth = Math.max(width, minDimension);
+    const finalHeight = Math.max(height, minDimension);
     
-    // Si el área es muy pequeña en ambas dimensiones, aumentarla para facilitar el clic
-    let finalWidth = Math.max(width, minDimension);
-    let finalHeight = Math.max(height, minDimension);
-    
-    // Log detallado pero limitado a un pequeño porcentaje de llamadas
-    if (Math.random() < 0.1) {
+    // Only log a small percentage of calls to avoid console spam
+    if (Math.random() < 0.05) {
       console.log('Area dimensions calculated:', { 
         id: area.id,
         isCorrect: area.isCorrect,
-        original: { x1, y1, x2, y2 },
-        containerSize: { width: containerWidth, height: containerHeight },
-        imageSize: { width: imageWidth, height: imageHeight },
+        coords: `(${x1},${y1}) to (${x2},${y2})`,
+        container: { width: containerWidth, height: containerHeight },
+        image: { width: imgWidth, height: imgHeight, left: imgLeft, top: imgTop },
         scale: effectiveScale,
-        result: {
-          left, top, width: finalWidth, height: finalHeight
-        }
+        result: { left, top, width: finalWidth, height: finalHeight },
+        mode: isDrawingMode ? "drawing" : isEditMode ? "edit" : "test"
       });
     }
     
@@ -701,45 +732,71 @@ export function ImageMap({
     };
   };
   
-  // Función para verificar si un punto está dentro de un área - mejorada
+  // Update isPointInArea to handle centered images
   const isPointInArea = (x: number, y: number, area: Area): boolean => {
     if (!area.coords || area.coords.length < 4) return false;
     
-    // Verificar que las coordenadas son válidas (no Infinity, NaN, etc.)
+    // Verify that the coordinates are valid (not Infinity, NaN, etc.)
     const hasInvalidCoords = area.coords.some(coord => !Number.isFinite(coord) || Number.isNaN(coord));
     if (hasInvalidCoords) {
       console.error('Invalid coordinates in area:', area.id, area.coords);
       return false;
     }
     
-    // Coordenadas originales sin escalar
+    // Get the container and image for accurate offset calculations
+    const container = containerRef.current;
+    const imageElement = imageRef.current;
+    
+    // Calculate image offset within the container (for centered images)
+    let imgLeft = 0;
+    let imgTop = 0;
+    
+    if (container && imageElement) {
+      const containerRect = container.getBoundingClientRect();
+      const imgStyle = window.getComputedStyle(imageElement);
+      const imgWidth = parseFloat(imgStyle.width) || containerRect.width;
+      const imgHeight = parseFloat(imgStyle.height) || containerRect.height;
+      
+      // If the image doesn't fill the container, it will be centered
+      imgLeft = (containerRect.width - imgWidth) / 2;
+      imgTop = (containerRect.height - imgHeight) / 2;
+    }
+    
+    // Original normalized coordinates of the area
     const left = Math.min(area.coords[0], area.coords[2]);
     const right = Math.max(area.coords[0], area.coords[2]);
     const top = Math.min(area.coords[1], area.coords[3]);
     const bottom = Math.max(area.coords[1], area.coords[3]);
     
-    // Coordenadas del clic sin escalar (dividimos por escala para normalizarlas)
-    const clickX = x / scale;
-    const clickY = y / scale;
+    // Adjust click coordinates to account for image offset and scale
+    // First remove the image offset from the raw click coordinates
+    const adjustedX = x - imgLeft;
+    const adjustedY = y - imgTop;
     
-    // Verificar que las coordenadas del clic normalizadas son válidas
+    // Then normalize by dividing by scale to match the original coordinates
+    const clickX = adjustedX / scale;
+    const clickY = adjustedY / scale;
+    
+    // Verify that the normalized click coordinates are valid
     if (!Number.isFinite(clickX) || !Number.isFinite(clickY)) {
       console.error('Invalid click coordinates after normalization:', { clickX, clickY });
       return false;
     }
     
-    // Añadir un margen de error para facilitar el cliqueo, pero controlado
-    const errorMargin = 5; // 5 píxeles de margen
+    // Add a small error margin to make clicking easier
+    const errorMargin = 5; // 5 pixels margin
     const isInside = 
       clickX >= (left - errorMargin / scale) && 
       clickX <= (right + errorMargin / scale) && 
       clickY >= (top - errorMargin / scale) && 
       clickY <= (bottom + errorMargin / scale);
     
-    // Siempre loguear para depuración cuando se hace clic
+    // Log click checks to help with debugging
     console.log('Click check:', { 
       clickRaw: { x, y },
+      adjusted: { x: adjustedX, y: adjustedY },
       clickNormalized: { x: clickX, y: clickY },
+      imgOffset: { left: imgLeft, top: imgTop },
       area: {
         id: area.id,
         isCorrect: area.isCorrect,
@@ -961,8 +1018,32 @@ export function ImageMap({
               key="drawing-area"
               className="absolute border-2 border-blue-500 bg-blue-500/20 z-10"
               style={{
-                left: Math.min(drawingArea.coords[0], drawingArea.coords[2]) * scale,
-                top: Math.min(drawingArea.coords[1], drawingArea.coords[3]) * scale,
+                left: (() => {
+                  const container = containerRef.current;
+                  const imageElement = imageRef.current;
+                  
+                  if (container && imageElement) {
+                    const containerRect = container.getBoundingClientRect();
+                    const imgStyle = window.getComputedStyle(imageElement);
+                    const imgWidth = parseFloat(imgStyle.width) || containerRect.width;
+                    const imgLeft = (containerRect.width - imgWidth) / 2;
+                    return Math.min(drawingArea.coords[0], drawingArea.coords[2]) * scale + imgLeft;
+                  }
+                  return Math.min(drawingArea.coords[0], drawingArea.coords[2]) * scale;
+                })(),
+                top: (() => {
+                  const container = containerRef.current;
+                  const imageElement = imageRef.current;
+                  
+                  if (container && imageElement) {
+                    const containerRect = container.getBoundingClientRect();
+                    const imgStyle = window.getComputedStyle(imageElement);
+                    const imgHeight = parseFloat(imgStyle.height) || containerRect.height;
+                    const imgTop = (containerRect.height - imgHeight) / 2;
+                    return Math.min(drawingArea.coords[1], drawingArea.coords[3]) * scale + imgTop;
+                  }
+                  return Math.min(drawingArea.coords[1], drawingArea.coords[3]) * scale;
+                })(),
                 width: Math.abs(drawingArea.coords[2] - drawingArea.coords[0]) * scale,
                 height: Math.abs(drawingArea.coords[3] - drawingArea.coords[1]) * scale,
                 pointerEvents: 'none'
