@@ -156,8 +156,6 @@ export function ImageMap({
   }, [src]);
 
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event> | null) => {
-    console.log("Image load event triggered in ImageMap:", src.substring(0, 30) + "...");
-    
     // For the div background approach, we need to use a different method to get natural dimensions
     // Create a temporary image to get the natural dimensions
     const tempImg = new Image();
@@ -176,8 +174,6 @@ export function ImageMap({
       const container = containerRef.current;
       
       if (imgContainer && container) {
-        console.log("Image loaded in ImageMap:", src.substring(0, 30) + "...");
-        
         // Use getBoundingClientRect for more accurate dimensions
         const rect = container.getBoundingClientRect();
         const containerWidth = rect.width;
@@ -230,19 +226,6 @@ export function ImageMap({
         // Force identical scales for both modes to ensure consistency
         const effectiveScale = Math.min(scaleX, scaleY);
         
-        console.log("Image dimensions calculated:", {
-          naturalWidth,
-          naturalHeight,
-          containerWidth,
-          containerHeight,
-          renderedWidth,
-          renderedHeight,
-          scaleX,
-          scaleY,
-          effectiveScale,
-          mode: isDrawingMode ? "drawing" : isEditMode ? "edit" : "test"
-        });
-        
         // Only update if we have valid scale values
         if (effectiveScale > 0 && Number.isFinite(effectiveScale)) {
           setScale(effectiveScale);
@@ -267,7 +250,6 @@ export function ImageMap({
           }
         }, 100);
       } else {
-        console.log("No image reference available for getting dimensions");
         setIsLoading(false);
       }
     };
@@ -283,7 +265,6 @@ export function ImageMap({
 
   // Handler for div container's onLoad event
   const handleDivLoad = useCallback((e: React.SyntheticEvent<HTMLDivElement, Event>) => {
-    console.log("Container div loaded");
     // Any div-specific logic can go here
   }, []);
 
@@ -510,17 +491,14 @@ export function ImageMap({
   // Update the useEffect that loads the image
   useEffect(() => {
     if (formattedSrc) {
-      console.log('Loading image:', formattedSrc.substring(0, 30) + '...');
       setIsLoading(true);
       setError(false);
       setErrorMessage("");
       
       // For blob URLs, first verify they're still valid
       if (formattedSrc.startsWith('blob:')) {
-        console.log('Checking blob URL validity');
         checkBlobValidity(formattedSrc).then(isValid => {
           if (isValid) {
-            console.log('Blob URL is valid, proceeding with load');
             if (imageRef.current) {
               imageRef.current.style.backgroundImage = `url(${formattedSrc})`;
               
@@ -897,17 +875,6 @@ export function ImageMap({
     const min = Math.min(start, end);
     const size = Math.abs(end - start) * scaleFactor;
     
-    // Log detallado para depuración
-    console.log(`calculateDimension - ${isXAxis ? 'width' : 'height'}:`, {
-      startEnd: { start, end, diff: Math.abs(end - start) },
-      containerSize: { width: containerWidth, height: containerHeight },
-      naturalSize: { width: naturalWidth, height: naturalHeight },
-      renderedSize: { width: renderedWidth, height: renderedHeight },
-      scaleFactor,
-      result: { min, size },
-      mode: !isDrawingMode && !isEditMode ? "test" : "edit/drawing"
-    });
-    
     return { size, min };
   };
 
@@ -944,20 +911,6 @@ export function ImageMap({
     const minDimension = 12;
     const finalWidth = Math.max(pixelWidth, minDimension);
     const finalHeight = Math.max(pixelHeight, minDimension);
-    
-    // Log detailed para depuración
-    console.log('TEST MODE - Area rendering:', {
-      id: area.id,
-      isCorrect: area.isCorrect,
-      originalCoords: coords,
-      pixelPosition: {
-        left: pixelLeft,
-        top: pixelTop,
-        width: finalWidth,
-        height: finalHeight
-      },
-      mode: "test"
-    });
     
     // Información de depuración para desarrollo
     const debugInfo = process.env.NODE_ENV === 'development' ? {
@@ -1041,16 +994,6 @@ export function ImageMap({
     
     // Obtener la coordenada actual
     const coordValue = coords[index];
-    
-    // LOG DETALLADO para depuración
-    console.log(`getConsistentAreaPosition - coord[${index}]:`, {
-      coordValue,
-      containerSize: { width: containerWidth, height: containerHeight },
-      naturalSize: { width: naturalWidth, height: naturalHeight },
-      renderedSize: { width: renderedWidth, height: renderedHeight },
-      margins: { left: marginLeft, top: marginTop },
-      mode: !isDrawingMode && !isEditMode ? "test" : "edit/drawing"
-    });
     
     // Calcular la posición final basada en el índice
     if (index % 2 === 0) { // Coordenada X
@@ -1199,16 +1142,6 @@ export function ImageMap({
     const widthRatio = imageDimensions.naturalWidth / referenceNaturalWidth;
     const heightRatio = imageDimensions.naturalHeight / referenceNaturalHeight;
     
-    // Log para depuración cuando hay diferencias significativas
-    if (Math.abs(widthRatio - 1) > 0.01 || Math.abs(heightRatio - 1) > 0.01) {
-      console.log('DIMENSIONES DIFERENTES DETECTADAS:', {
-        areaId: area.id,
-        storedDimensions: { width: referenceNaturalWidth, height: referenceNaturalHeight },
-        currentDimensions: { width: imageDimensions.naturalWidth, height: imageDimensions.naturalHeight },
-        ratios: { width: widthRatio, height: heightRatio }
-      });
-    }
-    
     // Calcular relación de aspecto
     const imageRatio = referenceNaturalWidth / referenceNaturalHeight;
     const containerRatio = containerWidth / containerHeight;
@@ -1243,21 +1176,6 @@ export function ImageMap({
     const minDimension = 12;
     const finalWidth = Math.max(areaWidth, minDimension);
     const finalHeight = Math.max(areaHeight, minDimension);
-    
-    // Log detallado para depuración
-    console.log(`${mode.toUpperCase()} MODE - Rendering area:`, {
-      id: area.id,
-      original: { x1, y1, x2, y2, width, height },
-      container: { width: containerWidth, height: containerHeight },
-      rendered: { left, top, width: finalWidth, height: finalHeight },
-      margins: { left: marginLeft, top: marginTop },
-      scales: { x: scaleX, y: scaleY },
-      imgDimensions: {
-        reference: { width: referenceNaturalWidth, height: referenceNaturalHeight },
-        current: { width: imageDimensions.naturalWidth, height: imageDimensions.naturalHeight },
-        ratios: { width: widthRatio, height: heightRatio }
-      }
-    });
     
     // Información de depuración
     const debugInfo = process.env.NODE_ENV === 'development' ? {
@@ -1410,21 +1328,6 @@ export function ImageMap({
       y >= (top - errorMargin) && 
       y <= (bottom + errorMargin);
     
-    // Logging detallado solo para áreas clickeadas
-    if (isInside) {
-      console.log('CLICK DETECTED - Area match:', {
-        areaId: area.id,
-        isCorrect: area.isCorrect,
-        clickPoint: { x, y },
-        areaBounds: { left, top, right, bottom, width: finalWidth, height: finalHeight },
-        originalCoords: { x1, y1, x2, y2, width, height },
-        dimensions: {
-          reference: { width: referenceNaturalWidth, height: referenceNaturalHeight },
-          current: { width: imageDimensions.naturalWidth, height: imageDimensions.naturalHeight }
-        }
-      });
-    }
-    
     return isInside;
   };
   
@@ -1436,18 +1339,6 @@ export function ImageMap({
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
     
-    console.log('Image clicked at:', { clickX, clickY, scale, areasCount: areas.length });
-    
-    // Debug: imprimir todas las áreas disponibles
-    if (areas.length > 0) {
-      console.log('Available areas:', areas.map(a => ({
-        id: a.id,
-        isCorrect: a.isCorrect,
-        coords: a.coords && a.coords.length >= 4 ? 
-          `(${a.coords[0]},${a.coords[1]}) to (${a.coords[2]},${a.coords[3]})` : 'invalid coords'
-      })));
-    }
-    
     // Verificar qué área fue clickeada
     let clickedAreaId: string | null = null;
     let clickedArea: AreaType | null = null;
@@ -1456,7 +1347,6 @@ export function ImageMap({
     for (let i = areas.length - 1; i >= 0; i--) {
       const area = areas[i];
       if (isPointInArea(clickX, clickY, area)) {
-        console.log(`Area ${area.id} was clicked - isCorrect: ${area.isCorrect}`);
         clickedAreaId = area.id;
         clickedArea = area;
         break;
@@ -1464,7 +1354,6 @@ export function ImageMap({
     }
     
     if (clickedAreaId && clickedArea) {
-      console.log('Area clicked:', clickedAreaId, 'isCorrect:', clickedArea.isCorrect);
       onAreaClick(clickedAreaId);
       
       // Solo mostrar feedback visual en modo edición
@@ -1483,7 +1372,6 @@ export function ImageMap({
     
     // Si no se hizo clic en ningún área y hay un onClick definido, llamarlo
     if (onClick) {
-      console.log('No area clicked, calling general onClick handler');
       onClick(e);
       return true;
     }
@@ -1494,8 +1382,6 @@ export function ImageMap({
   // Add a useEffect to monitor changes in the areas and force a re-render
   useEffect(() => {
     if (areas.length > 0) {
-      console.log(`Areas updated: ${areas.length} areas available`, areas);
-      
       // Forzar una actualización más agresiva para asegurar que las áreas se rendericen correctamente
       const forceRerender = () => {
         if (containerRef.current) {
@@ -1504,22 +1390,6 @@ export function ImageMap({
           
           // Forzar reflow
           void containerRef.current.offsetHeight;
-          
-          // Guardar referencias a dimensiones para asegurar consistencia
-          if (imageRef.current) {
-            const rect = containerRef.current.getBoundingClientRect();
-            console.log("Forcing re-render with dimensions:", {
-              container: {
-                width: rect.width,
-                height: rect.height
-              },
-              image: {
-                naturalWidth: imageDimensions.naturalWidth,
-                naturalHeight: imageDimensions.naturalHeight
-              },
-              areas: areas.length
-            });
-          }
           
           // Restaurar opacidad
           requestAnimationFrame(() => {
