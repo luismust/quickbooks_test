@@ -56,6 +56,10 @@ export function ImageMap({
   const [retryCount, setRetryCount] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [usedFallback, setUsedFallback] = useState(false)
+  const [imageDimensions, setImageDimensions] = useState({
+    naturalWidth: 0,
+    naturalHeight: 0
+  })
   
   // Placeholder constante para imágenes que fallan
   const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
@@ -155,6 +159,12 @@ export function ImageMap({
     tempImg.onload = () => {
       const naturalWidth = tempImg.naturalWidth || 1200; // Default if not available
       const naturalHeight = tempImg.naturalHeight || 600; // Default if not available
+      
+      // Store the original dimensions for consistent coordinate mapping
+      setImageDimensions({
+        naturalWidth,
+        naturalHeight
+      });
       
       // Get a reference to the div container with background image
       const imgContainer = imageRef.current;
@@ -754,7 +764,7 @@ export function ImageMap({
     };
   };
   
-  // Update isPointInArea to use our consistent position calculation
+  // Update isPointInArea to use the improved coordinate mapping
   const isPointInArea = (x: number, y: number, area: Area): boolean => {
     if (!area.coords || area.coords.length < 4) return false;
     
@@ -772,12 +782,14 @@ export function ImageMap({
     // Calculate image offset within the container (for centered images)
     let imgLeft = 0;
     let imgTop = 0;
+    let imgWidth = 0;
+    let imgHeight = 0;
     
     if (container && imageElement) {
       const containerRect = container.getBoundingClientRect();
       const imgStyle = window.getComputedStyle(imageElement);
-      const imgWidth = parseFloat(imgStyle.width) || containerRect.width;
-      const imgHeight = parseFloat(imgStyle.height) || containerRect.height;
+      imgWidth = parseFloat(imgStyle.width) || containerRect.width;
+      imgHeight = parseFloat(imgStyle.height) || containerRect.height;
       
       // If the image doesn't fill the container, it will be centered
       imgLeft = (containerRect.width - imgWidth) / 2;
@@ -790,8 +802,58 @@ export function ImageMap({
     const top = Math.min(area.coords[1], area.coords[3]);
     const bottom = Math.max(area.coords[1], area.coords[3]);
     
+    // Determine if we're in test mode
+    const isTestMode = !isDrawingMode && !isEditMode;
+    
+    // In test mode and with valid image dimensions, use direct relative mapping
+    if (isTestMode && imageDimensions.naturalWidth > 0 && imageDimensions.naturalHeight > 0 && 
+        imgWidth > 0 && imgHeight > 0) {
+      // Adjust click coordinates relative to the image (removing container offset)
+      const relativeClickX = x - imgLeft;
+      const relativeClickY = y - imgTop;
+      
+      // Convert to normalized 0-1 position within the rendered image
+      const normalizedClickX = relativeClickX / imgWidth;
+      const normalizedClickY = relativeClickY / imgHeight;
+      
+      // Map to original image coordinate space
+      const mappedClickX = normalizedClickX * imageDimensions.naturalWidth;
+      const mappedClickY = normalizedClickY * imageDimensions.naturalHeight;
+      
+      // Add error margin relative to original image size
+      const errorMargin = 10; // pixels in original image space
+      
+      const isInside = 
+        mappedClickX >= (left - errorMargin) && 
+        mappedClickX <= (right + errorMargin) && 
+        mappedClickY >= (top - errorMargin) && 
+        mappedClickY <= (bottom + errorMargin);
+      
+      // Log for debugging
+      console.log('Test mode click check:', { 
+        clickRaw: { x, y },
+        relativeToImage: { x: relativeClickX, y: relativeClickY },
+        normalizedInImage: { x: normalizedClickX, y: normalizedClickY },
+        mappedToOriginal: { x: mappedClickX, y: mappedClickY },
+        area: {
+          id: area.id,
+          isCorrect: area.isCorrect,
+          coords: `(${left},${top}) to (${right},${bottom})`
+        },
+        imgDimensions: {
+          natural: { width: imageDimensions.naturalWidth, height: imageDimensions.naturalHeight },
+          rendered: { width: imgWidth, height: imgHeight },
+          offset: { left: imgLeft, top: imgTop }
+        },
+        result: isInside,
+        mode: "test"
+      });
+      
+      return isInside;
+    }
+    
+    // For edit/draw mode, use the original approach
     // Adjust click coordinates to account for image offset and scale
-    // First remove the image offset from the raw click coordinates
     const adjustedX = x - imgLeft;
     const adjustedY = y - imgTop;
     
@@ -813,8 +875,8 @@ export function ImageMap({
       clickY >= (top - errorMargin / scale) && 
       clickY <= (bottom + errorMargin / scale);
     
-    // Always log click checks for debugging
-    console.log('Click check:', { 
+    // Log click checks for debugging
+    console.log('Edit mode click check:', { 
       clickRaw: { x, y },
       adjusted: { x: adjustedX, y: adjustedY },
       clickNormalized: { x: clickX, y: clickY },
@@ -826,7 +888,7 @@ export function ImageMap({
       },
       scale,
       result: isInside,
-      mode: isDrawingMode ? "drawing" : isEditMode ? "edit" : "test"
+      mode: isDrawingMode ? "drawing" : "edit"
     });
     
     return isInside;
@@ -895,7 +957,7 @@ export function ImageMap({
     return false;
   }, [isDrawingMode, areas, isEditMode, onAreaClick, onClick, isPointInArea]);
 
-  // Add a function to consistently handle area positioning regardless of mode
+  // Update getConsistentAreaPosition for better accuracy in test mode
   const getConsistentAreaPosition = (coords: number[], index: number): number => {
     // Make sure we have valid coordinates
     if (!coords || coords.length < 4 || !Number.isFinite(coords[index])) {
@@ -922,11 +984,35 @@ export function ImageMap({
     const imgLeft = (containerRect.width - imgWidth) / 2;
     const imgTop = (containerRect.height - imgHeight) / 2;
     
-    // Apply offset based on which coordinate we're calculating
+    // In test mode, use a more direct mapping from the normalized coordinates
+    const isTestMode = !isDrawingMode && !isEditMode;
+
+    // Get the coordinate value we're calculating
+    const coordValue = coords[index];
+    
+    // For test mode, directly map the coordinate based on position within the image
+    if (isTestMode && imageDimensions.naturalWidth > 0 && imageDimensions.naturalHeight > 0) {
+      // X coordinate (even index)
+      if (index % 2 === 0) {
+        // Calculate the relative position (0-1) within the image
+        const relativeX = coordValue / imageDimensions.naturalWidth;
+        // Map to the actual rendered image width
+        return imgLeft + (relativeX * imgWidth);
+      } 
+      // Y coordinate (odd index)
+      else {
+        // Calculate the relative position (0-1) within the image
+        const relativeY = coordValue / imageDimensions.naturalHeight;
+        // Map to the actual rendered image height
+        return imgTop + (relativeY * imgHeight);
+      }
+    }
+    
+    // For edit/draw mode, use the regular scaling approach
     if (index % 2 === 0) { // X coordinate (0, 2)
-      return coords[index] * scale + imgLeft;
+      return coordValue * scale + imgLeft;
     } else { // Y coordinate (1, 3)
-      return coords[index] * scale + imgTop;
+      return coordValue * scale + imgTop;
     }
   };
 
@@ -976,10 +1062,16 @@ export function ImageMap({
             // Asegurar contenedor dimensionado
             position: "relative",
             // In test mode, we want a fixed aspect ratio to ensure consistent rendering
-            aspectRatio: "1200/572", // Establecer relación de aspecto fija para coherencia
+            aspectRatio: !isDrawingMode && !isEditMode ? 
+              (imageDimensions.naturalWidth && imageDimensions.naturalHeight) ? 
+                `${imageDimensions.naturalWidth}/${imageDimensions.naturalHeight}` : 
+                "1200/572" : 
+              "1200/572", // Use actual image aspect ratio if available in test mode
             display: "flex",
             justifyContent: "center",
-            alignItems: "center"
+            alignItems: "center",
+            // Add a subtle background in test mode to better see the image boundaries
+            backgroundColor: !isDrawingMode && !isEditMode ? "rgba(0,0,0,0.02)" : "transparent"
           }}
         >
           {isLoading && (
@@ -1076,6 +1168,16 @@ export function ImageMap({
               });
             }
             
+            const debugInfo = process.env.NODE_ENV === 'development' ? {
+              // Add more visible debugging in dev mode
+              outline: '1px solid rgba(255,0,0,0.7)',
+              // Add area ID as data attribute for easier debugging
+              'data-debug-coords': `${area.coords.join(',')}`,
+              'data-debug-dimensions': `${Math.round(finalWidth)}x${Math.round(finalHeight)}`,
+              'data-debug-position': `@${Math.round(left)},${Math.round(top)}`,
+              'data-debug-scale': scale.toFixed(3)
+            } : {};
+            
             return (
               <div
                 key={area.id}
@@ -1097,7 +1199,8 @@ export function ImageMap({
                   // Para propósitos de desarrollo, hacer las áreas más visibles
                   ...(process.env.NODE_ENV === 'development' ? {
                     boxShadow: isEditMode ? 'none' : 'inset 0 0 0 1px rgba(255,255,255,0.2)',
-                    outline: !isEditMode ? '1px dashed rgba(255,0,0,0.3)' : 'none'
+                    outline: !isEditMode ? '1px dashed rgba(255,0,0,0.5)' : 'none',
+                    ...debugInfo
                   } : {})
                 }}
               />
