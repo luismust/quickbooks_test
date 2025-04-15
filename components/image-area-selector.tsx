@@ -281,16 +281,26 @@ export function ImageAreaSelector({
       Math.ceil(y2)
     ];
     
-    console.log('FINAL NORMALIZED COORDS:', normalizedCoords)
+    // SOLUCIÓN: Obtener las dimensiones naturales de la imagen para guardarlas con el área
+    // Esto permitirá ajustar correctamente las coordenadas cuando cambien las dimensiones
+    const imageDimensions = {
+      naturalWidth: drawingArea.imageDimensions?.naturalWidth || 0,
+      naturalHeight: drawingArea.imageDimensions?.naturalHeight || 0
+    };
+    
+    console.log('DIMENSIONES DE REFERENCIA GUARDADAS:', imageDimensions);
+    console.log('FINAL NORMALIZED COORDS:', normalizedCoords);
 
     // Crear ID único con timestamp para evitar colisiones y problemas de caché
     const uniqueId = `area_${generateId()}_${Date.now().toString(36)}`;
     
-    // Crear área con datos normalizados
+    // Crear área con datos normalizados y dimensiones de referencia
     const newArea = {
       ...drawingArea,
       id: uniqueId,
       coords: normalizedCoords,
+      // Guardar dimensiones de la imagen para referencia futura
+      imageDimensions: imageDimensions,
       // Guardar dimensiones originales para referencia
       originalWidth: Math.round(width),
       originalHeight: Math.round(height),
@@ -312,6 +322,7 @@ export function ImageAreaSelector({
         newArea,
         totalAreas: updatedAreas.length,
         normalizedCoords,
+        imageDimensions,
         mode: "edit"
       });
       

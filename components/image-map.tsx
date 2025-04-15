@@ -12,14 +12,24 @@ import React, {
 import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import type { Area } from "@/lib/test-storage"
+import type { Area as AreaType } from "@/lib/test-storage"
 import { createProxyImage, getBestImageUrl } from "@/lib/image-utils"
 import { clsx } from "clsx"
 
+// Extender el tipo Area importado para incluir imageDimensions
+declare module '@/lib/test-storage' {
+  interface Area {
+    imageDimensions?: {
+      naturalWidth: number
+      naturalHeight: number
+    }
+  }
+}
+
 interface ImageMapProps {
   src: string
-  areas: Area[]
-  drawingArea: Area | null
+  areas: AreaType[]
+  drawingArea: AreaType | null
   onAreaClick: (areaId: string) => void
   alt?: string
   className?: string
@@ -30,6 +40,13 @@ interface ImageMapProps {
   onDrawEnd?: () => void
   onError?: () => void
   onClick?: (e: React.MouseEvent) => void
+  setDrawingArea?: (area: AreaType | null) => void
+  selectedArea?: AreaType | null
+  onAreaSelected?: (area: AreaType | null) => void
+  onImageLoad?: (width: number, height: number) => void
+  onImageLoadError?: (error: string) => void
+  onImageLoadRetry?: () => void
+  forceFallback?: boolean
 }
 
 export function ImageMap({ 
@@ -45,7 +62,14 @@ export function ImageMap({
   onDrawMove,
   onDrawEnd,
   onError,
-  onClick
+  onClick,
+  setDrawingArea,
+  selectedArea,
+  onAreaSelected,
+  onImageLoad,
+  onImageLoadError,
+  onImageLoadRetry,
+  forceFallback
 }: ImageMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLDivElement>(null)
@@ -62,7 +86,7 @@ export function ImageMap({
   })
   
   // Placeholder constante para imágenes que fallan
-  const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
+  const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
   
   // Función para verificar si una blob URL sigue siendo válida
   const checkBlobValidity = useCallback(async (blobUrl: string): Promise<boolean> => {
@@ -550,72 +574,51 @@ export function ImageMap({
     }
   }, [formattedSrc, checkBlobValidity, handleImageLoad]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!isDrawingMode || !containerRef.current) return
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDrawingMode || !imageRef.current || isDragging) return
     
-    const rect = containerRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const image = imageRef.current
+    const rect = image.getBoundingClientRect()
+    const offsetX = e.clientX - rect.left
+    const offsetY = e.clientY - rect.top
     
-    // Obtener imagen y coordenadas
-    const imageElement = imageRef.current;
-    if (!imageElement) return;
+    // Calcular posición relativa al tamaño natural de la imagen
+    const relX = offsetX / rect.width
+    const relY = offsetY / rect.height
     
-    // Dimensiones naturales de la imagen
-    const naturalWidth = Math.max(imageDimensions.naturalWidth, 1);
-    const naturalHeight = Math.max(imageDimensions.naturalHeight, 1);
+    // Convertir a coordenadas naturales de la imagen
+    const naturalX = Math.round(relX * imageDimensions.naturalWidth)
+    const naturalY = Math.round(relY * imageDimensions.naturalHeight)
     
-    // Calcular dimensiones del contenedor
-    const containerWidth = rect.width;
-    const containerHeight = rect.height;
+    console.log(`Drawing at: ${offsetX},${offsetY} -> Natural coords: ${naturalX},${naturalY}`);
     
-    // Calcular relación de aspecto
-    const imageRatio = naturalWidth / naturalHeight;
-    
-    // Calcular dimensiones de la imagen renderizada
-    let renderedWidth, renderedHeight;
-    if (containerWidth / containerHeight > imageRatio) {
-      // Limitado por altura
-      renderedHeight = containerHeight;
-      renderedWidth = renderedHeight * imageRatio;
-    } else {
-      // Limitado por ancho
-      renderedWidth = containerWidth;
-      renderedHeight = renderedWidth / imageRatio;
+    if (onDrawStart) {
+      onDrawStart(offsetX, offsetY)
     }
     
-    // Calcular márgenes para centrado
-    const marginLeft = (containerWidth - renderedWidth) / 2;
-    const marginTop = (containerHeight - renderedHeight) / 2;
-    
-    // Ajustar coordenadas para considerar márgenes
-    const adjustedX = x - marginLeft;
-    const adjustedY = y - marginTop;
-    
-    // Convertir a coordenadas normalizadas basadas en dimensiones naturales
-    let normalizedX = (adjustedX / renderedWidth) * naturalWidth;
-    let normalizedY = (adjustedY / renderedHeight) * naturalHeight;
-    
-    // Limitar a los límites de la imagen
-    normalizedX = Math.max(0, Math.min(naturalWidth, normalizedX));
-    normalizedY = Math.max(0, Math.min(naturalHeight, normalizedY));
-    
-    console.log('MouseDown - coords:', {
-      raw: { x, y },
-      adjusted: { x: adjustedX, y: adjustedY },
-      normalized: { x: normalizedX, y: normalizedY },
-      containerSize: { width: containerWidth, height: containerHeight },
-      renderedSize: { width: renderedWidth, height: renderedHeight },
-      naturalSize: { width: naturalWidth, height: naturalHeight }
-    });
-    
-    // Comenzar el arrastre
     setIsDragging(true)
-    onDrawStart?.(normalizedX, normalizedY)
     
-    // Evitar comportamientos por defecto
-    e.preventDefault()
-  }, [isDrawingMode, onDrawStart, imageDimensions])
+    // Crear un nuevo área con las coordenadas iniciales
+    const newDrawingArea: AreaType = {
+      id: generateId(),
+      shape: "rect" as const, // Especificar como literal de tipo
+      coords: [naturalX, naturalY, naturalX, naturalY],
+      isCorrect: true,
+      x: naturalX,
+      y: naturalY,
+      width: 0,
+      height: 0,
+      // Guardar dimensiones naturales para referencia futura
+      imageDimensions: {
+        naturalWidth: imageDimensions.naturalWidth,
+        naturalHeight: imageDimensions.naturalHeight
+      }
+    }
+      
+    if (setDrawingArea) {
+      setDrawingArea(newDrawingArea)
+    }
+  }, [isDrawingMode, isDragging, onDrawStart, imageDimensions, setDrawingArea])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawingMode || !containerRef.current || !isDragging) return
@@ -725,7 +728,7 @@ export function ImageMap({
   }, [isDrawingMode, isDragging, onDrawEnd])
 
   // Determinar el estilo de las áreas basado en el modo
-  const getAreaStyle = (area: Area) => {
+  const getAreaStyle = (area: AreaType) => {
     // En modo edición, mostrar áreas correctas en verde e incorrectas en rojo
     if (isEditMode) {
       return area.isCorrect ? 'border-green-500' : 'border-red-500';
@@ -806,7 +809,7 @@ export function ImageMap({
   };
 
   // Add a special function for test mode rendering that uses exact pixel positioning
-  const renderTestModeArea = (area: Area) => {
+  const renderTestModeArea = (area: AreaType) => {
     // Make sure we have valid coordinates and references
     if (!area.coords || area.coords.length < 4 || !containerRef.current || !imageRef.current) {
       console.error('Cannot render area without valid coordinates or references:', area);
@@ -1025,7 +1028,7 @@ export function ImageMap({
   }
 
   // Función simplificada para renderizar áreas en cualquier modo
-  const renderArea = (area: Area, mode: 'test' | 'edit' = 'edit') => {
+  const renderArea = (area: AreaType, mode: 'test' | 'edit' = 'edit') => {
     if (!area.coords || area.coords.length < 4) {
       console.error('Invalid area coordinates:', area.id);
       return null;
@@ -1051,7 +1054,26 @@ export function ImageMap({
     const width = x2 - x1;
     const height = y2 - y1;
     
-    // Calcular posiciones en píxeles
+    // SOLUCIÓN: Usar dimensiones almacenadas en el área si están disponibles
+    // para poder escalar correctamente independientemente de dimensiones actuales
+    const referenceNaturalWidth = area.imageDimensions?.naturalWidth || imageDimensions.naturalWidth;
+    const referenceNaturalHeight = area.imageDimensions?.naturalHeight || imageDimensions.naturalHeight;
+    
+    // Si hay diferencia entre dimensiones almacenadas y actuales, ajustar coordenadas
+    const widthRatio = imageDimensions.naturalWidth / referenceNaturalWidth;
+    const heightRatio = imageDimensions.naturalHeight / referenceNaturalHeight;
+    
+    // Solo loguear cuando hay diferencias significativas para diagnóstico
+    if (Math.abs(widthRatio - 1) > 0.01 || Math.abs(heightRatio - 1) > 0.01) {
+      console.log('DIMENSIONES DIFERENTES DETECTADAS:', {
+        areaId: area.id,
+        storedDimensions: { width: referenceNaturalWidth, height: referenceNaturalHeight },
+        currentDimensions: { width: imageDimensions.naturalWidth, height: imageDimensions.naturalHeight },
+        ratios: { width: widthRatio, height: heightRatio }
+      });
+    }
+    
+    // Calcular posiciones en píxeles ajustando para cambios de dimensiones
     const left = mapCoordToPixel(x1, width, true);
     const top = mapCoordToPixel(y1, height, false);
     const areaWidth = mapCoordToPixel(width, width, true) - marginCorrection;
@@ -1068,7 +1090,8 @@ export function ImageMap({
       original: { x1, y1, x2, y2, width, height },
       rendered: { left, top, width: finalWidth, height: finalHeight },
       imgDimensions: {
-        natural: { width: imageDimensions.naturalWidth, height: imageDimensions.naturalHeight },
+        reference: { width: referenceNaturalWidth, height: referenceNaturalHeight },
+        current: { width: imageDimensions.naturalWidth, height: imageDimensions.naturalHeight },
         scale
       }
     });
@@ -1077,7 +1100,9 @@ export function ImageMap({
     const debugInfo = process.env.NODE_ENV === 'development' ? {
       outline: '1px solid rgba(255,0,0,0.7)',
       'data-coords': `${x1},${y1},${x2},${y2}`,
-      'data-pixel-pos': `${Math.round(left)},${Math.round(top)},${Math.round(finalWidth)},${Math.round(finalHeight)}`
+      'data-pixel-pos': `${Math.round(left)},${Math.round(top)},${Math.round(finalWidth)},${Math.round(finalHeight)}`,
+      'data-reference-dims': `${referenceNaturalWidth}x${referenceNaturalHeight}`,
+      'data-current-dims': `${imageDimensions.naturalWidth}x${imageDimensions.naturalHeight}`
     } : {};
     
     // Retornar div del área
@@ -1135,7 +1160,7 @@ export function ImageMap({
   })}
 
   // Update the click detection to use the same mapping logic
-  const isPointInArea = (x: number, y: number, area: Area): boolean => {
+  const isPointInArea = (x: number, y: number, area: AreaType): boolean => {
     if (!area.coords || area.coords.length < 4) return false;
     
     // Verificar coordenadas válidas
@@ -1151,7 +1176,12 @@ export function ImageMap({
       return false;
     }
     
-    // Obtener coordenadas ordenadas (igual que en renderArea)
+    // SOLUCIÓN: Usar dimensiones almacenadas en el área si están disponibles
+    // para poder escalar correctamente independientemente de dimensiones actuales
+    const referenceNaturalWidth = area.imageDimensions?.naturalWidth || imageDimensions.naturalWidth;
+    const referenceNaturalHeight = area.imageDimensions?.naturalHeight || imageDimensions.naturalHeight;
+    
+    // Obtener coordenadas ordenadas
     const x1 = Math.min(area.coords[0], area.coords[2]);
     const y1 = Math.min(area.coords[1], area.coords[3]);
     const x2 = Math.max(area.coords[0], area.coords[2]);
@@ -1161,7 +1191,7 @@ export function ImageMap({
     const width = x2 - x1;
     const height = y2 - y1;
     
-    // Calcular posiciones en píxeles (igual que en renderArea)
+    // Calcular posiciones en píxeles ajustando para cambios de dimensiones
     const left = mapCoordToPixel(x1, width, true);
     const top = mapCoordToPixel(y1, height, false); 
     const areaWidth = mapCoordToPixel(width, width, true) - marginCorrection;
@@ -1193,7 +1223,11 @@ export function ImageMap({
         isCorrect: area.isCorrect,
         clickPoint: { x, y },
         areaBounds: { left, top, right, bottom, width: finalWidth, height: finalHeight },
-        originalCoords: { x1, y1, x2, y2, width, height }
+        originalCoords: { x1, y1, x2, y2, width, height },
+        dimensions: {
+          reference: { width: referenceNaturalWidth, height: referenceNaturalHeight },
+          current: { width: imageDimensions.naturalWidth, height: imageDimensions.naturalHeight }
+        }
       });
     }
     
@@ -1222,7 +1256,7 @@ export function ImageMap({
     
     // Verificar qué área fue clickeada
     let clickedAreaId: string | null = null;
-    let clickedArea: Area | null = null;
+    let clickedArea: AreaType | null = null;
     
     // Revisar áreas en orden inverso (las últimas dibujadas están encima)
     for (let i = areas.length - 1; i >= 0; i--) {
@@ -1308,6 +1342,11 @@ export function ImageMap({
       setTimeout(forceRerender, 200);
     }
   }, [areas, imageDimensions.naturalWidth, imageDimensions.naturalHeight]);
+
+  // Agregar la función generateId si no existe
+  const generateId = () => {
+    return `area_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;
+  }
 
   return (
     <div className="relative">
