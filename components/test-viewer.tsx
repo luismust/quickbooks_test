@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 import { ResultsDialog } from "./results-dialog"
+import { UserNameDialog } from "./user-name-dialog"
 import type { Area, Test, Question } from "@/lib/test-storage"
 import { createProxyImage, getBestImageUrl, preloadQuestionImages } from "@/lib/image-utils"
 
@@ -92,6 +93,11 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
   const [testCompleted, setTestCompleted] = useState(false)
   const [connections, setConnections] = useState<{[key: string]: Connection[]}>({})
   const [loadedImages, setLoadedImages] = useState<{ [key: string]: string }>({})
+  
+  // Estado para el nombre del usuario
+  const [userName, setUserName] = useState("")
+  const [showUserNameDialog, setShowUserNameDialog] = useState(true)
+  const [testStarted, setTestStarted] = useState(false)
   
   // Placeholder constante para imágenes que fallan o referencias
   const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAA21BMVEUAAAD///+/v7+ZmZmqqqqZmZmfn5+dnZ2ampqcnJycnJybm5ubm5uampqampqampqampqbm5uampqampqbm5uampqampqampqampqampqampqampqamp///+YmJiZmZmampqbm5ucnJydnZ2enp6fnp6fn5+gn5+gn6CgoKChoKChoaGioaGioqKjoqKjo6Ojo6SkpKSlpaWmpqanp6eoqKiqqqpTU1MAAAB8A5ZEAAAARnRSTlMAAQIEBQUGBwcLDBMUFRYaGxwdNjxRVVhdYGRnaWptcXV2eHp7fX5/gISGiImKjI2OkJKTlZebnKCio6Slqq+2uL6/xdDfsgWO3gAAAWhJREFUeNrt1sdSwzAUBVAlkRJaGi33il2CYNvpvZP//6OEBVmWM+PIGlbhncWTcbzwNNb1ZwC8mqDZMaENiXBJVGsCE5KUKbE1GZNURlvLjfUTjC17JNvbgYzUW3qpKxJllJYwKyIw0mSsCRlWBkLhDGTJGE3WEF3KEnGdJYRGlrqKtJEn1A0hWp4w1xBNnlA3kFg5wlzD2o0M4a4j0jJEXEciZQh3A9HkCHMD0fOEuI7IyhGxhojyhLiG6HlCXUdYOcLdRER5Qt1AJDnC3MQ6ZQhxHWvJEu4GIsoR6jrWljKEu4VlP9eMeS5wt5CWpV2WNKqUlPMdKo7oa4jEd2qoqM1DpwVGWp0jmqd+7JQYa/oqsnQ4EfWdSsea8O/yCTgc/3FMSLnUwA8xJhQq44HQB1zySOBCZx8Y3H4mJF8XOJTEBELr8IfzXECYf+fQJ0LO16JvRA5PCK92GMP/FIB3YUC2pHrS/6AAAAAASUVORK5CYII=';
@@ -476,6 +482,14 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
     }
   }, []);
 
+  // Función para manejar cuando el usuario proporciona su nombre
+  const handleUserNameSubmit = (name: string) => {
+    setUserName(name);
+    setShowUserNameDialog(false);
+    setTestStarted(true);
+    toast.success(`Bienvenido/a, ${name}! Tu prueba comenzará ahora.`);
+  }
+
   if (!processedQuestions || processedQuestions.length === 0) {
     return (
       <Card className="w-full max-w-4xl mx-auto">
@@ -670,140 +684,149 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
 
   return (
     <div className="container mx-auto py-8">
-      <Card className="w-full max-w-4xl mx-auto">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold">{test.name}</CardTitle>
-          {showResults ? (
-            <div className="text-center mt-4">
-              <h3 className="text-xl font-semibold mb-2">
-                Final score: {score} / {test.maxScore}
-              </h3>
-              <p className="text-muted-foreground">
-                {score >= test.minScore ? test.passingMessage : test.failingMessage}
-              </p>
-            </div>
-          ) : (
-            <>
-              <p className="text-muted-foreground">{test.description || ''}</p>
-              <div className="mt-2 text-sm text-muted-foreground">
-                Answered questions: {answered.length} of {processedQuestions.length}
+      {/* Diálogo para solicitar el nombre del usuario */}
+      <UserNameDialog 
+        isOpen={showUserNameDialog}
+        onSubmit={handleUserNameSubmit}
+        testName={test.name}
+      />
+
+      {!showUserNameDialog && (
+        <Card className="w-full max-w-4xl mx-auto">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold">{test.name}</CardTitle>
+            {showResults ? (
+              <div className="text-center mt-4">
+                <h3 className="text-xl font-semibold mb-2">
+                  Final score: {score} / {test.maxScore}
+                </h3>
+                <p className="text-muted-foreground">
+                  {score >= test.minScore ? test.passingMessage : test.failingMessage}
+                </p>
               </div>
-              {testCompleted && (
-                <div className="mt-2 text-sm text-yellow-600">
-                  You have completed this test. Click "View results" to see your score.
-                </div>
-              )}
-            </>
-          )}
-        </CardHeader>
-
-        <CardContent>
-          {!showResults && currentQuestionData && (
-            <motion.div
-              key={currentQuestion}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              <h2 className="text-xl font-semibold mb-4">
-                {currentQuestionData.question}
-              </h2>
-              {/* Solo mostrar la imagen para tipos que no sean clickArea */}
-              {currentQuestionData.image && currentQuestionData.type !== 'clickArea' && (
-                <div className="relative rounded-lg overflow-hidden">
-                  {/* Para referencias de imagen, intentar mostrar la imagen cargada */}
-                  {(currentQuestionData as any)._imageType === 'reference' && (
-                    <>
-                      {loadedImages[(currentQuestionData as any)._imageRef] ? (
-                        // Si tenemos la imagen cargada, mostrarla
-                        <div
-                          style={{
-                            backgroundImage: `url(${loadedImages[(currentQuestionData as any)._imageRef]})`,
-                            backgroundSize: 'contain',
-                            backgroundPosition: 'center',
-                            backgroundRepeat: 'no-repeat',
-                            width: '100%',
-                            height: '350px', // Aumentar altura para mejor visualización
-                            minHeight: '300px'
-                          }}
-                          className="w-full h-auto rounded-lg"
-                        ></div>
-                      ) : (
-                        // Si aún no tenemos la imagen, mostrar un loader
-                        <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
-                          <div className="flex flex-col items-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
-                            <span className="text-sm text-gray-500">Image loading...</span>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  
-                  {/* Para imágenes normales (no referencias) */}
-                  {(currentQuestionData as any)._imageType !== 'reference' && (
-                    <div
-                      style={{
-                        backgroundImage: `url(${currentQuestionData.image})`,
-                        backgroundSize: 'contain',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat',
-                        width: '100%',
-                        height: '350px', // Aumentar altura para mejor visualización
-                        minHeight: '300px'
-                      }}
-                      className="w-full h-auto rounded-lg"
-                    ></div>
-                  )}
-                </div>
-              )}
-              {renderQuestion(currentQuestionData)}
-            </motion.div>
-          )}
-        </CardContent>
-
-        <div className="px-6 pb-4">
-          <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
-            <span>Progress</span>
-            <span>{answered.length} of {processedQuestions.length} answered</span>
-          </div>
-          <Progress value={progress} />
-        </div>
-
-        <CardFooter className="border-t p-6">
-          <div className="flex justify-between w-full">
-            <Button 
-              variant="outline" 
-              onClick={handlePrevious}
-              disabled={currentQuestion === 0 || testCompleted}
-            >
-              <ChevronLeft className="mr-2 h-4 w-4" /> Previous
-            </Button>
-            
-            {testCompleted ? (
-              <Button onClick={() => setShowResults(true)}>View results</Button>
             ) : (
-              currentQuestion === processedQuestions.length - 1 ? (
-                <Button 
-                  onClick={handleFinish}
-                  variant="default"
-                  disabled={answered.length < processedQuestions.length}
-                >
-                  Finish test
-                </Button>
-              ) : (
-                <Button 
-                  onClick={handleNext} 
-                  disabled={!answered.includes(currentQuestionData.id) || testCompleted}
-                >
-                  Next <ChevronRight className="ml-2 h-4 w-4" />
-                </Button>
-              )
+              <>
+                <p className="text-muted-foreground">{test.description || ''}</p>
+                <div className="mt-2 text-sm text-muted-foreground">
+                  Answered questions: {answered.length} of {processedQuestions.length}
+                </div>
+                {testCompleted && (
+                  <div className="mt-2 text-sm text-yellow-600">
+                    You have completed this test. Click "View results" to see your score.
+                  </div>
+                )}
+              </>
             )}
+          </CardHeader>
+
+          <CardContent>
+            {!showResults && currentQuestionData && (
+              <motion.div
+                key={currentQuestion}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <h2 className="text-xl font-semibold mb-4">
+                  {currentQuestionData.question}
+                </h2>
+                {/* Solo mostrar la imagen para tipos que no sean clickArea */}
+                {currentQuestionData.image && currentQuestionData.type !== 'clickArea' && (
+                  <div className="relative rounded-lg overflow-hidden">
+                    {/* Para referencias de imagen, intentar mostrar la imagen cargada */}
+                    {(currentQuestionData as any)._imageType === 'reference' && (
+                      <>
+                        {loadedImages[(currentQuestionData as any)._imageRef] ? (
+                          // Si tenemos la imagen cargada, mostrarla
+                          <div
+                            style={{
+                              backgroundImage: `url(${loadedImages[(currentQuestionData as any)._imageRef]})`,
+                              backgroundSize: 'contain',
+                              backgroundPosition: 'center',
+                              backgroundRepeat: 'no-repeat',
+                              width: '100%',
+                              height: '350px', // Aumentar altura para mejor visualización
+                              minHeight: '300px'
+                            }}
+                            className="w-full h-auto rounded-lg"
+                          ></div>
+                        ) : (
+                          // Si aún no tenemos la imagen, mostrar un loader
+                          <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
+                            <div className="flex flex-col items-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+                              <span className="text-sm text-gray-500">Image loading...</span>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    
+                    {/* Para imágenes normales (no referencias) */}
+                    {(currentQuestionData as any)._imageType !== 'reference' && (
+                      <div
+                        style={{
+                          backgroundImage: `url(${currentQuestionData.image})`,
+                          backgroundSize: 'contain',
+                          backgroundPosition: 'center',
+                          backgroundRepeat: 'no-repeat',
+                          width: '100%',
+                          height: '350px', // Aumentar altura para mejor visualización
+                          minHeight: '300px'
+                        }}
+                        className="w-full h-auto rounded-lg"
+                      ></div>
+                    )}
+                  </div>
+                )}
+                {renderQuestion(currentQuestionData)}
+              </motion.div>
+            )}
+          </CardContent>
+
+          <div className="px-6 pb-4">
+            <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+              <span>Progress</span>
+              <span>{answered.length} of {processedQuestions.length} answered</span>
+            </div>
+            <Progress value={progress} />
           </div>
-        </CardFooter>
-      </Card>
+
+          <CardFooter className="border-t p-6">
+            <div className="flex justify-between w-full">
+              <Button 
+                variant="outline" 
+                onClick={handlePrevious}
+                disabled={currentQuestion === 0 || testCompleted}
+              >
+                <ChevronLeft className="mr-2 h-4 w-4" /> Previous
+              </Button>
+              
+              {testCompleted ? (
+                <Button onClick={() => setShowResults(true)}>View results</Button>
+              ) : (
+                currentQuestion === processedQuestions.length - 1 ? (
+                  <Button 
+                    onClick={handleFinish}
+                    variant="default"
+                    disabled={answered.length < processedQuestions.length}
+                  >
+                    Finish test
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={handleNext} 
+                    disabled={!answered.includes(currentQuestionData.id) || testCompleted}
+                  >
+                    Next <ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
+                )
+              )}
+            </div>
+          </CardFooter>
+        </Card>
+      )}
 
       <AnimatePresence>
         {showFeedback && (
@@ -833,6 +856,8 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         minScore={test.minScore}
         passingMessage={test.passingMessage}
         failingMessage={test.failingMessage}
+        userName={userName}
+        testName={test.name}
       />
     </div>
   )
