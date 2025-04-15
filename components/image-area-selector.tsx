@@ -266,59 +266,63 @@ export function ImageAreaSelector({
       return
     }
 
-    // IMPORTANTE: Garantizar que las coordenadas estén ordenadas correctamente
-    // Esto evitará problemas de renderizado
+    // CRUCIAL: Asegurar coordenadas consistentes entre modos
+    // Obtener valores ordenados para x1,y1 sea siempre esquina superior izquierda
     const x1 = Math.min(drawingArea.coords[0], drawingArea.coords[2]);
     const y1 = Math.min(drawingArea.coords[1], drawingArea.coords[3]);
     const x2 = Math.max(drawingArea.coords[0], drawingArea.coords[2]);
     const y2 = Math.max(drawingArea.coords[1], drawingArea.coords[3]);
     
-    // Normalizamos a valores enteros
+    // IMPORTANTE: Redondear a ENTEROS para evitar diferencias de precisión
     const normalizedCoords = [
-      Math.round(x1), 
-      Math.round(y1), 
-      Math.round(x2), 
-      Math.round(y2)
+      Math.floor(x1), 
+      Math.floor(y1), 
+      Math.ceil(x2), 
+      Math.ceil(y2)
     ];
     
-    console.log('Normalized coords for rendering consistency:', normalizedCoords);
+    console.log('FINAL NORMALIZED COORDS:', normalizedCoords)
 
-    // Crear un ID único verdaderamente único con timestamp para evitar cualquier problema de caché
+    // Crear ID único con timestamp para evitar colisiones y problemas de caché
     const uniqueId = `area_${generateId()}_${Date.now().toString(36)}`;
     
-    // Crear el área final con todas las propiedades necesarias
+    // Crear área con datos normalizados
     const newArea = {
       ...drawingArea,
       id: uniqueId,
       coords: normalizedCoords,
-      width: Math.round(width),
-      height: Math.round(height)
+      // Guardar dimensiones originales para referencia
+      originalWidth: Math.round(width),
+      originalHeight: Math.round(height),
+      // Usar dimensiones calculadas con valores normalizados
+      width: Math.ceil(x2) - Math.floor(x1),
+      height: Math.ceil(y2) - Math.floor(y1)
     }
 
-    // Limpiar el área de dibujo primero antes de actualizar el estado
+    // Limpiar el área de dibujo antes de actualizar estado
     setDrawingArea(null)
     
-    // Usar un pequeño retraso para garantizar actualización correcta
+    // Usar más retraso para asegurar actualización correcta
     setTimeout(() => {
-      // Crear un nuevo array en lugar de modificar el existente
+      // Crear nuevo array en vez de modificar el existente
       const updatedAreas = [...areas, newArea]
       
       // Log detallado para depuración
       console.log('ÁREAS ACTUALIZADAS:', {
-        nuevaÁrea: newArea,
-        totalÁreas: updatedAreas.length,
-        coordenadasNuevaÁrea: normalizedCoords,
-        modo: "edición"
+        newArea,
+        totalAreas: updatedAreas.length,
+        normalizedCoords,
+        mode: "edit"
       });
       
-      // Actualizar el estado con las nuevas áreas
+      // Actualizar estado
       onChange({ 
         areas: updatedAreas,
         localFile: localFile || undefined
       })
       
-      toast.success('A new clickable area has been added. You can continue drawing more areas.')
-    }, 50);
+      toast.success('A new clickable area has been added. Continue drawing or click "Finish Drawing".')
+    }, 100); // Retraso más largo para asegurar que todo se actualiza
   }
 
   const handleAreaClick = (areaId: string) => {
