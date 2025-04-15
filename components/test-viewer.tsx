@@ -31,7 +31,7 @@ function readImageAsBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => resolve(e.target?.result as string);
-    reader.onerror = (e) => reject(new Error('Error al leer la imagen'));
+    reader.onerror = (e) => reject(new Error('Error reading image'));
     reader.readAsDataURL(file);
   });
 }
@@ -461,7 +461,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
     setUserName(name);
     setShowUserNameDialog(false);
     setTestStarted(true);
-    toast.success(`Bienvenido/a, ${name}! Tu prueba comenzará ahora.`);
+    toast.success(`Welcome, ${name}! Your test will start now.`);
   }
 
   if (!processedQuestions || processedQuestions.length === 0) {
