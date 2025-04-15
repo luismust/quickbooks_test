@@ -50,6 +50,26 @@ export function ImageAreaSelector({
   // Add debug logging for drawingArea state changes
   useEffect(() => {
     console.log("Drawing area changed:", drawingArea);
+    
+    // Depuración detallada cuando se cambia el área de dibujo
+    if (drawingArea && drawingArea.coords && drawingArea.coords.length === 4) {
+      // Verificar que todas las coordenadas son válidas
+      const allValid = drawingArea.coords.every((coord: number) => 
+        Number.isFinite(coord) && !Number.isNaN(coord)
+      );
+      
+      if (allValid) {
+        console.log("Valid drawing area coordinates:", {
+          raw: drawingArea.coords,
+          normalized: drawingArea.coords.map((coord: number) => Math.round(coord)),
+          width: Math.abs(drawingArea.coords[2] - drawingArea.coords[0]),
+          height: Math.abs(drawingArea.coords[3] - drawingArea.coords[1]),
+          mode: "drawing"
+        });
+      } else {
+        console.error("Invalid drawing area coordinates detected:", drawingArea.coords);
+      }
+    }
   }, [drawingArea]);
 
   useEffect(() => {
@@ -214,23 +234,38 @@ export function ImageAreaSelector({
     
     console.log('Normalized coords:', normalizedCoords)
 
+    // Crea un nuevo ID único para evitar problemas de cache o referencia
+    const areaId = generateId();
+    
     const newArea = {
       ...drawingArea,
-      coords: normalizedCoords
+      id: areaId,
+      coords: normalizedCoords,
+      width: width,
+      height: height
     }
 
-    const updatedAreas = [...areas, newArea]
-    onChange({ 
-      areas: updatedAreas,
-      localFile: localFile || undefined
-    })
-    
-    // Importante: limpiar el área de dibujo después de agregar
+    // Importante: primero limpiar el área de dibujo antes de actualizar el estado principal
+    // Esto evita problemas de sincronización
     setDrawingArea(null)
     
-    // Cuando termine un área, mantener el modo de dibujo activo para facilitar
-    // dibujar múltiples áreas consecutivas
-    toast.success('A new clickable area has been added. You can continue drawing more areas.')
+    // Pequeño retraso para asegurar que el estado se actualiza correctamente
+    setTimeout(() => {
+      const updatedAreas = [...areas, newArea]
+      
+      // Log para depuración
+      console.log('Image area changes:', {
+        areas: updatedAreas,
+        localFile: localFile || undefined
+      });
+      
+      onChange({ 
+        areas: updatedAreas,
+        localFile: localFile || undefined
+      })
+      
+      toast.success('A new clickable area has been added. You can continue drawing more areas.')
+    }, 10);
   }
 
   const handleAreaClick = (areaId: string) => {
