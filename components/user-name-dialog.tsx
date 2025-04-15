@@ -31,12 +31,12 @@ export function UserNameDialog({
     e.preventDefault()
     
     if (!name.trim()) {
-      setError("Por favor ingresa tu nombre")
+      setError("Please enter your name")
       return
     }
     
     if (name.trim().length < 3) {
-      setError("El nombre debe tener al menos 3 caracteres")
+      setError("The name must have at least 3 characters")
       return
     }
     
@@ -48,14 +48,14 @@ export function UserNameDialog({
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle className="text-xl">Bienvenido a la prueba</DialogTitle>
+            <DialogTitle className="text-xl">Welcome to the test</DialogTitle>
             <DialogDescription>
-              Por favor, ingresa tu nombre antes de comenzar "{testName}".
+              Please enter your name before starting "{testName}".
             </DialogDescription>
           </DialogHeader>
           
           <div className="mt-4 space-y-2">
-            <Label htmlFor="name">Nombre completo</Label>
+            <Label htmlFor="name">Full name</Label>
             <Input
               id="name"
               value={name}
@@ -63,7 +63,7 @@ export function UserNameDialog({
                 setName(e.target.value)
                 setError("")
               }}
-              placeholder="Ej. Juan Pérez"
+              placeholder="Eg. Joe Dean"
               className={error ? "border-red-500" : ""}
               autoFocus
             />
@@ -72,7 +72,7 @@ export function UserNameDialog({
           
           <DialogFooter className="mt-6">
             <Button type="submit" className="w-full">
-              Comenzar Prueba
+              Start Test
             </Button>
           </DialogFooter>
         </form>

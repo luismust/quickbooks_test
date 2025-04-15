@@ -68,13 +68,13 @@ export function ResultsDialog({
       }
       
       await response.json();
-      toast.success("El resultado del test ha sido guardado");
+      toast.success("The test result has been saved");
       
       // Cerrar el diálogo después de guardar
       onClose();
     } catch (error) {
       console.error('Error saving test result:', error);
-      toast.error("Error al guardar el resultado del test");
+      toast.error("Error saving test result");
       
       // Cerrar el diálogo de todas formas
       onClose();
