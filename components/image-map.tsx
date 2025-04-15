@@ -1196,6 +1196,20 @@ export function ImageMap({
     const width = x2 - x1;
     const height = y2 - y1;
     
+    // Obtener el contenedor y la imagen
+    const container = containerRef.current;
+    const image = imageRef.current;
+    
+    if (!container || !image) {
+      console.error('Missing container or image references');
+      return null;
+    }
+    
+    // Obtener dimensiones del contenedor
+    const containerRect = container.getBoundingClientRect();
+    const containerWidth = containerRect.width;
+    const containerHeight = containerRect.height;
+    
     // Usar dimensiones almacenadas en el área
     const referenceNaturalWidth = area.imageDimensions.naturalWidth;
     const referenceNaturalHeight = area.imageDimensions.naturalHeight;
@@ -1214,20 +1228,37 @@ export function ImageMap({
       });
     }
     
-    // Calcular posiciones en píxeles ajustando para cambios de dimensiones
-    // Aplicar la escala aquí para mantener proporción
-    const scaledX1 = x1 * widthRatio;
-    const scaledY1 = y1 * heightRatio;
-    const scaledWidth = width * widthRatio;
-    const scaledHeight = height * heightRatio;
+    // Calcular relación de aspecto
+    const imageRatio = referenceNaturalWidth / referenceNaturalHeight;
+    const containerRatio = containerWidth / containerHeight;
     
-    // Usar mapCoordToPixel con las coordenadas escaladas
-    const left = mapCoordToPixel(scaledX1, scaledWidth, true);
-    const top = mapCoordToPixel(scaledY1, scaledHeight, false);
-    const areaWidth = mapCoordToPixel(scaledWidth, scaledWidth, true) - marginCorrection;
-    const areaHeight = mapCoordToPixel(scaledHeight, scaledHeight, false) - marginCorrection;
+    // Calcular dimensiones de renderizado
+    let renderedWidth, renderedHeight;
+    if (containerRatio > imageRatio) {
+      // Altura limitada
+      renderedHeight = containerHeight;
+      renderedWidth = renderedHeight * imageRatio;
+    } else {
+      // Ancho limitado
+      renderedWidth = containerWidth;
+      renderedHeight = renderedWidth / imageRatio;
+    }
     
-    // Agregar valor mínimo para mejorar clickabilidad
+    // Calcular márgenes para centrado
+    const marginLeft = (containerWidth - renderedWidth) / 2;
+    const marginTop = (containerHeight - renderedHeight) / 2;
+    
+    // Calcular el factor de escala para convertir coordenadas naturales a píxeles
+    const scaleX = renderedWidth / referenceNaturalWidth;
+    const scaleY = renderedHeight / referenceNaturalHeight;
+    
+    // Convertir coordenadas naturales a píxeles
+    const left = marginLeft + (x1 * scaleX);
+    const top = marginTop + (y1 * scaleY);
+    const areaWidth = width * scaleX;
+    const areaHeight = height * scaleY;
+    
+    // Aplicar dimensiones mínimas para mejor clickabilidad
     const minDimension = 12;
     const finalWidth = Math.max(areaWidth, minDimension);
     const finalHeight = Math.max(areaHeight, minDimension);
@@ -1236,12 +1267,13 @@ export function ImageMap({
     console.log(`${mode.toUpperCase()} MODE - Rendering area:`, {
       id: area.id,
       original: { x1, y1, x2, y2, width, height },
-      scaled: { x1: scaledX1, y1: scaledY1, width: scaledWidth, height: scaledHeight },
+      container: { width: containerWidth, height: containerHeight },
       rendered: { left, top, width: finalWidth, height: finalHeight },
+      margins: { left: marginLeft, top: marginTop },
+      scales: { x: scaleX, y: scaleY },
       imgDimensions: {
         reference: { width: referenceNaturalWidth, height: referenceNaturalHeight },
         current: { width: imageDimensions.naturalWidth, height: imageDimensions.naturalHeight },
-        scale,
         ratios: { width: widthRatio, height: heightRatio }
       }
     });
@@ -1250,10 +1282,10 @@ export function ImageMap({
     const debugInfo = process.env.NODE_ENV === 'development' ? {
       outline: '1px solid rgba(255,0,0,0.7)',
       'data-coords': `${x1},${y1},${x2},${y2}`,
-      'data-scaled-coords': `${scaledX1},${scaledY1},${scaledX1+scaledWidth},${scaledY1+scaledHeight}`,
       'data-pixel-pos': `${Math.round(left)},${Math.round(top)},${Math.round(finalWidth)},${Math.round(finalHeight)}`,
       'data-reference-dims': `${referenceNaturalWidth}x${referenceNaturalHeight}`,
       'data-current-dims': `${imageDimensions.naturalWidth}x${imageDimensions.naturalHeight}`,
+      'data-scales': `x:${scaleX.toFixed(4)},y:${scaleY.toFixed(4)}`,
       'data-ratios': `w:${widthRatio.toFixed(2)},h:${heightRatio.toFixed(2)}`
     } : {};
     
@@ -1328,8 +1360,13 @@ export function ImageMap({
       return false;
     }
     
+    // Obtener el contenedor
+    const container = containerRef.current;
+    const containerRect = container.getBoundingClientRect();
+    const containerWidth = containerRect.width;
+    const containerHeight = containerRect.height;
+    
     // SOLUCIÓN: Usar dimensiones almacenadas en el área si están disponibles
-    // para poder escalar correctamente independientemente de dimensiones actuales
     const referenceNaturalWidth = area.imageDimensions?.naturalWidth || imageDimensions.naturalWidth;
     const referenceNaturalHeight = area.imageDimensions?.naturalHeight || imageDimensions.naturalHeight;
     
@@ -1343,11 +1380,35 @@ export function ImageMap({
     const width = x2 - x1;
     const height = y2 - y1;
     
-    // Calcular posiciones en píxeles ajustando para cambios de dimensiones
-    const left = mapCoordToPixel(x1, width, true);
-    const top = mapCoordToPixel(y1, height, false); 
-    const areaWidth = mapCoordToPixel(width, width, true) - marginCorrection;
-    const areaHeight = mapCoordToPixel(height, height, false) - marginCorrection;
+    // Calcular relación de aspecto
+    const imageRatio = referenceNaturalWidth / referenceNaturalHeight;
+    const containerRatio = containerWidth / containerHeight;
+    
+    // Calcular dimensiones de renderizado
+    let renderedWidth, renderedHeight;
+    if (containerRatio > imageRatio) {
+      // Altura limitada
+      renderedHeight = containerHeight;
+      renderedWidth = renderedHeight * imageRatio;
+    } else {
+      // Ancho limitado
+      renderedWidth = containerWidth;
+      renderedHeight = renderedWidth / imageRatio;
+    }
+    
+    // Calcular márgenes para centrado
+    const marginLeft = (containerWidth - renderedWidth) / 2;
+    const marginTop = (containerHeight - renderedHeight) / 2;
+    
+    // Calcular el factor de escala para convertir coordenadas naturales a píxeles
+    const scaleX = renderedWidth / referenceNaturalWidth;
+    const scaleY = renderedHeight / referenceNaturalHeight;
+    
+    // Convertir coordenadas naturales a píxeles
+    const left = marginLeft + (x1 * scaleX);
+    const top = marginTop + (y1 * scaleY);
+    const areaWidth = width * scaleX;
+    const areaHeight = height * scaleY;
     
     // Aplicar dimensiones mínimas
     const minDimension = 12;
@@ -1603,46 +1664,162 @@ export function ImageMap({
               className="absolute border-2 border-blue-500 bg-blue-500/20 z-10"
               style={{
                 left: (() => {
-                  // Validar coordenadas
-                  if (!drawingArea.coords) return 0;
+                  // Validar coordenadas y referencias
+                  if (!drawingArea.coords || !containerRef.current || !imageRef.current) return 0;
                   
                   // Obtener coordenadas ordenadas
                   const x1 = Math.min(drawingArea.coords[0], drawingArea.coords[2]);
-                  const width = Math.abs(drawingArea.coords[2] - drawingArea.coords[0]);
                   
-                  // Usar el mismo método para calcular la posición
-                  return mapCoordToPixel(x1, width, true);
+                  // Obtener dimensiones naturales del área si existen
+                  const naturalWidth = drawingArea.imageDimensions?.naturalWidth || imageDimensions.naturalWidth;
+                  const naturalHeight = drawingArea.imageDimensions?.naturalHeight || imageDimensions.naturalHeight;
+                  
+                  // Obtener dimensiones del contenedor
+                  const containerRect = containerRef.current.getBoundingClientRect();
+                  const containerWidth = containerRect.width;
+                  const containerHeight = containerRect.height;
+                  
+                  // Calcular relación de aspecto
+                  const imageRatio = naturalWidth / naturalHeight;
+                  const containerRatio = containerWidth / containerHeight;
+                  
+                  // Calcular dimensiones renderizadas
+                  let renderedWidth, renderedHeight;
+                  if (containerRatio > imageRatio) {
+                    // Altura limitada
+                    renderedHeight = containerHeight;
+                    renderedWidth = renderedHeight * imageRatio;
+                  } else {
+                    // Ancho limitado
+                    renderedWidth = containerWidth;
+                    renderedHeight = renderedWidth / imageRatio;
+                  }
+                  
+                  // Calcular márgenes para centrado
+                  const marginLeft = (containerWidth - renderedWidth) / 2;
+                  
+                  // Calcular escala
+                  const scaleX = renderedWidth / naturalWidth;
+                  
+                  // Convertir coordenada a píxeles
+                  return marginLeft + (x1 * scaleX);
                 })(),
                 top: (() => {
-                  // Validar coordenadas
-                  if (!drawingArea.coords) return 0;
+                  // Validar coordenadas y referencias
+                  if (!drawingArea.coords || !containerRef.current || !imageRef.current) return 0;
                   
                   // Obtener coordenadas ordenadas
                   const y1 = Math.min(drawingArea.coords[1], drawingArea.coords[3]);
-                  const height = Math.abs(drawingArea.coords[3] - drawingArea.coords[1]);
                   
-                  // Usar el mismo método para calcular la posición
-                  return mapCoordToPixel(y1, height, false);
+                  // Obtener dimensiones naturales del área si existen
+                  const naturalWidth = drawingArea.imageDimensions?.naturalWidth || imageDimensions.naturalWidth;
+                  const naturalHeight = drawingArea.imageDimensions?.naturalHeight || imageDimensions.naturalHeight;
+                  
+                  // Obtener dimensiones del contenedor
+                  const containerRect = containerRef.current.getBoundingClientRect();
+                  const containerWidth = containerRect.width;
+                  const containerHeight = containerRect.height;
+                  
+                  // Calcular relación de aspecto
+                  const imageRatio = naturalWidth / naturalHeight;
+                  const containerRatio = containerWidth / containerHeight;
+                  
+                  // Calcular dimensiones renderizadas
+                  let renderedWidth, renderedHeight;
+                  if (containerRatio > imageRatio) {
+                    // Altura limitada
+                    renderedHeight = containerHeight;
+                    renderedWidth = renderedHeight * imageRatio;
+                  } else {
+                    // Ancho limitado
+                    renderedWidth = containerWidth;
+                    renderedHeight = renderedWidth / imageRatio;
+                  }
+                  
+                  // Calcular márgenes para centrado
+                  const marginTop = (containerHeight - renderedHeight) / 2;
+                  
+                  // Calcular escala
+                  const scaleY = renderedHeight / naturalHeight;
+                  
+                  // Convertir coordenada a píxeles
+                  return marginTop + (y1 * scaleY);
                 })(),
                 width: (() => {
-                  // Validar coordenadas
-                  if (!drawingArea.coords) return 0;
+                  // Validar coordenadas y referencias
+                  if (!drawingArea.coords || !containerRef.current || !imageRef.current) return 0;
                   
                   // Calcular el ancho
                   const width = Math.abs(drawingArea.coords[2] - drawingArea.coords[0]);
                   
-                  // Usar el mismo método para calcular la dimensión
-                  return mapCoordToPixel(width, width, true) - marginCorrection;
+                  // Obtener dimensiones naturales del área si existen
+                  const naturalWidth = drawingArea.imageDimensions?.naturalWidth || imageDimensions.naturalWidth;
+                  const naturalHeight = drawingArea.imageDimensions?.naturalHeight || imageDimensions.naturalHeight;
+                  
+                  // Obtener dimensiones del contenedor
+                  const containerRect = containerRef.current.getBoundingClientRect();
+                  const containerWidth = containerRect.width;
+                  const containerHeight = containerRect.height;
+                  
+                  // Calcular relación de aspecto
+                  const imageRatio = naturalWidth / naturalHeight;
+                  const containerRatio = containerWidth / containerHeight;
+                  
+                  // Calcular dimensiones renderizadas
+                  let renderedWidth, renderedHeight;
+                  if (containerRatio > imageRatio) {
+                    // Altura limitada
+                    renderedHeight = containerHeight;
+                    renderedWidth = renderedHeight * imageRatio;
+                  } else {
+                    // Ancho limitado
+                    renderedWidth = containerWidth;
+                    renderedHeight = renderedWidth / imageRatio;
+                  }
+                  
+                  // Calcular escala
+                  const scaleX = renderedWidth / naturalWidth;
+                  
+                  // Convertir dimensión a píxeles
+                  return width * scaleX;
                 })(),
                 height: (() => {
-                  // Validar coordenadas
-                  if (!drawingArea.coords) return 0;
+                  // Validar coordenadas y referencias
+                  if (!drawingArea.coords || !containerRef.current || !imageRef.current) return 0;
                   
                   // Calcular la altura
                   const height = Math.abs(drawingArea.coords[3] - drawingArea.coords[1]);
                   
-                  // Usar el mismo método para calcular la dimensión
-                  return mapCoordToPixel(height, height, false) - marginCorrection;
+                  // Obtener dimensiones naturales del área si existen
+                  const naturalWidth = drawingArea.imageDimensions?.naturalWidth || imageDimensions.naturalWidth;
+                  const naturalHeight = drawingArea.imageDimensions?.naturalHeight || imageDimensions.naturalHeight;
+                  
+                  // Obtener dimensiones del contenedor
+                  const containerRect = containerRef.current.getBoundingClientRect();
+                  const containerWidth = containerRect.width;
+                  const containerHeight = containerRect.height;
+                  
+                  // Calcular relación de aspecto
+                  const imageRatio = naturalWidth / naturalHeight;
+                  const containerRatio = containerWidth / containerHeight;
+                  
+                  // Calcular dimensiones renderizadas
+                  let renderedWidth, renderedHeight;
+                  if (containerRatio > imageRatio) {
+                    // Altura limitada
+                    renderedHeight = containerHeight;
+                    renderedWidth = renderedHeight * imageRatio;
+                  } else {
+                    // Ancho limitado
+                    renderedWidth = containerWidth;
+                    renderedHeight = renderedWidth / imageRatio;
+                  }
+                  
+                  // Calcular escala
+                  const scaleY = renderedHeight / naturalHeight;
+                  
+                  // Convertir dimensión a píxeles
+                  return height * scaleY;
                 })(),
                 pointerEvents: 'none'
               }}
