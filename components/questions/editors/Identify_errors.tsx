@@ -26,6 +26,21 @@ export function IdentifyErrors({
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2">
+              Question
+            </label>
+            <Textarea
+              placeholder="Enter a question like 'Fix the errors in this code'"
+              value={question}
+              onChange={(e) => onChange?.({ 
+                question: e.target.value, 
+                answer, 
+                code 
+              })}
+              className="min-h-[100px]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">
               Code with errors
             </label>
             <Textarea
