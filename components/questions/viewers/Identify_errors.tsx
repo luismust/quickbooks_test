@@ -30,10 +30,10 @@ export function IdentifyErrors({
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2">
-              Question text
+              Question
             </label>
             <Textarea
-              placeholder="Enter the question..."
+              placeholder="Enter a question like 'Fix the errors in this code'"
               value={question}
               onChange={(e) => onChange?.({ 
                 question: e.target.value, 
