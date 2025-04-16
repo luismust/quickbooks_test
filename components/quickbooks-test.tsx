@@ -251,10 +251,24 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   }
 
   const handleDeleteScreen = (screenIndex: number) => {
-    setScreens((prevScreens: ExtendedQuestion[]) => 
-      prevScreens.filter((screen: ExtendedQuestion) => screen.id !== screens[screenIndex].id)
-    )
-    setHasUnsavedChanges(true)
+    // Guardar el número actual de preguntas para ajustar currentScreen después
+    const currentCount = screens.length;
+    
+    // Filtrar las preguntas para eliminar la seleccionada
+    const newScreens = screens.filter((_, i) => i !== screenIndex);
+    setScreens(newScreens);
+    
+    // Ajustar el índice de la pregunta actual si es necesario
+    if (currentScreen >= screenIndex && currentScreen > 0) {
+      // Si la pregunta actual es la que se eliminó o está después, retroceder
+      setCurrentScreen(currentScreen - 1);
+    } else if (currentScreen >= newScreens.length) {
+      // Si después de eliminar, el índice excede el número de preguntas
+      setCurrentScreen(Math.max(0, newScreens.length - 1));
+    }
+    
+    setHasUnsavedChanges(true);
+    toast.success("Question deleted successfully");
   }
 
   const handleTestUpdate = (updates: Partial<Question>) => {
@@ -840,7 +854,9 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 whileHover={{ y: -2 }}
               >
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-medium">Question {currentScreen + 1} of {screens.length}</h3>
+                  <h3 className="text-lg font-medium">
+                    Question {currentScreen + 1} of {screens.length}
+                  </h3>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
@@ -859,385 +875,394 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                     </Button>
                   </div>
                 </div>
+                
+                {/* Asegurar que siempre hay un currentTestScreen válido */}
+                {screens.length > 0 && currentScreen < screens.length ? (
+                  <div className="space-y-6">
+                    {/* Campos básicos de la pregunta */}
+                    <div className="grid gap-4">
+                      <div>
+                        <label htmlFor="questionText" className="block text-sm font-medium mb-1">
+                          Question
+                        </label>
+                        <Input
+                          id="questionText"
+                          value={currentTestScreen.question}
+                          onChange={(e) => handleScreenUpdate(currentScreen, { question: e.target.value })}
+                          placeholder="Ej: Where would you click to create a new invoice?"
+                          onFocus={(e) => e.target.select()}
+                        />
+                      </div>
 
-                <div className="space-y-6">
-                  {/* Campos básicos de la pregunta */}
-                  <div className="grid gap-4">
-                    <div>
-                      <label htmlFor="questionText" className="block text-sm font-medium mb-1">
-                        Question
-                      </label>
-                      <Input
-                        id="questionText"
-                        value={currentTestScreen.question}
-                        onChange={(e) => handleScreenUpdate(currentScreen, { question: e.target.value })}
-                        placeholder="Ej: Where would you click to create a new invoice?"
-                        onFocus={(e) => e.target.select()}
-                      />
+                      <div>
+                        <label htmlFor="questionDescription" className="block text-sm font-medium mb-1">
+                          Description or instructions
+                        </label>
+                        <Textarea
+                          id="questionDescription"
+                          value={currentTestScreen.description}
+                          onChange={(e) => handleScreenUpdate(currentScreen, { description: e.target.value })}
+                          placeholder="(Optional) Add additional instructions or context for the question"
+                          className="h-24"
+                          onFocus={(e) => e.target.select()}
+                        />
+                      </div>
                     </div>
 
-                    <div>
-                      <label htmlFor="questionDescription" className="block text-sm font-medium mb-1">
-                        Description or instructions
-                      </label>
-                      <Textarea
-                        id="questionDescription"
-                        value={currentTestScreen.description}
-                        onChange={(e) => handleScreenUpdate(currentScreen, { description: e.target.value })}
-                        placeholder="(Optional) Add additional instructions or context for the question"
-                        className="h-24"
-                        onFocus={(e) => e.target.select()}
-                      />
-                    </div>
-                    </div>
-
-                  {/* Selector de tipo de pregunta */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">
-                      Question type
-                      </label>
-                    <Select
-                      value={currentTestScreen.type}
-                      onValueChange={(value) => {
-                        if (isPremiumQuestionType(value)) {
-                          // Si es un tipo premium, mostrar toast y no cambiar
-                          toast({
-                            title: "Premium Feature",
-                            description: "This question type is only available for paying users.",
-                            variant: "destructive",
-                          });
-                          return;
-                        }
-                        // Si no es premium, permitir el cambio
-                        handleScreenUpdate(currentScreen, { type: value });
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select question type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* Preguntas básicas */}
-                        <SelectItem value="clickArea">Click Area</SelectItem>
-                        <SelectItem value="multipleChoice">Multiple Choice</SelectItem>
-                        <SelectItem value="dragAndDrop">Drag and Drop</SelectItem>
-                        <SelectItem value="sequence">Sequence</SelectItem>
-                        <SelectItem value="pointAPoint">Point to Point</SelectItem>
-                        <SelectItem value="openQuestion">Open Question</SelectItem>
-                        <SelectItem value="identifyErrors">Identify Errors</SelectItem>
-                        <SelectItem value="phraseComplete">Phrase Complete</SelectItem>
-                        <SelectItem value="trueOrFalse">True or False</SelectItem>
-                        
-                        {/* Preguntas basadas en imágenes (premium) */}
-                        <SelectItem value="imageDescription">
-                          <div className="flex items-center">
-                            <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
-                            Image Description
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="imageComparison">
-                          <div className="flex items-center">
-                            <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
-                            Image Comparison
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="imageError">
-                          <div className="flex items-center">
-                            <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
-                            Image Error
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="imageHotspots">
-                          <div className="flex items-center">
-                            <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
-                            Image Hotspots
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="imageSequence">
-                          <div className="flex items-center">
-                            <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
-                            Image Sequence
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Renderizar el editor específico según el tipo */}
-                  {currentTestScreen.type === 'clickArea' && (
-                    <div className="border-t pt-6">
-                      <ImageAreaSelector
-                        image={currentTestScreen.image || ''}
-                        areas={currentTestScreen.areas || []}
-                        onChange={(data) => {
-                          console.log('Image area change:', data);
-                          
-                          // Extraer el archivo local si está presente
-                          const { localFile, ...otherData } = data;
-                          
-                          // Guardar el archivo local en el estado de la pregunta
-                          if (localFile) {
-                            handleScreenUpdate(currentScreen, {
-                              ...otherData,
-                              _localFile: localFile 
+                    {/* Selector de tipo de pregunta */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium mb-1">
+                        Question type
+                        </label>
+                      <Select
+                        value={currentTestScreen.type}
+                        onValueChange={(value) => {
+                          if (isPremiumQuestionType(value)) {
+                            // Si es un tipo premium, mostrar toast y no cambiar
+                            toast({
+                              title: "Premium Feature",
+                              description: "This question type is only available for paying users.",
+                              variant: "destructive",
                             });
-                          } else {
-                            handleScreenUpdate(currentScreen, otherData);
+                            return;
                           }
+                          // Si no es premium, permitir el cambio
+                          handleScreenUpdate(currentScreen, { type: value });
                         }}
-                        isEditMode={isEditMode}
-                        onImageUpload={handleImageUpload}
-                      />
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select question type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {/* Preguntas básicas */}
+                          <SelectItem value="clickArea">Click Area</SelectItem>
+                          <SelectItem value="multipleChoice">Multiple Choice</SelectItem>
+                          <SelectItem value="dragAndDrop">Drag and Drop</SelectItem>
+                          <SelectItem value="sequence">Sequence</SelectItem>
+                          <SelectItem value="pointAPoint">Point to Point</SelectItem>
+                          <SelectItem value="openQuestion">Open Question</SelectItem>
+                          <SelectItem value="identifyErrors">Identify Errors</SelectItem>
+                          <SelectItem value="phraseComplete">Phrase Complete</SelectItem>
+                          <SelectItem value="trueOrFalse">True or False</SelectItem>
+                          
+                          {/* Preguntas basadas en imágenes (premium) */}
+                          <SelectItem value="imageDescription">
+                            <div className="flex items-center">
+                              <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
+                              Image Description
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="imageComparison">
+                            <div className="flex items-center">
+                              <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
+                              Image Comparison
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="imageError">
+                            <div className="flex items-center">
+                              <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
+                              Image Error
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="imageHotspots">
+                            <div className="flex items-center">
+                              <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
+                              Image Hotspots
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="imageSequence">
+                            <div className="flex items-center">
+                              <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
+                              Image Sequence
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
 
-                  {currentTestScreen.type === 'multipleChoice' && (
-                    <div className="border-t pt-6">
-                      <MultipleChoiceEditor
-                        options={currentTestScreen.options || []}
-                        onChange={(options) => handleScreenUpdate(currentScreen, { options })}
-                      />
-                    </div>
-                  )}
-
-                  {currentTestScreen.type === 'dragAndDrop' && (
-                    <div className="border-t pt-6">
-                      <DragAndDropEditor
-                        items={currentTestScreen.items || []}
-                        onChange={(items) => handleScreenUpdate(currentScreen, { items })}
-                      />
-                  </div>
-                  )}
-
-                  {currentTestScreen.type === 'sequence' && (
-                    <div className="border-t pt-6">
-                      <SequenceEditor
-                        sequence={currentTestScreen.sequence || []}
-                        onChange={(sequence) => handleScreenUpdate(currentScreen, { sequence })}
-                      />
-                    </div>
-                  )}
-                  {currentTestScreen.type === 'pointAPoint' && (
-                    <div className="border-t pt-6">
-                      <PointAPointEditor
-                        points={currentTestScreen.points || []}
-                        onChange={(points) => handleScreenUpdate(currentScreen, { points })}
-                      />
-                    </div>
-                  )}
-                    {currentTestScreen.type === 'openQuestion' && (
-                    <div className="border-t pt-6">
-                      <OpenQuestion
-                        question={currentTestScreen.question}
-                        answer={currentTestScreen.answer || ''}
-                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                        isEditMode={true}
-                      />
-                    </div>
-                  )}
-                  {currentTestScreen.type === 'identifyErrors' && (
-                    <div className="border-t pt-6">
-                      <IdentifyErrors
-                        question={currentTestScreen.question}
-                        answer={currentTestScreen.answer || ''}
-                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                        isEditMode={true}
-                      />
-                    </div>
-                  )}
-                  {currentTestScreen.type === 'phraseComplete' && (
-                    <div className="border-t pt-6">
-                      <PhraseComplete
-                        question={currentTestScreen.question}
-                        answer={currentTestScreen.answer || ''}
-                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                        isEditMode={true}
-                      />
-                    </div>
-                  )}
-                  {currentTestScreen.type === 'trueOrFalse' && (
-                    <div className="border-t pt-6">
-                      <TrueOrFalseEditor
-                        question={currentTestScreen.question}
-                        answer={currentTestScreen.correctAnswer || false}
-                        onChange={(data) => handleScreenUpdate(currentScreen, { 
-                          correctAnswer: data.answer
-                        })}
-                      />
-                    </div>
-                  )}
-                  {/* Para tipos premium, mostrar mensaje de bloqueo en lugar del editor */}
-                  {isPremiumQuestionType(currentTestScreen.type) && (
-                    <div className="border-t pt-6">
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 text-center">
-                        <Lock className="h-10 w-10 mx-auto mb-4 text-amber-500" />
-                        <h3 className="text-lg font-medium text-amber-700 mb-2">Premium Feature</h3>
-                        <p className="text-amber-600 mb-4">
-                          This question type is only available for paying users.
-                        </p>
-                        <Button variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100">
-                          Upgrade Now
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  {/* Configuración de puntuación */}
-                  <div className="border-t pt-6">
-                    <h4 className="text-sm font-medium mb-4">Question scoring</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label htmlFor="correctPoints" className="block text-sm font-medium mb-1">
-                          Points for correct answer
-                        </label>
-                        <Input
-                          id="correctPoints"
-                          type="number"
-                          min="0"
-                          value={currentTestScreen.scoring?.correct ?? defaultScoring.correct}
-                          onChange={(e) => handleScreenUpdate(currentScreen, {
-                            scoring: {
-                              ...currentTestScreen.scoring ?? defaultScoring,
-                              correct: Number(e.target.value)
+                    {/* Renderizar el editor específico según el tipo */}
+                    {currentTestScreen.type === 'clickArea' && (
+                      <div className="border-t pt-6">
+                        <ImageAreaSelector
+                          image={currentTestScreen.image || ''}
+                          areas={currentTestScreen.areas || []}
+                          onChange={(data) => {
+                            console.log('Image area change:', data);
+                            
+                            // Extraer el archivo local si está presente
+                            const { localFile, ...otherData } = data;
+                            
+                            // Guardar el archivo local en el estado de la pregunta
+                            if (localFile) {
+                              handleScreenUpdate(currentScreen, {
+                                ...otherData,
+                                _localFile: localFile 
+                              });
+                            } else {
+                              handleScreenUpdate(currentScreen, otherData);
                             }
-                          })}
-                          placeholder="1"
+                          }}
+                          isEditMode={isEditMode}
+                          onImageUpload={handleImageUpload}
                         />
                       </div>
+                    )}
 
-                      <div>
-                        <label htmlFor="incorrectPoints" className="block text-sm font-medium mb-1">
-                          Points for incorrect answer
-                        </label>
-                        <Input
-                          id="incorrectPoints"
-                          type="number"
-                          min="0"
-                          value={currentTestScreen.scoring?.incorrect ?? defaultScoring.incorrect}
-                          onChange={(e) => handleScreenUpdate(currentScreen, {
-                            scoring: {
-                              ...currentTestScreen.scoring ?? defaultScoring,
-                              incorrect: Number(e.target.value)
-                            }
-                          })}
-                          placeholder="1"
+                    {currentTestScreen.type === 'multipleChoice' && (
+                      <div className="border-t pt-6">
+                        <MultipleChoiceEditor
+                          options={currentTestScreen.options || []}
+                          onChange={(options) => handleScreenUpdate(currentScreen, { options })}
                         />
                       </div>
+                    )}
+
+                    {currentTestScreen.type === 'dragAndDrop' && (
+                      <div className="border-t pt-6">
+                        <DragAndDropEditor
+                          items={currentTestScreen.items || []}
+                          onChange={(items) => handleScreenUpdate(currentScreen, { items })}
+                        />
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                        Example: If you configure "Points for correct answer" = 2 and "Points for incorrect answer" = 1
-                      then the user will gain 2 points for a correct answer and lose 1 point for an incorrect answer.
-                    </p>
-                  </div>
+                    )}
 
-                  {/* Botones de acción para la pregunta actual */}
-                  <div className="flex justify-end gap-2 mt-4">
-                      
-                  </div>
-
-                  {/* Navegación entre preguntas */}
-                    <div className="flex justify-between items-center gap-2 pt-4">
-                      <div className="flex flex-wrap gap-2 max-w-full overflow-hidden">
-                        {screens.length <= 10 ? (
-                          // Si hay 10 o menos preguntas, mostrar todos los botones
-                          screens.map((_, index) => (
-                            <MotionDiv
-                              key={index}
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                            >
-                              <Button
-                                variant={currentScreen === index ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => setCurrentScreen(index)}
-                                className="w-8 h-8 p-0"
-                              >
-                                {index + 1}
-                              </Button>
-                            </MotionDiv>
-                          ))
-                        ) : (
-                          // Si hay más de 10 preguntas, mostrar un formato paginado
-                          <>
-                            {/* Siempre mostrar la primera pregunta */}
-                            <MotionDiv
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                            >
-                              <Button
-                                variant={currentScreen === 0 ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => setCurrentScreen(0)}
-                                className="w-8 h-8 p-0"
-                              >
-                                1
-                              </Button>
-                            </MotionDiv>
-                            
-                            {/* Si estamos lejos del inicio, mostrar elipsis */}
-                            {currentScreen > 3 && (
-                              <span className="flex items-center justify-center w-8 text-center">...</span>
-                            )}
-                            
-                            {/* Mostrar 5 botones alrededor de la pregunta actual */}
-                            {Array.from({ length: Math.min(5, screens.length) }, (_, i) => {
-                              // Calcular qué índices mostrar alrededor de la pregunta actual
-                              let index;
-                              if (currentScreen <= 2) {
-                                // Al inicio, mostrar preguntas 1-5
-                                index = i + 1;
-                              } else if (currentScreen >= screens.length - 3) {
-                                // Al final, mostrar las últimas 5 preguntas
-                                index = screens.length - 5 + i;
-                              } else {
-                                // En el medio, mostrar 2 antes y 2 después
-                                index = currentScreen + i - 2;
+                    {currentTestScreen.type === 'sequence' && (
+                      <div className="border-t pt-6">
+                        <SequenceEditor
+                          sequence={currentTestScreen.sequence || []}
+                          onChange={(sequence) => handleScreenUpdate(currentScreen, { sequence })}
+                        />
+                      </div>
+                    )}
+                    {currentTestScreen.type === 'pointAPoint' && (
+                      <div className="border-t pt-6">
+                        <PointAPointEditor
+                          points={currentTestScreen.points || []}
+                          onChange={(points) => handleScreenUpdate(currentScreen, { points })}
+                        />
+                      </div>
+                    )}
+                      {currentTestScreen.type === 'openQuestion' && (
+                      <div className="border-t pt-6">
+                        <OpenQuestion
+                          question={currentTestScreen.question}
+                          answer={currentTestScreen.answer || ''}
+                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                          isEditMode={true}
+                        />
+                      </div>
+                    )}
+                    {currentTestScreen.type === 'identifyErrors' && (
+                      <div className="border-t pt-6">
+                        <IdentifyErrors
+                          question={currentTestScreen.question}
+                          answer={currentTestScreen.answer || ''}
+                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                          isEditMode={true}
+                        />
+                      </div>
+                    )}
+                    {currentTestScreen.type === 'phraseComplete' && (
+                      <div className="border-t pt-6">
+                        <PhraseComplete
+                          question={currentTestScreen.question}
+                          answer={currentTestScreen.answer || ''}
+                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                          isEditMode={true}
+                        />
+                      </div>
+                    )}
+                    {currentTestScreen.type === 'trueOrFalse' && (
+                      <div className="border-t pt-6">
+                        <TrueOrFalseEditor
+                          question={currentTestScreen.question}
+                          answer={currentTestScreen.correctAnswer || false}
+                          onChange={(data) => handleScreenUpdate(currentScreen, { 
+                            correctAnswer: data.answer
+                          })}
+                        />
+                      </div>
+                    )}
+                    {/* Para tipos premium, mostrar mensaje de bloqueo en lugar del editor */}
+                    {isPremiumQuestionType(currentTestScreen.type) && (
+                      <div className="border-t pt-6">
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 text-center">
+                          <Lock className="h-10 w-10 mx-auto mb-4 text-amber-500" />
+                          <h3 className="text-lg font-medium text-amber-700 mb-2">Premium Feature</h3>
+                          <p className="text-amber-600 mb-4">
+                            This question type is only available for paying users.
+                          </p>
+                          <Button variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100">
+                            Upgrade Now
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {/* Configuración de puntuación */}
+                    <div className="border-t pt-6">
+                      <h4 className="text-sm font-medium mb-4">Question scoring</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label htmlFor="correctPoints" className="block text-sm font-medium mb-1">
+                            Points for correct answer
+                          </label>
+                          <Input
+                            id="correctPoints"
+                            type="number"
+                            min="0"
+                            value={currentTestScreen.scoring?.correct ?? defaultScoring.correct}
+                            onChange={(e) => handleScreenUpdate(currentScreen, {
+                              scoring: {
+                                ...currentTestScreen.scoring ?? defaultScoring,
+                                correct: Number(e.target.value)
                               }
-                              
-                              // Solo mostrar si está en rango y no es la primera ni última pregunta
-                              if (index > 0 && index < screens.length - 1 && index < screens.length) {
-                                return (
-                                  <MotionDiv
-                                    key={index}
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
+                            })}
+                            placeholder="1"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="incorrectPoints" className="block text-sm font-medium mb-1">
+                            Points for incorrect answer
+                          </label>
+                          <Input
+                            id="incorrectPoints"
+                            type="number"
+                            min="0"
+                            value={currentTestScreen.scoring?.incorrect ?? defaultScoring.incorrect}
+                            onChange={(e) => handleScreenUpdate(currentScreen, {
+                              scoring: {
+                                ...currentTestScreen.scoring ?? defaultScoring,
+                                incorrect: Number(e.target.value)
+                              }
+                            })}
+                            placeholder="1"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                          Example: If you configure "Points for correct answer" = 2 and "Points for incorrect answer" = 1
+                        then the user will gain 2 points for a correct answer and lose 1 point for an incorrect answer.
+                      </p>
+                    </div>
+
+                    {/* Botones de acción para la pregunta actual */}
+                    <div className="flex justify-end gap-2 mt-4">
+                        
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No questions available. Please add a question.</p>
+                  </div>
+                )}
+
+                {/* Navegación entre preguntas */}
+                {screens.length > 0 && (
+                  <div className="flex justify-between items-center gap-2 pt-4">
+                    <div className="flex flex-wrap gap-2 max-w-full overflow-hidden">
+                      {screens.length <= 10 ? (
+                        // Si hay 10 o menos preguntas, mostrar todos los botones
+                        screens.map((_, index) => (
+                          <MotionDiv
+                            key={index}
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                          >
+                            <Button
+                              variant={currentScreen === index ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentScreen(index)}
+                              className="w-8 h-8 p-0"
+                            >
+                              {index + 1}
+                            </Button>
+                          </MotionDiv>
+                        ))
+                      ) : (
+                        // Si hay más de 10 preguntas, mostrar un formato paginado
+                        <>
+                          {/* Siempre mostrar la primera pregunta */}
+                          <MotionDiv
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                          >
+                            <Button
+                              variant={currentScreen === 0 ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentScreen(0)}
+                              className="w-8 h-8 p-0"
+                            >
+                              1
+                            </Button>
+                          </MotionDiv>
+                          
+                          {/* Si estamos lejos del inicio, mostrar elipsis */}
+                          {currentScreen > 3 && (
+                            <span className="flex items-center justify-center w-8 text-center">...</span>
+                          )}
+                          
+                          {/* Mostrar 5 botones alrededor de la pregunta actual */}
+                          {Array.from({ length: Math.min(5, screens.length) }, (_, i) => {
+                            // Calcular qué índices mostrar alrededor de la pregunta actual
+                            let index;
+                            if (currentScreen <= 2) {
+                              // Al inicio, mostrar preguntas 1-5
+                              index = i + 1;
+                            } else if (currentScreen >= screens.length - 3) {
+                              // Al final, mostrar las últimas 5 preguntas
+                              index = screens.length - 5 + i;
+                            } else {
+                              // En el medio, mostrar 2 antes y 2 después
+                              index = currentScreen + i - 2;
+                            }
+                            
+                            // Solo mostrar si está en rango y no es la primera ni última pregunta
+                            if (index > 0 && index < screens.length - 1 && index < screens.length) {
+                              return (
+                                <MotionDiv
+                                  key={index}
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                >
+                                  <Button
+                                    variant={currentScreen === index ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setCurrentScreen(index)}
+                                    className="w-8 h-8 p-0"
                                   >
-                                    <Button
-                                      variant={currentScreen === index ? "default" : "outline"}
-                                      size="sm"
-                                      onClick={() => setCurrentScreen(index)}
-                                      className="w-8 h-8 p-0"
-                                    >
-                                      {index + 1}
-                                    </Button>
-                                  </MotionDiv>
-                                );
-                              }
-                              return null;
-                            }).filter(Boolean)}
-                            
-                            {/* Si estamos lejos del final, mostrar elipsis */}
-                            {currentScreen < screens.length - 4 && (
-                              <span className="flex items-center justify-center w-8 text-center">...</span>
-                            )}
-                            
-                            {/* Siempre mostrar la última pregunta */}
-                            <MotionDiv
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
+                                    {index + 1}
+                                  </Button>
+                                </MotionDiv>
+                              );
+                            }
+                            return null;
+                          }).filter(Boolean)}
+                          
+                          {/* Si estamos lejos del final, mostrar elipsis */}
+                          {currentScreen < screens.length - 4 && (
+                            <span className="flex items-center justify-center w-8 text-center">...</span>
+                          )}
+                          
+                          {/* Siempre mostrar la última pregunta */}
+                          <MotionDiv
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                          >
+                            <Button
+                              variant={currentScreen === screens.length - 1 ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentScreen(screens.length - 1)}
+                              className="w-8 h-8 p-0"
                             >
-                              <Button
-                                variant={currentScreen === screens.length - 1 ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => setCurrentScreen(screens.length - 1)}
-                                className="w-8 h-8 p-0"
-                              >
-                                {screens.length}
-                              </Button>
-                            </MotionDiv>
-                          </>
-                        )}
-                      </div>
+                              {screens.length}
+                            </Button>
+                          </MotionDiv>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </MotionDiv>
             </MotionDiv>
           ) : (
