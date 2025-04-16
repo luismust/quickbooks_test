@@ -91,7 +91,6 @@ export function IdentifyErrors({
         // Modo vista/test
         <div className="space-y-4">
           <Card className="p-4">
-            <h4 className="text-sm font-medium mb-4">{question || "Identify and correct the errors in the following code:"}</h4>
             <pre className="bg-muted p-4 rounded-lg overflow-x-auto">
               <code>{code}</code>
             </pre>
