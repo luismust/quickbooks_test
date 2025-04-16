@@ -17,12 +17,14 @@ interface UserNameDialogProps {
   isOpen: boolean
   onSubmit: (name: string) => void
   testName: string
+  onClose?: () => void
 }
 
 export function UserNameDialog({
   isOpen,
   onSubmit,
-  testName
+  testName,
+  onClose
 }: UserNameDialogProps) {
   const [name, setName] = useState("")
   const [error, setError] = useState("")
@@ -44,7 +46,11 @@ export function UserNameDialog({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={() => {}}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open && onClose) {
+        onClose();
+      }
+    }}>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
