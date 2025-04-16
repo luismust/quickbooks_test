@@ -38,27 +38,40 @@ export function DragAndDrop({
     // Obtener todas las zonas únicas
     const uniqueZoneIds = Array.from(new Set(items.map(item => item.correctZone)))
     
-    // Crear un mapa de nombres de zonas (usando el primer elemento como referencia para cada zona)
+    // Crear un mapa para almacenar información sobre zonas
     const zoneNames: Record<string, string> = {};
     
-    items.forEach(item => {
-      if (item.correctZone && !zoneNames[item.correctZone]) {
-        // Buscar un elemento que tenga esta zona como correcta para extraer su nombre
-        const matchingItem = items.find(i => i.correctZone === item.correctZone);
-        if (matchingItem) {
-          // Intentar extraer un nombre descriptivo de la zona desde el item o el ID
-          // Por ejemplo, si hay un pattern "zone:nombre" o simplemente usar el ID como nombre
-          zoneNames[item.correctZone] = item.correctZone.includes(':') 
-            ? item.correctZone.split(':')[1] 
-            : `Zone ${Object.keys(zoneNames).length + 1}`;
+    // Función para extraer potencialmente un nombre más significativo del ID
+    const extractZoneName = (zoneId: string, index: number): string => {
+      // Estrategia 1: Verificar si el ID tiene formato 'prefix:name'
+      if (zoneId.includes(':')) {
+        return zoneId.split(':')[1];
+      }
+      
+      // Estrategia 2: Verificar si el ID tiene palabras legibles
+      // Buscar patrones que podrían ser nombres (letras, sin números ni guiones)
+      const nameMatch = zoneId.match(/[a-zA-Z]{3,}/g);
+      if (nameMatch && nameMatch[0].length > 3) {
+        // Convertir primera letra a mayúscula
+        return nameMatch[0].charAt(0).toUpperCase() + nameMatch[0].slice(1);
+      }
+      
+      // Estrategia 3: Buscar nombres comunes en los IDs
+      const commonTerms = ['software', 'hardware', 'app', 'web', 'mobile', 'desktop', 'server', 'client', 'frontend', 'backend'];
+      for (const term of commonTerms) {
+        if (zoneId.toLowerCase().includes(term)) {
+          return term.charAt(0).toUpperCase() + term.slice(1);
         }
       }
-    });
+      
+      // Si todo falla, usar un nombre genérico
+      return `Zone ${index + 1}`;
+    };
     
     // Crear zonas con nombres obtenidos o genéricos si no existen
-    const initialZones = uniqueZoneIds.map((zoneId) => ({
+    const initialZones = uniqueZoneIds.map((zoneId, index) => ({
       id: zoneId,
-      name: zoneNames[zoneId] || `Zone ${uniqueZoneIds.indexOf(zoneId) + 1}`,
+      name: extractZoneName(zoneId, index),
       items: [] as DragItem[]
     }));
     
