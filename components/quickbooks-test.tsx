@@ -72,6 +72,12 @@ interface ExtendedQuestion extends Omit<Question, '_localFile'> {
   _placeholderApplied?: boolean;
 }
 
+// Actualizar el manejo de tipos para que sea más explícito
+type QuestionType = 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 
+  'pointAPoint' | 'openQuestion' | 'identifyErrors' | 'phraseComplete' | 
+  'trueOrFalse' | 'imageDescription' | 'imageComparison' | 'imageError' | 
+  'imageHotspots' | 'imageSequence';
+
 export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true }: QuickbooksTestProps) {
   const router = useRouter()
   const [screens, setScreens] = useState<ExtendedQuestion[]>(() => {
@@ -134,7 +140,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   ];
   
   // Verificar si un tipo de pregunta es premium
-  const isPremiumQuestionType = (type: string) => premiumQuestionTypes.includes(type);
+  const isPremiumQuestionType = (type: string): boolean => premiumQuestionTypes.includes(type);
 
   const handleToggleMode = () => {
     setIsEditMode(!isEditMode)
@@ -241,8 +247,8 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
   const handleScreenUpdate = (screenIndex: number, updates: Partial<Question>) => {
     setScreens((prevScreens: ExtendedQuestion[]) => 
-      prevScreens.map((screen: ExtendedQuestion) => 
-        screen.id === screens[screenIndex].id
+      prevScreens.map((screen: ExtendedQuestion, index: number) => 
+        index === screenIndex
           ? { ...screen, ...updates }
           : screen
       )
@@ -875,76 +881,77 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                     </Button>
                   </div>
                 </div>
-                
+
                 {/* Asegurar que siempre hay un currentTestScreen válido */}
                 {screens.length > 0 && currentScreen < screens.length ? (
-                  <div className="space-y-6">
-                    {/* Campos básicos de la pregunta */}
-                    <div className="grid gap-4">
-                      <div>
-                        <label htmlFor="questionText" className="block text-sm font-medium mb-1">
-                          Question
-                        </label>
-                        <Input
-                          id="questionText"
-                          value={currentTestScreen.question}
-                          onChange={(e) => handleScreenUpdate(currentScreen, { question: e.target.value })}
+                <div className="space-y-6">
+                  {/* Campos básicos de la pregunta */}
+                  <div className="grid gap-4">
+                    <div>
+                      <label htmlFor="questionText" className="block text-sm font-medium mb-1">
+                        Question
+                      </label>
+                      <Input
+                        id="questionText"
+                        value={currentTestScreen.question}
+                        onChange={(e) => handleScreenUpdate(currentScreen, { question: e.target.value })}
                           placeholder="Ej: Where would you click to create a new invoice?"
                           onFocus={(e) => e.target.select()}
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="questionDescription" className="block text-sm font-medium mb-1">
-                          Description or instructions
-                        </label>
-                        <Textarea
-                          id="questionDescription"
-                          value={currentTestScreen.description}
-                          onChange={(e) => handleScreenUpdate(currentScreen, { description: e.target.value })}
-                          placeholder="(Optional) Add additional instructions or context for the question"
-                          className="h-24"
-                          onFocus={(e) => e.target.select()}
-                        />
-                      </div>
+                      />
                     </div>
 
-                    {/* Selector de tipo de pregunta */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">
-                        Question type
-                        </label>
-                      <Select
-                        value={currentTestScreen.type}
-                        onValueChange={(value) => {
-                          if (isPremiumQuestionType(value)) {
-                            // Si es un tipo premium, mostrar toast y no cambiar
-                            toast({
-                              title: "Premium Feature",
-                              description: "This question type is only available for paying users.",
-                              variant: "destructive",
-                            });
-                            return;
-                          }
-                          // Si no es premium, permitir el cambio
-                          handleScreenUpdate(currentScreen, { type: value });
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select question type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {/* Preguntas básicas */}
-                          <SelectItem value="clickArea">Click Area</SelectItem>
-                          <SelectItem value="multipleChoice">Multiple Choice</SelectItem>
-                          <SelectItem value="dragAndDrop">Drag and Drop</SelectItem>
-                          <SelectItem value="sequence">Sequence</SelectItem>
-                          <SelectItem value="pointAPoint">Point to Point</SelectItem>
-                          <SelectItem value="openQuestion">Open Question</SelectItem>
-                          <SelectItem value="identifyErrors">Identify Errors</SelectItem>
-                          <SelectItem value="phraseComplete">Phrase Complete</SelectItem>
-                          <SelectItem value="trueOrFalse">True or False</SelectItem>
-                          
+                    <div>
+                      <label htmlFor="questionDescription" className="block text-sm font-medium mb-1">
+                        Description or instructions
+                      </label>
+                      <Textarea
+                        id="questionDescription"
+                        value={currentTestScreen.description}
+                        onChange={(e) => handleScreenUpdate(currentScreen, { description: e.target.value })}
+                          placeholder="(Optional) Add additional instructions or context for the question"
+                        className="h-24"
+                          onFocus={(e) => e.target.select()}
+                      />
+                    </div>
+                    </div>
+
+                  {/* Selector de tipo de pregunta */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1">
+                      Question type
+                      </label>
+                    <Select
+                      value={currentTestScreen.type}
+                      onValueChange={(value) => {
+                        if (isPremiumQuestionType(value)) {
+                          // Si es un tipo premium, mostrar toast y no cambiar
+                          toast.error("This question type is only available for paying users.");
+                          return;
+                        }
+                        // Si no es premium, permitir el cambio
+                        // Forzar el tipo para evitar errores de tipado
+                        const validType = value as 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 
+                                               'pointAPoint' | 'openQuestion' | 'identifyErrors' | 'phraseComplete' | 
+                                               'trueOrFalse' | 'imageDescription' | 'imageComparison' | 'imageError' | 
+                                               'imageHotspots' | 'imageSequence';
+                        handleScreenUpdate(currentScreen, { type: validType });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select question type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* Preguntas básicas */}
+                        <SelectItem value="clickArea">Click Area</SelectItem>
+                        <SelectItem value="multipleChoice">Multiple Choice</SelectItem>
+                        <SelectItem value="dragAndDrop">Drag and Drop</SelectItem>
+                        <SelectItem value="sequence">Sequence</SelectItem>
+                        <SelectItem value="pointAPoint">Point to Point</SelectItem>
+                        <SelectItem value="openQuestion">Open Question</SelectItem>
+                        <SelectItem value="identifyErrors">Identify Errors</SelectItem>
+                        <SelectItem value="phraseComplete">Phrase Complete</SelectItem>
+                        <SelectItem value="trueOrFalse">True or False</SelectItem>
+                        
                           {/* Preguntas basadas en imágenes (premium) */}
                           <SelectItem value="imageDescription">
                             <div className="flex items-center">
@@ -976,116 +983,116 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                               Image Sequence
                             </div>
                           </SelectItem>
-                        </SelectContent>
-                      </Select>
+                      </SelectContent>
+                    </Select>
+                      </div>
+
+                  {/* Renderizar el editor específico según el tipo */}
+                  {currentTestScreen.type === 'clickArea' && (
+                    <div className="border-t pt-6">
+                      <ImageAreaSelector
+                        image={currentTestScreen.image || ''}
+                        areas={currentTestScreen.areas || []}
+                        onChange={(data) => {
+                          console.log('Image area change:', data);
+                          
+                          // Extraer el archivo local si está presente
+                          const { localFile, ...otherData } = data;
+                          
+                          // Guardar el archivo local en el estado de la pregunta
+                          if (localFile) {
+                            handleScreenUpdate(currentScreen, {
+                              ...otherData,
+                              _localFile: localFile 
+                            });
+                          } else {
+                            handleScreenUpdate(currentScreen, otherData);
+                          }
+                        }}
+                        isEditMode={isEditMode}
+                        onImageUpload={handleImageUpload}
+                      />
+                      </div>
+                  )}
+
+                  {currentTestScreen.type === 'multipleChoice' && (
+                    <div className="border-t pt-6">
+                      <MultipleChoiceEditor
+                        options={currentTestScreen.options || []}
+                        onChange={(options) => handleScreenUpdate(currentScreen, { options })}
+                      />
                     </div>
+                  )}
 
-                    {/* Renderizar el editor específico según el tipo */}
-                    {currentTestScreen.type === 'clickArea' && (
-                      <div className="border-t pt-6">
-                        <ImageAreaSelector
-                          image={currentTestScreen.image || ''}
-                          areas={currentTestScreen.areas || []}
-                          onChange={(data) => {
-                            console.log('Image area change:', data);
-                            
-                            // Extraer el archivo local si está presente
-                            const { localFile, ...otherData } = data;
-                            
-                            // Guardar el archivo local en el estado de la pregunta
-                            if (localFile) {
-                              handleScreenUpdate(currentScreen, {
-                                ...otherData,
-                                _localFile: localFile 
-                              });
-                            } else {
-                              handleScreenUpdate(currentScreen, otherData);
-                            }
-                          }}
-                          isEditMode={isEditMode}
-                          onImageUpload={handleImageUpload}
-                        />
-                      </div>
-                    )}
+                  {currentTestScreen.type === 'dragAndDrop' && (
+                    <div className="border-t pt-6">
+                      <DragAndDropEditor
+                        items={currentTestScreen.items || []}
+                        onChange={(items) => handleScreenUpdate(currentScreen, { items })}
+                      />
+                  </div>
+                  )}
 
-                    {currentTestScreen.type === 'multipleChoice' && (
-                      <div className="border-t pt-6">
-                        <MultipleChoiceEditor
-                          options={currentTestScreen.options || []}
-                          onChange={(options) => handleScreenUpdate(currentScreen, { options })}
-                        />
-                      </div>
-                    )}
-
-                    {currentTestScreen.type === 'dragAndDrop' && (
-                      <div className="border-t pt-6">
-                        <DragAndDropEditor
-                          items={currentTestScreen.items || []}
-                          onChange={(items) => handleScreenUpdate(currentScreen, { items })}
-                        />
+                  {currentTestScreen.type === 'sequence' && (
+                    <div className="border-t pt-6">
+                      <SequenceEditor
+                        sequence={currentTestScreen.sequence || []}
+                        onChange={(sequence) => handleScreenUpdate(currentScreen, { sequence })}
+                      />
                     </div>
-                    )}
-
-                    {currentTestScreen.type === 'sequence' && (
-                      <div className="border-t pt-6">
-                        <SequenceEditor
-                          sequence={currentTestScreen.sequence || []}
-                          onChange={(sequence) => handleScreenUpdate(currentScreen, { sequence })}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'pointAPoint' && (
-                      <div className="border-t pt-6">
-                        <PointAPointEditor
-                          points={currentTestScreen.points || []}
-                          onChange={(points) => handleScreenUpdate(currentScreen, { points })}
-                        />
-                      </div>
-                    )}
-                      {currentTestScreen.type === 'openQuestion' && (
-                      <div className="border-t pt-6">
-                        <OpenQuestion
-                          question={currentTestScreen.question}
-                          answer={currentTestScreen.answer || ''}
-                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                          isEditMode={true}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'identifyErrors' && (
-                      <div className="border-t pt-6">
-                        <IdentifyErrors
-                          question={currentTestScreen.question}
-                          answer={currentTestScreen.answer || ''}
-                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                          isEditMode={true}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'phraseComplete' && (
-                      <div className="border-t pt-6">
-                        <PhraseComplete
-                          question={currentTestScreen.question}
-                          answer={currentTestScreen.answer || ''}
-                          onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                          isEditMode={true}
-                        />
-                      </div>
-                    )}
-                    {currentTestScreen.type === 'trueOrFalse' && (
-                      <div className="border-t pt-6">
-                        <TrueOrFalseEditor
-                          question={currentTestScreen.question}
-                          answer={currentTestScreen.correctAnswer || false}
-                          onChange={(data) => handleScreenUpdate(currentScreen, { 
-                            correctAnswer: data.answer
-                          })}
-                        />
-                      </div>
-                    )}
+                  )}
+                  {currentTestScreen.type === 'pointAPoint' && (
+                    <div className="border-t pt-6">
+                      <PointAPointEditor
+                        points={currentTestScreen.points || []}
+                        onChange={(points) => handleScreenUpdate(currentScreen, { points })}
+                      />
+                    </div>
+                  )}
+                    {currentTestScreen.type === 'openQuestion' && (
+                    <div className="border-t pt-6">
+                      <OpenQuestion
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.answer || ''}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                        isEditMode={true}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'identifyErrors' && (
+                    <div className="border-t pt-6">
+                      <IdentifyErrors
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.answer || ''}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                        isEditMode={true}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'phraseComplete' && (
+                    <div className="border-t pt-6">
+                      <PhraseComplete
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.answer || ''}
+                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                        isEditMode={true}
+                      />
+                    </div>
+                  )}
+                  {currentTestScreen.type === 'trueOrFalse' && (
+                    <div className="border-t pt-6">
+                      <TrueOrFalseEditor
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.correctAnswer || false}
+                        onChange={(data) => handleScreenUpdate(currentScreen, { 
+                          correctAnswer: data.answer
+                        })}
+                      />
+                    </div>
+                  )}
                     {/* Para tipos premium, mostrar mensaje de bloqueo en lugar del editor */}
                     {isPremiumQuestionType(currentTestScreen.type) && (
-                      <div className="border-t pt-6">
+                    <div className="border-t pt-6">
                         <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 text-center">
                           <Lock className="h-10 w-10 mx-auto mb-4 text-amber-500" />
                           <h3 className="text-lg font-medium text-amber-700 mb-2">Premium Feature</h3>
@@ -1095,61 +1102,61 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                           <Button variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100">
                             Upgrade Now
                           </Button>
-                        </div>
-                      </div>
-                    )}
-                    {/* Configuración de puntuación */}
-                    <div className="border-t pt-6">
-                      <h4 className="text-sm font-medium mb-4">Question scoring</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label htmlFor="correctPoints" className="block text-sm font-medium mb-1">
-                            Points for correct answer
-                          </label>
-                          <Input
-                            id="correctPoints"
-                            type="number"
-                            min="0"
-                            value={currentTestScreen.scoring?.correct ?? defaultScoring.correct}
-                            onChange={(e) => handleScreenUpdate(currentScreen, {
-                              scoring: {
-                                ...currentTestScreen.scoring ?? defaultScoring,
-                                correct: Number(e.target.value)
-                              }
-                            })}
-                            placeholder="1"
-                          />
-                        </div>
-
-                        <div>
-                          <label htmlFor="incorrectPoints" className="block text-sm font-medium mb-1">
-                            Points for incorrect answer
-                          </label>
-                          <Input
-                            id="incorrectPoints"
-                            type="number"
-                            min="0"
-                            value={currentTestScreen.scoring?.incorrect ?? defaultScoring.incorrect}
-                            onChange={(e) => handleScreenUpdate(currentScreen, {
-                              scoring: {
-                                ...currentTestScreen.scoring ?? defaultScoring,
-                                incorrect: Number(e.target.value)
-                              }
-                            })}
-                            placeholder="1"
-                          />
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                          Example: If you configure "Points for correct answer" = 2 and "Points for incorrect answer" = 1
-                        then the user will gain 2 points for a correct answer and lose 1 point for an incorrect answer.
-                      </p>
                     </div>
-
-                    {/* Botones de acción para la pregunta actual */}
-                    <div className="flex justify-end gap-2 mt-4">
-                        
                     </div>
+                  )}
+                  {/* Configuración de puntuación */}
+                  <div className="border-t pt-6">
+                    <h4 className="text-sm font-medium mb-4">Question scoring</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label htmlFor="correctPoints" className="block text-sm font-medium mb-1">
+                          Points for correct answer
+                        </label>
+                        <Input
+                          id="correctPoints"
+                          type="number"
+                          min="0"
+                          value={currentTestScreen.scoring?.correct ?? defaultScoring.correct}
+                          onChange={(e) => handleScreenUpdate(currentScreen, {
+                            scoring: {
+                              ...currentTestScreen.scoring ?? defaultScoring,
+                              correct: Number(e.target.value)
+                            }
+                          })}
+                          placeholder="1"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="incorrectPoints" className="block text-sm font-medium mb-1">
+                          Points for incorrect answer
+                        </label>
+                        <Input
+                          id="incorrectPoints"
+                          type="number"
+                          min="0"
+                          value={currentTestScreen.scoring?.incorrect ?? defaultScoring.incorrect}
+                          onChange={(e) => handleScreenUpdate(currentScreen, {
+                            scoring: {
+                              ...currentTestScreen.scoring ?? defaultScoring,
+                              incorrect: Number(e.target.value)
+                            }
+                          })}
+                          placeholder="1"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                        Example: If you configure "Points for correct answer" = 2 and "Points for incorrect answer" = 1
+                      then the user will gain 2 points for a correct answer and lose 1 point for an incorrect answer.
+                    </p>
+                  </div>
+
+                  {/* Botones de acción para la pregunta actual */}
+                  <div className="flex justify-end gap-2 mt-4">
+                      
+                  </div>
                   </div>
                 ) : (
                   <div className="text-center py-8">
@@ -1157,27 +1164,27 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                   </div>
                 )}
 
-                {/* Navegación entre preguntas */}
+                  {/* Navegación entre preguntas */}
                 {screens.length > 0 && (
-                  <div className="flex justify-between items-center gap-2 pt-4">
+                    <div className="flex justify-between items-center gap-2 pt-4">
                     <div className="flex flex-wrap gap-2 max-w-full overflow-hidden">
                       {screens.length <= 10 ? (
                         // Si hay 10 o menos preguntas, mostrar todos los botones
                         screens.map((_, index) => (
-                          <MotionDiv
-                            key={index}
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                          >
-                            <Button
-                              variant={currentScreen === index ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setCurrentScreen(index)}
-                              className="w-8 h-8 p-0"
-                            >
-                              {index + 1}
-                            </Button>
-                          </MotionDiv>
+                      <MotionDiv
+                        key={index}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <Button
+                          variant={currentScreen === index ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentScreen(index)}
+                          className="w-8 h-8 p-0"
+                        >
+                          {index + 1}
+                        </Button>
+                      </MotionDiv>
                         ))
                       ) : (
                         // Si hay más de 10 preguntas, mostrar un formato paginado
@@ -1260,7 +1267,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                           </MotionDiv>
                         </>
                       )}
-                    </div>
+                      </div>
                   </div>
                 )}
               </MotionDiv>
@@ -1284,14 +1291,14 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 {currentTestScreen.description && 
                  currentTestScreen.description !== currentTestScreen.question && 
                  currentTestScreen.description !== currentTestScreen.title && (
-                  <MotionDiv 
-                    className="text-muted-foreground mt-2"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    {currentTestScreen.description}
-                  </MotionDiv>
+                <MotionDiv 
+                  className="text-muted-foreground mt-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  {currentTestScreen.description}
+                </MotionDiv>
                 )}
               </div>
 
