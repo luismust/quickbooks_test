@@ -8,10 +8,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogClose,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { X } from "lucide-react"
 
 interface UserNameDialogProps {
   isOpen: boolean
@@ -45,13 +47,29 @@ export function UserNameDialog({
     onSubmit(name.trim())
   }
 
+  const handleClose = () => {
+    if (onClose) {
+      onClose();
+    }
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open && onClose) {
-        onClose();
-      }
-    }}>
+    <Dialog 
+      open={isOpen} 
+      onOpenChange={(open) => {
+        if (!open) {
+          handleClose();
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-md">
+        <DialogClose 
+          onClick={handleClose}
+          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </DialogClose>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="text-xl">Welcome to the test</DialogTitle>
@@ -77,9 +95,14 @@ export function UserNameDialog({
           </div>
           
           <DialogFooter className="mt-6">
-            <Button type="submit" className="w-full">
-              Start Test
-            </Button>
+            <div className="flex gap-2 w-full">
+              <Button type="button" variant="outline" onClick={handleClose} className="flex-1">
+                Cancel
+              </Button>
+              <Button type="submit" className="flex-1">
+                Start Test
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
