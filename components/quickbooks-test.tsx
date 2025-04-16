@@ -1064,7 +1064,16 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       <IdentifyErrors
                         question={currentTestScreen.question}
                         answer={currentTestScreen.answer || ''}
-                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
+                        code={currentTestScreen.code || ''}
+                        onChange={(data) => {
+                          // Actualizar todos los campos que puedan haber cambiado
+                          const updates: Partial<Question> = {};
+                          if (data.question !== undefined) updates.question = data.question;
+                          if (data.answer !== undefined) updates.answer = data.answer;
+                          if (data.code !== undefined) updates.code = data.code;
+                          
+                          handleScreenUpdate(currentScreen, updates);
+                        }}
                         isEditMode={true}
                       />
                     </div>

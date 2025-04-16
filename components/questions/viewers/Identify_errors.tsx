@@ -8,11 +8,18 @@ import { Card } from "@/components/ui/card"
 interface IdentifyErrorsProps {
   question: string
   answer: string
-  onChange?: (data: { question: string; answer: string }) => void
+  code?: string
+  onChange?: (data: { question?: string; answer?: string; code?: string }) => void
   isEditMode?: boolean
 }
 
-export function IdentifyErrors({ question, answer, onChange, isEditMode = true }: IdentifyErrorsProps) {
+export function IdentifyErrors({ 
+  question, 
+  answer, 
+  code = "", 
+  onChange, 
+  isEditMode = true 
+}: IdentifyErrorsProps) {
   const [userAnswer, setUserAnswer] = useState("")
   const [showAnswer, setShowAnswer] = useState(false)
 
@@ -23,12 +30,31 @@ export function IdentifyErrors({ question, answer, onChange, isEditMode = true }
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2">
+              Question text
+            </label>
+            <Textarea
+              placeholder="Enter the question..."
+              value={question}
+              onChange={(e) => onChange?.({ 
+                question: e.target.value, 
+                answer, 
+                code 
+              })}
+              className="min-h-[100px]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">
               Code with errors
             </label>
             <Textarea
               placeholder="Paste here the code with errors..."
-              value={question}
-              onChange={(e) => onChange?.({ question: e.target.value, answer })}
+              value={code}
+              onChange={(e) => onChange?.({ 
+                question, 
+                answer, 
+                code: e.target.value 
+              })}
               className="min-h-[200px] font-mono"
             />
           </div>
@@ -39,7 +65,11 @@ export function IdentifyErrors({ question, answer, onChange, isEditMode = true }
             <Textarea
               placeholder="Paste here the corrected code..."
               value={answer}
-              onChange={(e) => onChange?.({ question, answer: e.target.value })}
+              onChange={(e) => onChange?.({ 
+                question, 
+                answer: e.target.value, 
+                code 
+              })}
               className="min-h-[200px] font-mono"
             />
           </div>
@@ -48,9 +78,9 @@ export function IdentifyErrors({ question, answer, onChange, isEditMode = true }
         // Modo vista/test
         <div className="space-y-4">
           <Card className="p-4">
-            <h4 className="text-sm font-medium mb-4">Identify and correct the errors in the following code:</h4>
+            <h4 className="text-sm font-medium mb-4">{question || "Identify and correct the errors in the following code:"}</h4>
             <pre className="bg-muted p-4 rounded-lg overflow-x-auto">
-              <code>{question}</code>
+              <code>{code}</code>
             </pre>
             <Textarea
               placeholder="Write the corrected code..."

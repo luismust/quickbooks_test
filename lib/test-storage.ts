@@ -55,6 +55,8 @@ export interface Question {
   _imageType?: 'reference' | 'base64' | 'url' | 'blob' | 'blobUrl' | 'apiUrl' | 'none' | 'error'  // Tipo de imagen
   _imageRef?: string           // Referencia a imagen (ID o nombre)
   _imageKey?: string           // Clave única para la imagen (para forzar recarga)
+  code?: string            // Código con errores para el tipo IdentifyErrors
+  answer?: string          // Respuesta correcta para distintos tipos de preguntas
   type: 'clickArea' |
   'multipleChoice' |
   'dragAndDrop' |
