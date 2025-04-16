@@ -638,7 +638,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
               handleAnswer(isCorrect, question.id)
             }
             isAnswered={isAnswered}
-            question={question.question}
           />
         )
 

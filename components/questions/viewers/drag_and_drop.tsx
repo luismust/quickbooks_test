@@ -18,14 +18,12 @@ interface DragAndDropProps {
   items?: DragItem[]
   onAnswer?: (isCorrect: boolean) => void
   isAnswered?: boolean
-  question?: string
 }
 
 export function DragAndDrop({ 
   items = [], 
   onAnswer, 
-  isAnswered = false,
-  question = "Drag the items to their correct categories" 
+  isAnswered = false
 }: DragAndDropProps) {
   // Extraer zonas únicas de los items
   const [zones, setZones] = useState<Zone[]>([])
@@ -40,12 +38,29 @@ export function DragAndDrop({
     // Obtener todas las zonas únicas
     const uniqueZoneIds = Array.from(new Set(items.map(item => item.correctZone)))
     
-    // Crear zonas con nombres genéricos si no existen
-    const initialZones = uniqueZoneIds.map((zoneId, index) => ({
+    // Crear un mapa de nombres de zonas (usando el primer elemento como referencia para cada zona)
+    const zoneNames: Record<string, string> = {};
+    
+    items.forEach(item => {
+      if (item.correctZone && !zoneNames[item.correctZone]) {
+        // Buscar un elemento que tenga esta zona como correcta para extraer su nombre
+        const matchingItem = items.find(i => i.correctZone === item.correctZone);
+        if (matchingItem) {
+          // Intentar extraer un nombre descriptivo de la zona desde el item o el ID
+          // Por ejemplo, si hay un pattern "zone:nombre" o simplemente usar el ID como nombre
+          zoneNames[item.correctZone] = item.correctZone.includes(':') 
+            ? item.correctZone.split(':')[1] 
+            : `Zone ${Object.keys(zoneNames).length + 1}`;
+        }
+      }
+    });
+    
+    // Crear zonas con nombres obtenidos o genéricos si no existen
+    const initialZones = uniqueZoneIds.map((zoneId) => ({
       id: zoneId,
-      name: `Zone ${index + 1}`,
+      name: zoneNames[zoneId] || `Zone ${uniqueZoneIds.indexOf(zoneId) + 1}`,
       items: [] as DragItem[]
-    }))
+    }));
     
     // Añadir una zona para items sin asignar
     const unassignedZone = {
@@ -139,18 +154,84 @@ export function DragAndDrop({
     )
   }
   
+  // Función auxiliar para renderizar los items arrastrables
+  const renderDraggableItem = (item: DragItem, zoneId: string) => (
+    <div 
+      key={item.id}
+      className={`flex items-center p-2 border rounded-md cursor-move 
+        ${hasSubmitted 
+          ? item.correctZone === zoneId 
+            ? "bg-green-100 border-green-300" 
+            : "bg-red-100 border-red-300"
+          : "bg-white"}
+      `}
+      draggable={!hasSubmitted && !isAnswered}
+      onDragStart={(e) => {
+        if (hasSubmitted || isAnswered) {
+          e.preventDefault()
+          return
+        }
+        e.dataTransfer.setData("itemId", item.id)
+      }}
+    >
+      <GripVertical className="h-4 w-4 mr-2 text-gray-400" />
+      <span className="flex-1">{item.text}</span>
+      
+      {/* Mostrar indicador de correcto/incorrecto después de enviar */}
+      {hasSubmitted && (
+        item.correctZone === zoneId ? (
+          <Check className="h-4 w-4 text-green-600" />
+        ) : (
+          <X className="h-4 w-4 text-red-600" />
+        )
+      )}
+    </div>
+  )
+  
+  // Separar la zona de origen y las zonas de destino
+  const sourceZone = zones.find(zone => zone.id === "unassigned");
+  const targetZones = zones.filter(zone => zone.id !== "unassigned");
+  
   return (
     <div className="space-y-6">
-      <p className="text-gray-700">{question}</p>
+      {/* Zona de origen con items por clasificar */}
+      {sourceZone && (
+        <Card className="p-4">
+          <h3 className="text-sm font-medium mb-2">{sourceZone.name}</h3>
+          
+          <div 
+            className="min-h-[100px] border-2 border-dashed border-gray-200 rounded-md p-2"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault()
+              const itemId = e.dataTransfer.getData("itemId")
+              moveItemToZone(itemId, sourceZone.id)
+            }}
+          >
+            {sourceZone.items.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">
+                All items have been classified
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {sourceZone.items.map(item => 
+                  renderDraggableItem(item, sourceZone.id)
+                )}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
       
+      {/* Zonas de destino */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {zones.map(zone => (
+        {targetZones.map(zone => (
           <Card key={zone.id} className="p-4">
             <h3 className="text-sm font-medium mb-2">{zone.name}</h3>
             
             <div 
               className={`min-h-[120px] border-2 rounded-md p-2 ${
-                hasSubmitted && zone.id !== "unassigned" 
+                hasSubmitted 
                   ? isCorrect 
                     ? "border-green-200 bg-green-50" 
                     : "border-red-200 bg-red-50"
@@ -169,38 +250,9 @@ export function DragAndDrop({
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {zone.items.map(item => (
-                    <div 
-                      key={item.id}
-                      className={`flex items-center p-2 border rounded-md cursor-move 
-                        ${hasSubmitted 
-                          ? item.correctZone === zone.id 
-                            ? "bg-green-100 border-green-300" 
-                            : "bg-red-100 border-red-300"
-                          : "bg-white"}
-                      `}
-                      draggable={!hasSubmitted && !isAnswered}
-                      onDragStart={(e) => {
-                        if (hasSubmitted || isAnswered) {
-                          e.preventDefault()
-                          return
-                        }
-                        e.dataTransfer.setData("itemId", item.id)
-                      }}
-                    >
-                      <GripVertical className="h-4 w-4 mr-2 text-gray-400" />
-                      <span className="flex-1">{item.text}</span>
-                      
-                      {/* Mostrar indicador de correcto/incorrecto después de enviar */}
-                      {hasSubmitted && (
-                        item.correctZone === zone.id ? (
-                          <Check className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <X className="h-4 w-4 text-red-600" />
-                        )
-                      )}
-                    </div>
-                  ))}
+                  {zone.items.map(item => 
+                    renderDraggableItem(item, zone.id)
+                  )}
                 </div>
               )}
             </div>
