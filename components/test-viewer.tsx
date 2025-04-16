@@ -472,7 +472,27 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
 
   // Función para volver a la lista de tests
   const handleGoBackToTests = () => {
-    router.push('/tests');
+    console.log("Navegando de vuelta a la lista de tests...");
+    try {
+      // Intenta primero con router.push
+      router.push('/tests');
+      
+      // Como alternativa, también podemos probar con window.location
+      if (typeof window !== 'undefined') {
+        setTimeout(() => {
+          if (window.location.pathname !== '/tests') {
+            console.log("Usando window.location como respaldo");
+            window.location.href = '/tests';
+          }
+        }, 200);
+      }
+    } catch (error) {
+      console.error("Error navegando a /tests:", error);
+      // Último recurso: recargar la página
+      if (typeof window !== 'undefined') {
+        window.location.href = '/tests';
+      }
+    }
   }
 
   if (!processedQuestions || processedQuestions.length === 0) {

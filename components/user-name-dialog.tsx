@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -8,12 +8,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogClose,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { X } from "lucide-react"
 
 interface UserNameDialogProps {
   isOpen: boolean
@@ -30,6 +28,16 @@ export function UserNameDialog({
 }: UserNameDialogProps) {
   const [name, setName] = useState("")
   const [error, setError] = useState("")
+
+  // Para depuración - registramos cuando se monta, actualiza y desmonta el componente
+  useEffect(() => {
+    console.log("UserNameDialog mounted/updated, isOpen:", isOpen);
+    console.log("onClose function exists:", !!onClose);
+    
+    return () => {
+      console.log("UserNameDialog unmounted");
+    };
+  }, [isOpen, onClose]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,8 +56,18 @@ export function UserNameDialog({
   }
 
   const handleClose = () => {
+    console.log("Cancel button clicked, calling onClose");
+    // Navegar directamente usando window.location.href
+    if (typeof window !== 'undefined') {
+      window.location.href = '/tests';
+      return;
+    }
+    
+    // Como plan B, intentar usar onClose
     if (onClose) {
       onClose();
+    } else {
+      console.warn("onClose is not defined and window is not available");
     }
   }
 
@@ -57,19 +75,13 @@ export function UserNameDialog({
     <Dialog 
       open={isOpen} 
       onOpenChange={(open) => {
+        console.log("Dialog onOpenChange triggered, open:", open);
         if (!open) {
           handleClose();
         }
       }}
     >
       <DialogContent className="sm:max-w-md">
-        <DialogClose 
-          onClick={handleClose}
-          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </DialogClose>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="text-xl">Welcome to the test</DialogTitle>
@@ -96,8 +108,13 @@ export function UserNameDialog({
           
           <DialogFooter className="mt-6">
             <div className="flex gap-2 w-full">
-              <Button type="button" variant="outline" onClick={handleClose} className="flex-1">
-                Cancel
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={handleClose} 
+                className="flex-1"
+              >
+                Back to Tests
               </Button>
               <Button type="submit" className="flex-1">
                 Start Test
