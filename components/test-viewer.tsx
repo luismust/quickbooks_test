@@ -17,6 +17,9 @@ import type { Area, Test, Question } from "@/lib/test-storage"
 import { createProxyImage, getBestImageUrl, preloadQuestionImages } from "@/lib/image-utils"
 import { IdentifyErrors } from "@/components/questions/viewers/Identify_errors"
 import { DragAndDrop } from "@/components/questions/viewers/drag_and_drop"
+import { Sequence } from "@/components/questions/viewers/sequence"
+import { OpenQuestion } from "@/components/questions/viewers/open_question"
+import { PhraseComplete } from "@/components/questions/viewers/phrase_complete"
 
 interface Connection {
   start: string
@@ -642,12 +645,39 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         )
 
       case 'sequence':
+        return (
+          <Sequence
+            question={question.question}
+            answer={question.sequence || []}
+            isEditMode={false}
+            onAnswerSubmit={(isCorrect: boolean) => 
+              handleAnswer(isCorrect, question.id)
+            }
+          />
+        )
+        
       case 'openquestion':
+        return (
+          <OpenQuestion
+            question={question.question}
+            answer={question.answer || ''}
+            isEditMode={false}
+            onAnswerSubmit={(isCorrect) => 
+              handleAnswer(isCorrect, question.id)
+            }
+          />
+        )
+
       case 'phrasecomplete':
         return (
-          <div className="p-4 text-center text-muted-foreground">
-            This type of question is not implemented yet
-          </div>
+          <PhraseComplete
+            question={question.question}
+            answer={question.answer || ''}
+            isEditMode={false}
+            onAnswerSubmit={(isCorrect) => 
+              handleAnswer(isCorrect, question.id)
+            }
+          />
         )
 
       case 'identifyerrors':

@@ -21,7 +21,7 @@ import { DragAndDropEditor } from "@/components/questions/editors/drag-and-drop-
 import { SequenceEditor } from "@/components/questions/editors/sequence-editor"
 import { PointAPoint } from "@/components/questions/viewers/point_a_point"
 import { OpenQuestion } from "@/components/questions/viewers/open_question"
-import { IdentifyErrors } from "@/components/questions/editors/Identify_errors"
+import { IdentifyErrors } from "@/components/questions/viewers/Identify_errors"
 import { IdentifyErrors as IdentifyErrorsViewer } from "@/components/questions/viewers/Identify_errors"
 import { PhraseComplete } from "@/components/questions/viewers/phrase_complete"
 import { TrueOrFalseEditor } from "@/components/questions/editors/true_or_false_editor"
@@ -33,6 +33,8 @@ import { ImageErrorEditor } from "@/components/questions/editors/image_error_edi
 import { ImageHotspotsEditor } from "@/components/questions/editors/image_hotspots_editor"
 import { ImageSequenceEditor } from "@/components/questions/editors/image_sequence_editor"
 import { useLocalStorage } from "@/components/local-storage-provider"
+import { OpenQuestionEditor } from "@/components/questions/editors/open-question-editor"
+import { PhraseCompleteEditor } from "@/components/questions/editors/phrase-complete-editor"
 
 // Definir el tipo MotionDiv para TypeScript
 const MotionDiv = motion.div
@@ -1052,11 +1054,10 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                   )}
                     {currentTestScreen.type === 'openQuestion' && (
                     <div className="border-t pt-6">
-                      <OpenQuestion
+                      <OpenQuestionEditor
                         question={currentTestScreen.question}
                         answer={currentTestScreen.answer || ''}
                         onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                        isEditMode={true}
                       />
                     </div>
                   )}
@@ -1081,7 +1082,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                   )}
                   {currentTestScreen.type === 'phraseComplete' && (
                     <div className="border-t pt-6">
-                      <PhraseComplete
+                      <PhraseCompleteEditor
                         question={currentTestScreen.question}
                         answer={currentTestScreen.answer || ''}
                         onChange={(data) => handleScreenUpdate(currentScreen, data)}

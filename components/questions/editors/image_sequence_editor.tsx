@@ -18,22 +18,29 @@ interface SequenceImage {
 
 interface ImageSequenceEditorProps {
   question: string
-  images: SequenceImage[]
-  onChange: (data: {
-    question: string
-    images: SequenceImage[]
-  }) => void
+  answer: SequenceImage[]
+  onChange: (question: string, answer: SequenceImage[]) => void
+  isEditMode?: boolean
 }
 
 export function ImageSequenceEditor({
   question,
-  images,
-  onChange
+  answer,
+  onChange,
+  isEditMode = true
 }: ImageSequenceEditorProps) {
-  const [currentQuestion, setCurrentQuestion] = useState(question)
-  const [currentImages, setCurrentImages] = useState<SequenceImage[]>(images || [])
+  const [newImageDescription, setNewImageDescription] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isLoading, setIsLoading] = useState(false)
+
+  if (!isEditMode) {
+    return (
+      <div className="p-4 text-center">
+        <p className="text-muted-foreground">This component should only be used in edit mode</p>
+        <p className="text-xs text-muted-foreground">Use the image sequence viewer component for testing</p>
+      </div>
+    )
+  }
 
   const handleAddImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -54,19 +61,15 @@ export function ImageSequenceEditor({
     try {
       const imageUrl = URL.createObjectURL(file)
       const newImage: SequenceImage = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: crypto.randomUUID(),
         url: imageUrl,
-        order: currentImages.length,
-        description: ''
+        order: answer.length,
+        description: newImageDescription
       }
 
-      const updatedImages = [...currentImages, newImage]
-      setCurrentImages(updatedImages)
-      onChange({
-        question: currentQuestion,
-        images: updatedImages
-      })
-
+      const updatedImages = [...answer, newImage]
+      onChange(question, updatedImages)
+      setNewImageDescription("")
       toast.success('Image added successfully')
     } catch (error) {
       console.error('Error handling image:', error)
@@ -78,29 +81,25 @@ export function ImageSequenceEditor({
   }
 
   const handleRemoveImage = (id: string) => {
-    const updatedImages = currentImages.filter(img => img.id !== id)
+    const updatedImages = answer.filter(img => img.id !== id)
       .map((img, index) => ({
         ...img,
         order: index
       }))
     
-    setCurrentImages(updatedImages)
-    onChange({
-      question: currentQuestion,
-      images: updatedImages
-    })
+    onChange(question, updatedImages)
   }
 
   const handleMoveImage = (id: string, direction: 'up' | 'down') => {
-    const currentIndex = currentImages.findIndex(img => img.id === id)
+    const currentIndex = answer.findIndex(img => img.id === id)
     if (
       (direction === 'up' && currentIndex === 0) || 
-      (direction === 'down' && currentIndex === currentImages.length - 1)
+      (direction === 'down' && currentIndex === answer.length - 1)
     ) {
       return // Can't move up if first, or down if last
     }
 
-    const imagesCopy = [...currentImages]
+    const imagesCopy = [...answer]
     const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
     
     // Swap the items
@@ -114,72 +113,64 @@ export function ImageSequenceEditor({
       order: idx
     }))
     
-    setCurrentImages(updatedImages)
-    onChange({
-      question: currentQuestion,
-      images: updatedImages
-    })
+    onChange(question, updatedImages)
   }
 
   const handleDescriptionChange = (id: string, description: string) => {
-    const updatedImages = currentImages.map(img => 
+    const updatedImages = answer.map(img => 
       img.id === id ? { ...img, description } : img
     )
     
-    setCurrentImages(updatedImages)
-    onChange({
-      question: currentQuestion,
-      images: updatedImages
-    })
-  }
-
-  const handleQuestionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setCurrentQuestion(e.target.value)
-    onChange({
-      question: e.target.value,
-      images: currentImages
-    })
+    onChange(question, updatedImages)
   }
 
   return (
-    <Card className="p-4">
+    <div className="space-y-6">
       <div className="space-y-4">
-        <div>
-          <Label htmlFor="question">Question</Label>
-          <Textarea
-            id="question"
-            value={currentQuestion}
-            onChange={handleQuestionChange}
-            placeholder="Write the question..."
-            className="mt-1"
-          />
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium">Sequence Images</h3>
+          <div className="text-xs text-muted-foreground">
+            The order here determines the correct sequence
+          </div>
         </div>
 
-        <div>
-          <Input
-            type="file"
-            accept="image/*"
-            onChange={handleAddImage}
-            className="hidden"
-            ref={fileInputRef}
-          />
-          <Button
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
-            className="w-full"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            {isLoading ? 'Loading...' : 'Add Image'}
-          </Button>
+        <div className="space-y-2">
+          <div className="flex flex-col gap-2">
+            <Input
+              type="text"
+              placeholder="Description for the new image..."
+              value={newImageDescription}
+              onChange={(e) => setNewImageDescription(e.target.value)}
+              disabled={isLoading}
+            />
+            
+            <div className="flex gap-2">
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={handleAddImage}
+                className="hidden"
+                ref={fileInputRef}
+              />
+              <Button
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+                className="w-full"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {isLoading ? 'Loading...' : 'Add Image'}
+              </Button>
+            </div>
+          </div>
         </div>
 
-        {currentImages.length > 0 && (
+        {answer.length > 0 && (
           <div className="space-y-3">
-            {currentImages.map((image, index) => (
+            {answer.map((image, index) => (
               <div
                 key={image.id}
-                className="border rounded-md p-3 bg-background flex flex-col gap-2"
+                className="border rounded-md p-3 bg-card flex flex-col gap-2"
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-medium">Step {index + 1}</div>
@@ -196,14 +187,15 @@ export function ImageSequenceEditor({
                       variant="outline"
                       size="sm"
                       onClick={() => handleMoveImage(image.id, 'down')}
-                      disabled={index === currentImages.length - 1}
+                      disabled={index === answer.length - 1}
                     >
                       <MoveDown className="h-4 w-4" />
                     </Button>
                     <Button
-                      variant="destructive"
+                      variant="ghost"
                       size="sm"
                       onClick={() => handleRemoveImage(image.id)}
+                      className="text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -229,15 +221,17 @@ export function ImageSequenceEditor({
           </div>
         )}
 
-        {currentImages.length === 0 && (
-          <div className="text-center py-8 border border-dashed rounded-lg">
-            <p className="text-muted-foreground">No images added yet</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Add images and arrange them in the correct sequence
+        {answer.length === 0 && (
+          <div className="text-center py-8 border-2 border-dashed rounded-lg">
+            <p className="text-sm text-muted-foreground">
+              No images added yet.
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Add images and arrange them in the correct sequence.
             </p>
           </div>
         )}
       </div>
-    </Card>
+    </div>
   )
 } 

@@ -13,12 +13,23 @@ interface SequenceItem {
 }
 
 interface SequenceEditorProps {
-  sequence: SequenceItem[]
-  onChange: (sequence: SequenceItem[]) => void
+  question: string
+  answer: SequenceItem[]
+  onChange: (question: string, answer: SequenceItem[]) => void
+  isEditMode: boolean
 }
 
-export function SequenceEditor({ sequence, onChange }: SequenceEditorProps) {
+export function SequenceEditor({ question, answer, onChange, isEditMode = true }: SequenceEditorProps) {
   const [newItemText, setNewItemText] = useState("")
+
+  if (!isEditMode) {
+    return (
+      <div className="p-4 text-center">
+        <p className="text-muted-foreground">This component should only be used in edit mode</p>
+        <p className="text-xs text-muted-foreground">Use the sequence viewer component for testing</p>
+      </div>
+    )
+  }
 
   const handleAddItem = () => {
     if (!newItemText.trim()) return
@@ -26,23 +37,24 @@ export function SequenceEditor({ sequence, onChange }: SequenceEditorProps) {
     const newItem: SequenceItem = {
       id: crypto.randomUUID(),
       text: newItemText,
-      order: sequence.length // El nuevo item va al final
+      order: answer.length // New item goes at the end
     }
 
-    onChange([...sequence, newItem])
+    onChange(question, [...answer, newItem])
     setNewItemText("")
   }
 
   const handleDeleteItem = (id: string) => {
-    const updatedSequence = sequence
+    const updatedSequence = answer
       .filter(item => item.id !== id)
       .map((item, index) => ({ ...item, order: index }))
-    onChange(updatedSequence)
+    onChange(question, updatedSequence)
   }
 
   const handleUpdateText = (id: string, text: string) => {
     onChange(
-      sequence.map(item =>
+      question,
+      answer.map(item =>
         item.id === id
           ? { ...item, text }
           : item
@@ -51,12 +63,12 @@ export function SequenceEditor({ sequence, onChange }: SequenceEditorProps) {
   }
 
   const handleReorder = (reorderedItems: SequenceItem[]) => {
-    // Actualizar el orden después de reordenar
+    // Update order after reordering
     const updatedSequence = reorderedItems.map((item, index) => ({
       ...item,
       order: index
     }))
-    onChange(updatedSequence)
+    onChange(question, updatedSequence)
   }
 
   return (
@@ -92,11 +104,11 @@ export function SequenceEditor({ sequence, onChange }: SequenceEditorProps) {
 
         <Reorder.Group
           axis="y"
-          values={sequence}
+          values={answer}
           onReorder={handleReorder}
           className="space-y-2"
         >
-          {sequence.map((item) => (
+          {answer.map((item) => (
             <Reorder.Item
               key={item.id}
               value={item}
@@ -125,7 +137,7 @@ export function SequenceEditor({ sequence, onChange }: SequenceEditorProps) {
           ))}
         </Reorder.Group>
 
-        {sequence.length === 0 && (
+        {answer.length === 0 && (
           <div className="text-center py-8 border-2 border-dashed rounded-lg">
             <p className="text-sm text-muted-foreground">
               No elements in the sequence.
