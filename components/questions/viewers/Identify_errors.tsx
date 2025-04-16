@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card } from "@/components/ui/card"
+import { toast } from "sonner"
 
 interface IdentifyErrorsProps {
   question: string
@@ -11,6 +12,7 @@ interface IdentifyErrorsProps {
   code?: string
   onChange?: (data: { question?: string; answer?: string; code?: string }) => void
   isEditMode?: boolean
+  onAnswerSubmit?: (isCorrect: boolean) => void
 }
 
 export function IdentifyErrors({ 
@@ -18,10 +20,43 @@ export function IdentifyErrors({
   answer, 
   code = "", 
   onChange, 
-  isEditMode = true 
+  isEditMode = true,
+  onAnswerSubmit
 }: IdentifyErrorsProps) {
   const [userAnswer, setUserAnswer] = useState("")
   const [showAnswer, setShowAnswer] = useState(false)
+  const [hasSubmitted, setHasSubmitted] = useState(false)
+  const [isCorrect, setIsCorrect] = useState(false)
+
+  // Función para comparar la respuesta del usuario con la respuesta correcta
+  const checkAnswer = () => {
+    // Normalizar respuestas (eliminar espacios en blanco adicionales)
+    const normalizedUserAnswer = userAnswer.trim().replace(/\s+/g, ' ');
+    const normalizedCorrectAnswer = answer.trim().replace(/\s+/g, ' ');
+    
+    // Comparar las respuestas normalizadas
+    const correct = normalizedUserAnswer === normalizedCorrectAnswer;
+    
+    setIsCorrect(correct);
+    setHasSubmitted(true);
+    
+    // Notificar al componente padre si existe el callback
+    if (onAnswerSubmit) {
+      onAnswerSubmit(correct);
+    }
+    
+    // Mostrar toast con feedback
+    if (correct) {
+      toast.success("¡Correcto! Tu respuesta es correcta.");
+    } else {
+      toast.error("Incorrecto. Revisa tu solución.");
+    }
+    
+    // Mostrar la respuesta correcta si es incorrecta
+    if (!correct) {
+      setShowAnswer(true);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -87,17 +122,39 @@ export function IdentifyErrors({
               value={userAnswer}
               onChange={(e) => setUserAnswer(e.target.value)}
               className="mt-4 min-h-[200px] font-mono"
+              disabled={hasSubmitted}
             />
+            
+            {!hasSubmitted && (
+              <div className="flex justify-end mt-4">
+                <Button 
+                  onClick={checkAnswer}
+                  disabled={!userAnswer.trim()}
+                >
+                  Submit Answer
+                </Button>
+              </div>
+            )}
+            
+            {hasSubmitted && (
+              <div className={`mt-4 p-3 rounded-md ${isCorrect ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                <p className="font-medium">
+                  {isCorrect ? '¡Correcto! Tu respuesta es correcta.' : 'Incorrecto. Revisa tu solución.'}
+                </p>
+              </div>
+            )}
           </Card>
 
-          <div className="flex justify-end gap-2">
-            <Button 
-              variant="outline"
-              onClick={() => setShowAnswer(!showAnswer)}
-            >
-              {showAnswer ? "Hide solution" : "Show solution"}
-            </Button>
-          </div>
+          {(showAnswer || hasSubmitted) && (
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline"
+                onClick={() => setShowAnswer(!showAnswer)}
+              >
+                {showAnswer ? "Hide solution" : "Show solution"}
+              </Button>
+            </div>
+          )}
 
           {showAnswer && (
             <Card className="p-4 bg-muted">

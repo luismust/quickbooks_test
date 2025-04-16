@@ -22,6 +22,7 @@ import { SequenceEditor } from "@/components/questions/editors/sequence-editor"
 import { PointAPoint } from "@/components/questions/viewers/point_a_point"
 import { OpenQuestion } from "@/components/questions/viewers/open_question"
 import { IdentifyErrors } from "@/components/questions/editors/Identify_errors"
+import { IdentifyErrors as IdentifyErrorsViewer } from "@/components/questions/viewers/Identify_errors"
 import { PhraseComplete } from "@/components/questions/viewers/phrase_complete"
 import { TrueOrFalseEditor } from "@/components/questions/editors/true_or_false_editor"
 import { PointAPointEditor } from "@/components/questions/editors/point_a_point_editor"
@@ -1319,11 +1320,38 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 transition={{ delay: 0.4 }}
               >
                 {currentTestScreen.type === 'identifyErrors' ? (
-                  <IdentifyErrors
+                  <IdentifyErrorsViewer
                     question={currentTestScreen.question}
                     answer={currentTestScreen.answer || ''}
                     code={currentTestScreen.code || ''}
                     isEditMode={false}
+                    onAnswerSubmit={(isCorrect) => {
+                      // Si no se ha respondido ya a esta pregunta
+                      if (!answered.includes(currentTestScreen.id)) {
+                        // Actualizar la puntuación según si es correcta o no
+                        if (isCorrect) {
+                          const points = currentTestScreen.scoring?.correct || 1;
+                          setScore(prev => prev + points);
+                          setShowFeedback({ 
+                            correct: true, 
+                            message: `¡Correcto! +${points} ${points === 1 ? 'punto' : 'puntos'}` 
+                          });
+                        } else {
+                          const points = currentTestScreen.scoring?.incorrect || 1;
+                          setScore(prev => Math.max(0, prev - points));
+                          setShowFeedback({ 
+                            correct: false, 
+                            message: `Incorrecto. -${points} ${points === 1 ? 'punto' : 'puntos'}` 
+                          });
+                        }
+                        
+                        // Marcar la pregunta como respondida
+                        setAnswered(prev => [...prev, currentTestScreen.id]);
+                        
+                        // Ocultar el feedback después de un tiempo
+                        setTimeout(() => setShowFeedback(null), 2000);
+                      }
+                    }}
                   />
                 ) : currentImage ? (
                     <div className="relative">
