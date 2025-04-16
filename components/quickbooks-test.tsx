@@ -1135,23 +1135,106 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
 
                   {/* Navegación entre preguntas */}
                     <div className="flex justify-between items-center gap-2 pt-4">
-                      <div className="flex gap-2">
-                    {screens.map((_, index) => (
-                      <MotionDiv
-                        key={index}
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        <Button
-                          variant={currentScreen === index ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setCurrentScreen(index)}
-                          className="w-8 h-8 p-0"
-                        >
-                          {index + 1}
-                        </Button>
-                      </MotionDiv>
-                    ))}
+                      <div className="flex flex-wrap gap-2 max-w-full overflow-hidden">
+                        {screens.length <= 10 ? (
+                          // Si hay 10 o menos preguntas, mostrar todos los botones
+                          screens.map((_, index) => (
+                            <MotionDiv
+                              key={index}
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                            >
+                              <Button
+                                variant={currentScreen === index ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setCurrentScreen(index)}
+                                className="w-8 h-8 p-0"
+                              >
+                                {index + 1}
+                              </Button>
+                            </MotionDiv>
+                          ))
+                        ) : (
+                          // Si hay más de 10 preguntas, mostrar un formato paginado
+                          <>
+                            {/* Siempre mostrar la primera pregunta */}
+                            <MotionDiv
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                            >
+                              <Button
+                                variant={currentScreen === 0 ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setCurrentScreen(0)}
+                                className="w-8 h-8 p-0"
+                              >
+                                1
+                              </Button>
+                            </MotionDiv>
+                            
+                            {/* Si estamos lejos del inicio, mostrar elipsis */}
+                            {currentScreen > 3 && (
+                              <span className="flex items-center justify-center w-8 text-center">...</span>
+                            )}
+                            
+                            {/* Mostrar 5 botones alrededor de la pregunta actual */}
+                            {Array.from({ length: Math.min(5, screens.length) }, (_, i) => {
+                              // Calcular qué índices mostrar alrededor de la pregunta actual
+                              let index;
+                              if (currentScreen <= 2) {
+                                // Al inicio, mostrar preguntas 1-5
+                                index = i + 1;
+                              } else if (currentScreen >= screens.length - 3) {
+                                // Al final, mostrar las últimas 5 preguntas
+                                index = screens.length - 5 + i;
+                              } else {
+                                // En el medio, mostrar 2 antes y 2 después
+                                index = currentScreen + i - 2;
+                              }
+                              
+                              // Solo mostrar si está en rango y no es la primera ni última pregunta
+                              if (index > 0 && index < screens.length - 1 && index < screens.length) {
+                                return (
+                                  <MotionDiv
+                                    key={index}
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                  >
+                                    <Button
+                                      variant={currentScreen === index ? "default" : "outline"}
+                                      size="sm"
+                                      onClick={() => setCurrentScreen(index)}
+                                      className="w-8 h-8 p-0"
+                                    >
+                                      {index + 1}
+                                    </Button>
+                                  </MotionDiv>
+                                );
+                              }
+                              return null;
+                            }).filter(Boolean)}
+                            
+                            {/* Si estamos lejos del final, mostrar elipsis */}
+                            {currentScreen < screens.length - 4 && (
+                              <span className="flex items-center justify-center w-8 text-center">...</span>
+                            )}
+                            
+                            {/* Siempre mostrar la última pregunta */}
+                            <MotionDiv
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                            >
+                              <Button
+                                variant={currentScreen === screens.length - 1 ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setCurrentScreen(screens.length - 1)}
+                                className="w-8 h-8 p-0"
+                              >
+                                {screens.length}
+                              </Button>
+                            </MotionDiv>
+                          </>
+                        )}
                       </div>
                   </div>
                 </div>
