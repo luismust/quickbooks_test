@@ -1,6 +1,6 @@
 export interface Question {
   id: string
-  type: 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 'pointAPoint' | 'openQuestion' | 'identifyErrors' | 'phraseComplete' | 'trueOrFalse'
+  type: 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 'pointAPoint' | 'identifyErrors' | 'trueOrFalse' | 'imageSequence'
   title: string
   description: string
   question: string

@@ -18,8 +18,6 @@ import { createProxyImage, getBestImageUrl, preloadQuestionImages } from "@/lib/
 import { IdentifyErrors } from "@/components/questions/viewers/Identify_errors"
 import { DragAndDrop } from "@/components/questions/viewers/drag_and_drop"
 import { Sequence } from "@/components/questions/viewers/sequence"
-import { OpenQuestion } from "@/components/questions/viewers/open_question"
-import { PhraseComplete } from "@/components/questions/viewers/phrase_complete"
 
 interface Connection {
   start: string
@@ -656,30 +654,6 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
           />
         )
         
-      case 'openquestion':
-        return (
-          <OpenQuestion
-            question={question.question}
-            answer={question.answer || ''}
-            isEditMode={false}
-            onAnswerSubmit={(isCorrect) => 
-              handleAnswer(isCorrect, question.id)
-            }
-          />
-        )
-
-      case 'phrasecomplete':
-        return (
-          <PhraseComplete
-            question={question.question}
-            answer={question.answer || ''}
-            isEditMode={false}
-            onAnswerSubmit={(isCorrect) => 
-              handleAnswer(isCorrect, question.id)
-            }
-          />
-        )
-
       case 'identifyerrors':
         return (
           <IdentifyErrors

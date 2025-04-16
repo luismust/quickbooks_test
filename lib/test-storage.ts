@@ -62,14 +62,8 @@ export interface Question {
   'dragAndDrop' |
   'sequence' |
   'pointAPoint' |
-  'openQuestion' |
   'identifyErrors' |
-  'phraseComplete' |
   'trueOrFalse' |
-  'imageDescription' |
-  'imageComparison' |
-  'imageError' |
-  'imageHotspots' |
   'imageSequence'
   areas?: Area[]
   options?: {

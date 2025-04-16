@@ -20,21 +20,13 @@ import { MultipleChoiceEditor } from "@/components/questions/editors/multiple-ch
 import { DragAndDropEditor } from "@/components/questions/editors/drag-and-drop-editor"
 import { SequenceEditor } from "@/components/questions/editors/sequence-editor"
 import { PointAPoint } from "@/components/questions/viewers/point_a_point"
-import { OpenQuestion } from "@/components/questions/viewers/open_question"
 import { IdentifyErrors } from "@/components/questions/viewers/Identify_errors"
 import { IdentifyErrors as IdentifyErrorsViewer } from "@/components/questions/viewers/Identify_errors"
-import { PhraseComplete } from "@/components/questions/viewers/phrase_complete"
 import { TrueOrFalseEditor } from "@/components/questions/editors/true_or_false_editor"
 import { PointAPointEditor } from "@/components/questions/editors/point_a_point_editor"
 import { ImageAreaSelector } from "./image-area-selector"
-import { ImageDescriptionEditor } from "@/components/questions/editors/image_description_editor"
-import { ImageComparisonEditor } from "@/components/questions/editors/image_comparison_editor"
-import { ImageErrorEditor } from "@/components/questions/editors/image_error_editor"
-import { ImageHotspotsEditor } from "@/components/questions/editors/image_hotspots_editor"
 import { ImageSequenceEditor } from "@/components/questions/editors/image_sequence_editor"
 import { useLocalStorage } from "@/components/local-storage-provider"
-import { OpenQuestionEditor } from "@/components/questions/editors/open-question-editor"
-import { PhraseCompleteEditor } from "@/components/questions/editors/phrase-complete-editor"
 
 // Definir el tipo MotionDiv para TypeScript
 const MotionDiv = motion.div
@@ -77,9 +69,7 @@ interface ExtendedQuestion extends Omit<Question, '_localFile'> {
 
 // Actualizar el manejo de tipos para que sea más explícito
 type QuestionType = 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 
-  'pointAPoint' | 'openQuestion' | 'identifyErrors' | 'phraseComplete' | 
-  'trueOrFalse' | 'imageDescription' | 'imageComparison' | 'imageError' | 
-  'imageHotspots' | 'imageSequence';
+  'pointAPoint' | 'identifyErrors' | 'trueOrFalse' | 'imageSequence';
 
 export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true }: QuickbooksTestProps) {
   const router = useRouter()
@@ -134,13 +124,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   const { isStaticMode, saveLocalTest } = useLocalStorage()
 
   // Array de tipos de preguntas premium
-  const premiumQuestionTypes = [
-    'imageDescription', 
-    'imageComparison', 
-    'imageError', 
-    'imageHotspots', 
-    'imageSequence'
-  ];
+  const premiumQuestionTypes = ['imageSequence'];
   
   // Verificar si un tipo de pregunta es premium
   const isPremiumQuestionType = (type: string): boolean => premiumQuestionTypes.includes(type);
@@ -456,7 +440,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
   }, [currentScreen, screens])
 
   // Agregar selector de tipo de pregunta
-  const handleQuestionTypeChange = (type: 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 'pointAPoint' | 'openQuestion' | 'identifyErrors' | 'phraseComplete' | 'trueOrFalse') => {
+  const handleQuestionTypeChange = (type: 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 'pointAPoint' | 'identifyErrors' | 'trueOrFalse') => {
     handleScreenUpdate(currentScreen, {
       type,
       // Resetear campos específicos según el tipo
@@ -934,9 +918,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         // Si no es premium, permitir el cambio
                         // Forzar el tipo para evitar errores de tipado
                         const validType = value as 'clickArea' | 'multipleChoice' | 'dragAndDrop' | 'sequence' | 
-                                               'pointAPoint' | 'openQuestion' | 'identifyErrors' | 'phraseComplete' | 
-                                               'trueOrFalse' | 'imageDescription' | 'imageComparison' | 'imageError' | 
-                                               'imageHotspots' | 'imageSequence';
+                                               'pointAPoint' | 'identifyErrors' | 'trueOrFalse' | 'imageSequence';
                         handleScreenUpdate(currentScreen, { type: validType });
                       }}
                     >
@@ -950,36 +932,10 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         <SelectItem value="dragAndDrop">Drag and Drop</SelectItem>
                         <SelectItem value="sequence">Sequence</SelectItem>
                         <SelectItem value="pointAPoint">Point to Point</SelectItem>
-                        <SelectItem value="openQuestion">Open Question</SelectItem>
                         <SelectItem value="identifyErrors">Identify Errors</SelectItem>
-                        <SelectItem value="phraseComplete">Phrase Complete</SelectItem>
                         <SelectItem value="trueOrFalse">True or False</SelectItem>
                         
                           {/* Preguntas basadas en imágenes (premium) */}
-                          <SelectItem value="imageDescription">
-                            <div className="flex items-center">
-                              <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
-                              Image Description
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="imageComparison">
-                            <div className="flex items-center">
-                              <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
-                              Image Comparison
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="imageError">
-                            <div className="flex items-center">
-                              <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
-                              Image Error
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="imageHotspots">
-                            <div className="flex items-center">
-                              <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
-                              Image Hotspots
-                            </div>
-                          </SelectItem>
                           <SelectItem value="imageSequence">
                             <div className="flex items-center">
                               <Lock className="h-3.5 w-3.5 mr-2 text-amber-500" />
@@ -1052,16 +1008,7 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       />
                     </div>
                   )}
-                    {currentTestScreen.type === 'openQuestion' && (
-                    <div className="border-t pt-6">
-                      <OpenQuestionEditor
-                        question={currentTestScreen.question}
-                        answer={currentTestScreen.answer || ''}
-                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
-                      />
-                    </div>
-                  )}
-                  {currentTestScreen.type === 'identifyErrors' && (
+                    {currentTestScreen.type === 'identifyErrors' && (
                     <div className="border-t pt-6">
                       <IdentifyErrors
                         question={currentTestScreen.question}
@@ -1076,16 +1023,6 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                           
                           handleScreenUpdate(currentScreen, updates);
                         }}
-                        isEditMode={true}
-                      />
-                    </div>
-                  )}
-                  {currentTestScreen.type === 'phraseComplete' && (
-                    <div className="border-t pt-6">
-                      <PhraseCompleteEditor
-                        question={currentTestScreen.question}
-                        answer={currentTestScreen.answer || ''}
-                        onChange={(data) => handleScreenUpdate(currentScreen, data)}
                         isEditMode={true}
                       />
                     </div>
