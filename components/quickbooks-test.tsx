@@ -21,7 +21,7 @@ import { DragAndDropEditor } from "@/components/questions/editors/drag-and-drop-
 import { SequenceEditor } from "@/components/questions/editors/sequence-editor"
 import { PointAPoint } from "@/components/questions/viewers/point_a_point"
 import { OpenQuestion } from "@/components/questions/viewers/open_question"
-import { IdentifyErrors } from "@/components/questions/viewers/Identify_errors"
+import { IdentifyErrors } from "@/components/questions/editors/Identify_errors"
 import { PhraseComplete } from "@/components/questions/viewers/phrase_complete"
 import { TrueOrFalseEditor } from "@/components/questions/editors/true_or_false_editor"
 import { PointAPointEditor } from "@/components/questions/editors/point_a_point_editor"
@@ -1318,7 +1318,14 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.4 }}
               >
-                {currentImage && (
+                {currentTestScreen.type === 'identifyErrors' ? (
+                  <IdentifyErrors
+                    question={currentTestScreen.question}
+                    answer={currentTestScreen.answer || ''}
+                    code={currentTestScreen.code || ''}
+                    isEditMode={false}
+                  />
+                ) : currentImage ? (
                     <div className="relative">
                   <ImageMap
                           key={`image-map-${currentScreen}-${currentImage.slice(0, 20)}`}
@@ -1338,12 +1345,11 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                         }}
                       />
                     </div>
-                )}
-                {!currentImage && isEditMode && (
+                ) : isEditMode && (
                   <div className="border rounded-md p-4 text-center text-muted-foreground">
                     Add an image URL to start
-            </div>
-          )}
+                  </div>
+                )}
               </MotionDiv>
             </MotionDiv>
           )}
