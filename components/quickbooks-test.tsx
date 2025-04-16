@@ -995,8 +995,13 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                   {currentTestScreen.type === 'sequence' && (
                     <div className="border-t pt-6">
                       <SequenceEditor
-                        sequence={currentTestScreen.sequence || []}
-                        onChange={(sequence) => handleScreenUpdate(currentScreen, { sequence })}
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.sequence || []}
+                        onChange={(question, answer) => handleScreenUpdate(currentScreen, { 
+                          question: question,
+                          sequence: answer 
+                        })}
+                        isEditMode={true}
                       />
                     </div>
                   )}
@@ -1038,6 +1043,21 @@ export function QuickbooksTest({ initialTest, isEditMode: initialEditMode = true
                       />
                     </div>
                   )}
+                  
+                  {currentTestScreen.type === 'imageSequence' && (
+                    <div className="border-t pt-6">
+                      <ImageSequenceEditor
+                        question={currentTestScreen.question}
+                        answer={currentTestScreen.images || []}
+                        onChange={(question, answer) => handleScreenUpdate(currentScreen, { 
+                          question: question,
+                          images: answer 
+                        })}
+                        isEditMode={true}
+                      />
+                    </div>
+                  )}
+                  
                     {/* Para tipos premium, mostrar mensaje de bloqueo en lugar del editor */}
                     {isPremiumQuestionType(currentTestScreen.type) && (
                     <div className="border-t pt-6">

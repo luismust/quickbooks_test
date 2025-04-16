@@ -38,6 +38,13 @@ export interface SequenceItem {
   order: number
 }
 
+export interface SequenceImage {
+  id: string
+  url: string
+  order: number
+  description: string
+}
+
 export interface Question {
   id: string
   title: string
@@ -74,6 +81,7 @@ export interface Question {
   correctAnswer?: boolean
   items?: DragItem[]
   sequence?: SequenceItem[]
+  images?: SequenceImage[]
   points?: {
     id: string
     text: string
