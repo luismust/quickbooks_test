@@ -16,6 +16,7 @@ import { UserNameDialog } from "./user-name-dialog"
 import type { Area, Test, Question } from "@/lib/test-storage"
 import { createProxyImage, getBestImageUrl, preloadQuestionImages } from "@/lib/image-utils"
 import { IdentifyErrors } from "@/components/questions/viewers/Identify_errors"
+import { DragAndDrop } from "@/components/questions/viewers/drag_and_drop"
 
 interface Connection {
   start: string
@@ -622,6 +623,17 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         )
 
       case 'dragAndDrop':
+        return (
+          <DragAndDrop
+            items={question.items || []}
+            onAnswer={(isCorrect: boolean) => 
+              handleAnswer(isCorrect, question.id)
+            }
+            isAnswered={isAnswered}
+            question={question.question}
+          />
+        )
+
       case 'sequence':
       case 'openQuestion':
       case 'phraseComplete':
