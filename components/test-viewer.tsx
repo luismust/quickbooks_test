@@ -15,6 +15,7 @@ import { ResultsDialog } from "./results-dialog"
 import { UserNameDialog } from "./user-name-dialog"
 import type { Area, Test, Question } from "@/lib/test-storage"
 import { createProxyImage, getBestImageUrl, preloadQuestionImages } from "@/lib/image-utils"
+import { IdentifyErrors } from "@/components/questions/viewers/Identify_errors"
 
 interface Connection {
   start: string
@@ -623,12 +624,24 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       case 'dragAndDrop':
       case 'sequence':
       case 'openQuestion':
-      case 'identifyErrors':
       case 'phraseComplete':
         return (
           <div className="p-4 text-center text-muted-foreground">
             This type of question is not implemented yet
           </div>
+        )
+
+      case 'identifyErrors':
+        return (
+          <IdentifyErrors
+            question={question.question}
+            answer={question.answer || ''}
+            code={question.code || ''}
+            isEditMode={false}
+            onAnswerSubmit={(isCorrect) => 
+              handleAnswer(isCorrect, question.id)
+            }
+          />
         )
 
       default:

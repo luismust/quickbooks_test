@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card } from "@/components/ui/card"
 import { toast } from "sonner"
+import { IdentifyErrors as IdentifyErrorsEditor } from "@/components/questions/editors/Identify_errors"
 
 interface IdentifyErrorsProps {
   question: string
@@ -61,7 +62,7 @@ export function IdentifyErrors({
   return (
     <div className="space-y-4">
       {isEditMode ? (
-        // Modo edición
+        // Modo edición - Usamos el componente IdentifyErrorsEditor
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2">
@@ -78,36 +79,13 @@ export function IdentifyErrors({
               className="min-h-[100px]"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Code with errors
-            </label>
-            <Textarea
-              placeholder="Paste here the code with errors..."
-              value={code}
-              onChange={(e) => onChange?.({ 
-                question, 
-                answer, 
-                code: e.target.value 
-              })}
-              className="min-h-[200px] font-mono"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Corrected code
-            </label>
-            <Textarea
-              placeholder="Paste here the corrected code..."
-              value={answer}
-              onChange={(e) => onChange?.({ 
-                question, 
-                answer: e.target.value, 
-                code 
-              })}
-              className="min-h-[200px] font-mono"
-            />
-          </div>
+          <IdentifyErrorsEditor
+            question={question}
+            answer={answer}
+            code={code}
+            onChange={onChange}
+            isEditMode={true}
+          />
         </div>
       ) : (
         // Modo vista/test
