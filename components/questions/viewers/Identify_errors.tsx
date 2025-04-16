@@ -48,9 +48,9 @@ export function IdentifyErrors({
     
     // Mostrar toast con feedback
     if (correct) {
-      toast.success("¡Correcto! Tu respuesta es correcta.");
+      toast.success("Correct! Your answer is correct.");
     } else {
-      toast.error("Incorrecto. Revisa tu solución.");
+      toast.error("Incorrect. Review your solution.");
     }
     
     // Mostrar la respuesta correcta si es incorrecta
@@ -116,7 +116,7 @@ export function IdentifyErrors({
             {hasSubmitted && (
               <div className={`mt-4 p-3 rounded-md ${isCorrect ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
                 <p className="font-medium">
-                  {isCorrect ? '¡Correcto! Tu respuesta es correcta.' : 'Incorrecto. Revisa tu solución.'}
+                  {isCorrect ? 'Correct! Your answer is correct.' : 'Incorrect. Review your solution.'}
                 </p>
               </div>
             )}
