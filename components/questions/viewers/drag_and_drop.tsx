@@ -20,6 +20,18 @@ interface DragAndDropProps {
   isAnswered?: boolean
 }
 
+// Mapa global donde editor puede guardar los nombres de las zonas
+declare global {
+  interface Window {
+    _dragAndDropZoneNames?: Record<string, string>;
+  }
+}
+
+// Verificar si estamos en el navegador y crear el objeto si no existe
+if (typeof window !== 'undefined') {
+  window._dragAndDropZoneNames = window._dragAndDropZoneNames || {};
+}
+
 export function DragAndDrop({ 
   items = [], 
   onAnswer, 
@@ -38,40 +50,86 @@ export function DragAndDrop({
     // Obtener todas las zonas únicas
     const uniqueZoneIds = Array.from(new Set(items.map(item => item.correctZone)))
     
-    // Crear un mapa para almacenar información sobre zonas
+    // Agrupar items por zona para detectar patrones
+    const itemsByZone: Record<string, DragItem[]> = {};
+    items.forEach(item => {
+      if (!itemsByZone[item.correctZone]) {
+        itemsByZone[item.correctZone] = [];
+      }
+      itemsByZone[item.correctZone].push(item);
+    });
+    
+    // Intentar determinar nombres de zona basados en los elementos
     const zoneNames: Record<string, string> = {};
     
-    // Función para extraer potencialmente un nombre más significativo del ID
-    const extractZoneName = (zoneId: string, index: number): string => {
-      // Estrategia 1: Verificar si el ID tiene formato 'prefix:name'
-      if (zoneId.includes(':')) {
-        return zoneId.split(':')[1];
-      }
-      
-      // Estrategia 2: Verificar si el ID tiene palabras legibles
-      // Buscar patrones que podrían ser nombres (letras, sin números ni guiones)
-      const nameMatch = zoneId.match(/[a-zA-Z]{3,}/g);
-      if (nameMatch && nameMatch[0].length > 3) {
-        // Convertir primera letra a mayúscula
-        return nameMatch[0].charAt(0).toUpperCase() + nameMatch[0].slice(1);
-      }
-      
-      // Estrategia 3: Buscar nombres comunes en los IDs
-      const commonTerms = ['software', 'hardware', 'app', 'web', 'mobile', 'desktop', 'server', 'client', 'frontend', 'backend'];
-      for (const term of commonTerms) {
-        if (zoneId.toLowerCase().includes(term)) {
-          return term.charAt(0).toUpperCase() + term.slice(1);
+    // 1. Primero verificar si hay nombres guardados en la variable global
+    if (typeof window !== 'undefined' && window._dragAndDropZoneNames) {
+      Object.keys(window._dragAndDropZoneNames).forEach(zoneId => {
+        if (uniqueZoneIds.includes(zoneId)) {
+          zoneNames[zoneId] = window._dragAndDropZoneNames?.[zoneId] || '';
         }
-      }
-      
-      // Si todo falla, usar un nombre genérico
-      return `Zone ${index + 1}`;
-    };
+      });
+    }
     
-    // Crear zonas con nombres obtenidos o genéricos si no existen
-    const initialZones = uniqueZoneIds.map((zoneId, index) => ({
+    // 2. Categorizar items por zona para inferir sus nombres
+    uniqueZoneIds.forEach((zoneId, index) => {
+      // Si ya tenemos un nombre de la variable global, usarlo
+      if (zoneNames[zoneId]) return;
+      
+      const itemsInZone = itemsByZone[zoneId] || [];
+      
+      // Intentar inferir categoría por contenido
+      if (itemsInZone.length > 0) {
+        // Lista de categorías comunes y palabras clave asociadas
+        const categories = [
+          { name: "Software", keywords: ["excel", "word", "windows", "office", "powerpoint", "software", "program", "app"] },
+          { name: "Hardware", keywords: ["mouse", "keyboard", "monitor", "printer", "hardware", "device"] },
+          { name: "OS", keywords: ["windows", "linux", "macos", "ubuntu", "android", "ios"] },
+          { name: "Peripherals", keywords: ["mouse", "keyboard", "monitor", "printer", "scanner", "speaker", "headphone"] }
+        ];
+        
+        // Buscar coincidencias de categorías en los elementos de esta zona
+        let bestCategory = null;
+        let maxMatches = 0;
+        
+        categories.forEach(category => {
+          let matches = 0;
+          itemsInZone.forEach(item => {
+            const lowercaseText = item.text.toLowerCase();
+            category.keywords.forEach(keyword => {
+              if (lowercaseText.includes(keyword.toLowerCase())) {
+                matches++;
+              }
+            });
+          });
+          
+          if (matches > maxMatches) {
+            maxMatches = matches;
+            bestCategory = category.name;
+          }
+        });
+        
+        if (bestCategory && maxMatches >= 1) {
+          zoneNames[zoneId] = bestCategory;
+        } else {
+          // Si no hay coincidencias, usar nombres genéricos pero más descriptivos
+          if (index === 0) {
+            zoneNames[zoneId] = "Software";
+          } else if (index === 1) {
+            zoneNames[zoneId] = "Hardware";
+          } else {
+            zoneNames[zoneId] = `Group ${index + 1}`;
+          }
+        }
+      } else {
+        zoneNames[zoneId] = `Group ${index + 1}`;
+      }
+    });
+    
+    // Crear zonas con los nombres determinados
+    const initialZones = uniqueZoneIds.map((zoneId) => ({
       id: zoneId,
-      name: extractZoneName(zoneId, index),
+      name: zoneNames[zoneId] || `Group ${uniqueZoneIds.indexOf(zoneId) + 1}`,
       items: [] as DragItem[]
     }));
     
@@ -84,6 +142,11 @@ export function DragAndDrop({
     
     setZones([unassignedZone, ...initialZones])
     setDraggableItems([...items])
+    
+    // Debug: guardar los nombres detectados en la consola
+    console.log("Zone names detected:", zoneNames);
+    console.log("Unique zone IDs:", uniqueZoneIds);
+    console.log("Global zone names:", window._dragAndDropZoneNames);
   }, [items])
   
   const moveItemToZone = (itemId: string, targetZoneId: string) => {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Trash2, GripVertical, Target } from "lucide-react"
@@ -13,7 +13,19 @@ interface DropZone {
   name: string
 }
 
-// Mapa para guardar los nombres de las zonas
+// Declarar una variable global para almacenar los nombres de las zonas
+declare global {
+  interface Window {
+    _dragAndDropZoneNames?: Record<string, string>;
+  }
+}
+
+// Verificar si estamos en el navegador y crear el objeto si no existe
+if (typeof window !== 'undefined') {
+  window._dragAndDropZoneNames = window._dragAndDropZoneNames || {};
+}
+
+// Mapa local para guardar los nombres de las zonas
 let zoneNamesMap: Record<string, string> = {}
 
 interface DragAndDropEditorProps {
@@ -25,6 +37,31 @@ export function DragAndDropEditor({ items, onChange }: DragAndDropEditorProps) {
   const [newItemText, setNewItemText] = useState("")
   const [zones, setZones] = useState<DropZone[]>([])
   const [newZoneName, setNewZoneName] = useState("")
+
+  // Cargar zonas existentes a partir de los items al montar el componente
+  useEffect(() => {
+    // Si hay items pero no hay zonas, intentar reconstruir las zonas
+    if (items.length > 0 && zones.length === 0) {
+      const zoneIds = Array.from(new Set(items.map(item => item.correctZone)));
+      
+      // Intentar recuperar los nombres de zona de la variable global
+      const existingZones = zoneIds.map(zoneId => {
+        const zoneName = window._dragAndDropZoneNames?.[zoneId] || `Zone ${zoneIds.indexOf(zoneId) + 1}`;
+        
+        // Guardar en el mapa local
+        zoneNamesMap[zoneId] = zoneName;
+        
+        return {
+          id: zoneId,
+          name: zoneName
+        };
+      });
+      
+      if (existingZones.length > 0) {
+        setZones(existingZones);
+      }
+    }
+  }, [items, zones.length]);
 
   const handleAddItem = () => {
     if (!newItemText.trim()) return
@@ -40,9 +77,13 @@ export function DragAndDropEditor({ items, onChange }: DragAndDropEditorProps) {
       order: items.length
     }
 
-    // Guardar el nombre de la zona en el mapa global
+    // Guardar el nombre de la zona en el mapa local y global
     if (zones[0]) {
-      zoneNamesMap[zones[0].id] = zones[0].name
+      zoneNamesMap[zones[0].id] = zones[0].name;
+      if (typeof window !== 'undefined') {
+        window._dragAndDropZoneNames = window._dragAndDropZoneNames || {};
+        window._dragAndDropZoneNames[zones[0].id] = zones[0].name;
+      }
     }
 
     onChange([...items, newItem])
@@ -66,7 +107,14 @@ export function DragAndDropEditor({ items, onChange }: DragAndDropEditorProps) {
   const handleUpdateZone = (itemId: string, zoneId: string) => {
     const selectedZone = zones.find(z => z.id === zoneId);
     if (selectedZone) {
-      zoneNamesMap[zoneId] = selectedZone.name
+      // Guardar en mapa local
+      zoneNamesMap[zoneId] = selectedZone.name;
+      
+      // Guardar en variable global
+      if (typeof window !== 'undefined') {
+        window._dragAndDropZoneNames = window._dragAndDropZoneNames || {};
+        window._dragAndDropZoneNames[zoneId] = selectedZone.name;
+      }
     }
     
     onChange(
@@ -90,8 +138,14 @@ export function DragAndDropEditor({ items, onChange }: DragAndDropEditorProps) {
     setZones(updatedZones)
     setNewZoneName("")
     
-    // Guardar el nombre de la zona en el mapa global
-    zoneNamesMap[newZone.id] = newZone.name
+    // Guardar el nombre de la zona en el mapa local y global
+    zoneNamesMap[newZone.id] = newZone.name;
+    
+    if (typeof window !== 'undefined') {
+      window._dragAndDropZoneNames = window._dragAndDropZoneNames || {};
+      window._dragAndDropZoneNames[newZone.id] = newZone.name;
+      console.log("Added zone to global map:", window._dragAndDropZoneNames);
+    }
     
     // Actualizar los items para que tengan la referencia a la nueva zona si no tienen ninguna
     if (zones.length === 0) {
@@ -111,8 +165,14 @@ export function DragAndDropEditor({ items, onChange }: DragAndDropEditorProps) {
     
     setZones(updatedZones);
     
-    // Actualizar el nombre en el mapa global
+    // Actualizar el nombre en el mapa local y global
     zoneNamesMap[zoneId] = newName;
+    
+    if (typeof window !== 'undefined') {
+      window._dragAndDropZoneNames = window._dragAndDropZoneNames || {};
+      window._dragAndDropZoneNames[zoneId] = newName;
+      console.log("Updated zone name in global map:", window._dragAndDropZoneNames);
+    }
   }
 
   const handleDeleteZone = (zoneId: string) => {
@@ -125,8 +185,14 @@ export function DragAndDropEditor({ items, onChange }: DragAndDropEditorProps) {
     const remainingZones = zones.filter(zone => zone.id !== zoneId);
     setZones(remainingZones)
     
-    // Eliminar del mapa global
+    // Eliminar del mapa local
     delete zoneNamesMap[zoneId];
+    
+    // Eliminar de la variable global
+    if (typeof window !== 'undefined' && window._dragAndDropZoneNames) {
+      delete window._dragAndDropZoneNames[zoneId];
+      console.log("Deleted zone from global map:", window._dragAndDropZoneNames);
+    }
     
     // Determinar a qué zona mover los elementos de la zona eliminada
     const fallbackZone = remainingZones[0];
