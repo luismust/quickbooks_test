@@ -482,8 +482,16 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
   const renderQuestion = (question: Question) => {
     const isAnswered = answered.includes(question.id)
 
-    switch (question.type) {
-      case 'clickArea':
+    // Debug: imprimir el tipo de pregunta y sus propiedades
+    console.log(`Question type: ${question.type}`, 
+                `Has items: ${Boolean(question.items && question.items.length > 0)}`, 
+                `Items: ${JSON.stringify(question.items || [])}`)
+
+    // Normalizar el tipo de pregunta para evitar problemas de case-sensitivity
+    const questionType = question.type?.toLowerCase();
+
+    switch (questionType) {
+      case 'clickarea':
         return (
           <div className="relative">
             {/* Si la pregunta tiene imageId o image, utilizar ImageMap */}
@@ -578,7 +586,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
           </div>
         )
 
-      case 'trueOrFalse':
+      case 'trueorfalse':
         return (
           <TrueOrFalse
             question={question.question}
@@ -590,7 +598,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
           />
         )
 
-      case 'multipleChoice':
+      case 'multiplechoice':
         return (
           <MultipleChoice
             options={question.options || []}
@@ -603,7 +611,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
           />
         )
 
-      case 'pointAPoint':
+      case 'pointapoint':
         return (
           <PointAPoint
             points={question.points || []}
@@ -622,7 +630,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
           />
         )
 
-      case 'dragAndDrop':
+      case 'draganddrop':
         return (
           <DragAndDrop
             items={question.items || []}
@@ -635,15 +643,15 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         )
 
       case 'sequence':
-      case 'openQuestion':
-      case 'phraseComplete':
+      case 'openquestion':
+      case 'phrasecomplete':
         return (
           <div className="p-4 text-center text-muted-foreground">
             This type of question is not implemented yet
           </div>
         )
 
-      case 'identifyErrors':
+      case 'identifyerrors':
         return (
           <IdentifyErrors
             question={question.question}
