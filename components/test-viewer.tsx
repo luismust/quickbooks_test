@@ -97,6 +97,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
   const [testCompleted, setTestCompleted] = useState(false)
   const [connections, setConnections] = useState<{[key: string]: Connection[]}>({})
   const [loadedImages, setLoadedImages] = useState<{ [key: string]: string }>({})
+  const [imageRefreshKey, setImageRefreshKey] = useState(0)
   
   // Estado para el nombre del usuario
   const [userName, setUserName] = useState("")
@@ -115,6 +116,18 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
       setShowUserNameDialog(true);
     }
   }, [userName, showUserNameDialog]);
+
+  // Efecto para forzar la carga de imágenes al montar el componente
+  useEffect(() => {
+    // Una vez que el componente se ha montado, forzar una actualización
+    // para asegurar que las imágenes se cargan correctamente
+    const timerId = setTimeout(() => {
+      setImageRefreshKey(prev => prev + 1);
+      console.log("Forzando carga inicial de imágenes");
+    }, 200);
+    
+    return () => clearTimeout(timerId);
+  }, []); // Solo ejecutar una vez al montar el componente
 
   // Función mejorada para cargar y procesar la imagen desde URL externa
   const loadAndProcessImage = useCallback(async (url: string): Promise<string> => {
@@ -205,7 +218,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
   const processedQuestions = useMemo(() => {
     return test.questions.map(q => {
       // Crear un ID único para la imagen basado en su contenido
-      const imageKey = `img_${q.id}_${new Date().getTime()}`;
+      const imageKey = `img_${q.id}_${new Date().getTime()}_${imageRefreshKey}`;
       
       // Si no hay imagen o la imagen es una cadena vacía, no hay nada que procesar
       if (!q.image && !q.imageId && !q.blobUrl && !q.imageApiUrl) {
@@ -307,7 +320,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
         };
       }
     });
-  }, [test.questions]);
+  }, [test.questions, imageRefreshKey]);
   
   const currentQuestionData = processedQuestions[currentQuestion]
   const progress = ((answered.length) / processedQuestions.length) * 100
@@ -467,6 +480,13 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
     setUserName(name);
     setShowUserNameDialog(false);
     setTestStarted(true);
+    
+    // Forzar la recarga de las imágenes incrementando el key
+    setTimeout(() => {
+      setImageRefreshKey(prev => prev + 1);
+      console.log("Forzando recarga de imágenes después de enviar el nombre");
+    }, 100);
+    
     toast.success(`Welcome, ${name}! Your test will start now.`);
   }
 
@@ -521,6 +541,14 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
 
     switch (questionType) {
       case 'clickarea':
+        // Debug: Información de la imagen
+        console.log("Rendering clickArea image", {
+          questionId: question.id,
+          imageType: (question as any)._imageType,
+          imageSrc: getBestImageUrl(question),
+          imageRefreshKey
+        });
+        
         return (
           <div className="relative">
             {/* Si la pregunta tiene imageId o image, utilizar ImageMap */}
@@ -565,7 +593,7 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                     isDrawingMode={false}
                     isEditMode={false}
                     className="w-full h-auto object-contain"
-                    key={`question-${question.id}-${currentQuestion}`} // Use currentQuestion to ensure refresh
+                    key={`question-${question.id}-${currentQuestion}-${imageRefreshKey}`} // Add imageRefreshKey
                     onError={async () => {
                       console.error('Failed to load image in test view:', question.image);
                   
@@ -584,6 +612,9 @@ export function TestViewer({ test, onFinish }: TestViewerProps) {
                               ...prev,
                               [question.id]: url
                             }));
+                            
+                            // Forzar recarga incrementando la clave
+                            setImageRefreshKey(prev => prev + 1);
                           }
                         }
                       } catch (e) {
